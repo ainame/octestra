@@ -113,6 +113,7 @@ export async function run(): Promise<void> {
         context,
         contextString(lifecycleContext, "previous-status", "previous_status"),
         contextString(lifecycleContext, "current-status", "current_status"),
+        contextString(lifecycleContext, "trigger-actor", "trigger_actor", true),
         contextString(
           lifecycleContext,
           "trigger-actor-type",

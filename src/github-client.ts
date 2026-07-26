@@ -342,22 +342,6 @@ export class GitHubClient {
       ?.name;
   }
 
-  async clearStatus(issueNumber: number, fieldName: string): Promise<void> {
-    const field = await this.getSingleSelectField(fieldName);
-    await this.octokit.request(
-      "DELETE /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values/{issue_field_id}",
-      {
-        owner: this.owner,
-        repo: this.repo,
-        issue_number: issueNumber,
-        issue_field_id: field.id,
-        headers: {
-          "X-GitHub-Api-Version": "2026-03-10",
-        },
-      },
-    );
-  }
-
   private async getSingleSelectField(fieldName: string): Promise<IssueField> {
     const fieldsResponse = await this.octokit.request("GET /orgs/{org}/issue-fields", {
       org: this.owner,

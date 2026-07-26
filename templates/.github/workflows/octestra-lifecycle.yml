@@ -35,7 +35,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  # Restores invalid human transitions and only dispatches valid transitions.
+  # Warns on invalid human transitions and only dispatches valid transitions.
   transition-guard:
     name: Validate transition
     runs-on: ${{ fromJSON(inputs.workflow-context).runners.orchestration }}
@@ -53,7 +53,7 @@ jobs:
           repositories: ${{ github.repository }}
           private-key: ${{ secrets.github_app_private_key }}
 
-      - name: Validate and heal state transition
+      - name: Validate state transition
         id: guard
         uses: ainame/octestra@main
         with:

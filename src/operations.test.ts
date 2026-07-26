@@ -73,7 +73,6 @@ function createClient(overrides: Partial<OperationsClient> = {}): OperationsClie
     comment: vi.fn(),
     getStatus: vi.fn(),
     updateStatus: vi.fn(),
-    clearStatus: vi.fn(),
     ...overrides,
   };
 }
@@ -305,63 +304,89 @@ describe("validateTransition", () => {
         createContext(client),
         previousStatus,
         currentStatus,
+        "task-owner",
         "User",
       ),
     ).resolves.toBe(true);
 
     expect(client.updateStatus).not.toHaveBeenCalled();
-    expect(client.clearStatus).not.toHaveBeenCalled();
   });
 
-  it("restores the previous status after an invalid user transition", async () => {
+  it("assigns and warns the triggering user after an invalid transition", async () => {
     const client = createClient({
       getStatus: vi.fn().mockResolvedValue("Validation"),
     });
 
     await expect(
-      validateTransition(createContext(client), "Todo", "Validation", "User"),
+      validateTransition(
+        createContext(client),
+        "Todo",
+        "Validation",
+        "task-owner",
+        "User",
+      ),
     ).resolves.toBe(false);
 
-    expect(client.updateStatus).toHaveBeenCalledWith(
+    expect(client.assignIssue).toHaveBeenCalledWith(123, "task-owner");
+    expect(client.comment).toHaveBeenCalledWith(
       123,
-      "AI Task Status",
-      "Todo",
+      expect.stringMatching(/@task-owner[\s\S]*`Todo -> Validation`/),
     );
+    expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
-  it("removes an invalid initial field value", async () => {
+  it("warns when an invalid initial field value is set", async () => {
     const client = createClient({
       getStatus: vi.fn().mockResolvedValue("Done"),
     });
 
-    await validateTransition(createContext(client), "", "Done", "User");
+    await validateTransition(createContext(client), "", "Done", "task-owner", "User");
 
-    expect(client.clearStatus).toHaveBeenCalledWith(123, "AI Task Status");
+    expect(client.assignIssue).toHaveBeenCalledWith(123, "task-owner");
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining("`(unset) -> Done`"),
+    );
+    expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
-  it("does not repeat a correction triggered by the GitHub App", async () => {
+  it("does not warn for an invalid transition triggered by a bot", async () => {
     const client = createClient({
       getStatus: vi.fn().mockResolvedValue("Todo"),
     });
 
-    await validateTransition(createContext(client), "Validation", "Todo", "Bot");
+    await validateTransition(
+      createContext(client),
+      "Validation",
+      "Todo",
+      "octestra-app[bot]",
+      "Bot",
+    );
 
     expect(client.updateStatus).not.toHaveBeenCalled();
-    expect(client.clearStatus).not.toHaveBeenCalled();
+    expect(client.assignIssue).not.toHaveBeenCalled();
+    expect(client.comment).not.toHaveBeenCalled();
   });
 
-  it("restores a status removed by a user", async () => {
+  it("warns when a user removes a status", async () => {
     const client = createClient({
       getStatus: vi.fn().mockResolvedValue(undefined),
     });
 
-    await validateTransition(createContext(client), "Validation", "", "User");
-
-    expect(client.updateStatus).toHaveBeenCalledWith(
-      123,
-      "AI Task Status",
+    await validateTransition(
+      createContext(client),
       "Validation",
+      "",
+      "task-owner",
+      "User",
     );
+
+    expect(client.assignIssue).toHaveBeenCalledWith(123, "task-owner");
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining("`Validation -> `"),
+    );
+    expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
   it("ignores a stale event when the live status has changed", async () => {
@@ -369,10 +394,17 @@ describe("validateTransition", () => {
       getStatus: vi.fn().mockResolvedValue("Blocked"),
     });
 
-    await validateTransition(createContext(client), "Todo", "Ready", "User");
+    await validateTransition(
+      createContext(client),
+      "Todo",
+      "Ready",
+      "task-owner",
+      "User",
+    );
 
     expect(client.updateStatus).not.toHaveBeenCalled();
-    expect(client.clearStatus).not.toHaveBeenCalled();
+    expect(client.assignIssue).not.toHaveBeenCalled();
+    expect(client.comment).not.toHaveBeenCalled();
   });
 });
 

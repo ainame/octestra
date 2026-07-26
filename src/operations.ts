@@ -39,7 +39,6 @@ export interface OperationsClient {
   comment(issueNumber: number, body: string): Promise<void>;
   getStatus(issueNumber: number, fieldName: string): Promise<string | undefined>;
   updateStatus(issueNumber: number, fieldName: string, status: string): Promise<void>;
-  clearStatus(issueNumber: number, fieldName: string): Promise<void>;
 }
 
 interface ActivityReport {
@@ -157,6 +156,7 @@ export async function validateTransition(
   context: OperationContext,
   previousStatus: string,
   currentStatus: string,
+  triggerActor: string,
   triggerActorType: string,
 ): Promise<boolean> {
   const liveStatus = await context.client.getStatus(
@@ -183,24 +183,16 @@ export async function validateTransition(
     return false;
   }
 
-  if (previousStatus) {
-    await context.client.updateStatus(
-      context.issueNumber,
-      context.statusFieldName,
-      previousStatus,
-    );
-  } else {
-    await context.client.clearStatus(context.issueNumber, context.statusFieldName);
-  }
-
-  await reportActivityBestEffort(context, {
-    status: previousStatus || "Unset",
-    outcome: "corrected",
-    summary: `Rejected invalid AI Task Status transition: ${transition}.`,
-    details: previousStatus
-      ? `The status was restored to \`${previousStatus}\`.`
-      : "The field value was removed because new tasks must start in `Todo`.",
-  });
+  await context.client.assignIssue(context.issueNumber, triggerActor);
+  await context.client.comment(
+    context.issueNumber,
+    [
+      `@${triggerActor} this AI Task Status transition is not part of the Octestra workflow:`,
+      `\`${transition}\`.`,
+      "",
+      "The status was not changed automatically. Please correct it manually if this transition was unintended.",
+    ].join("\n"),
+  );
   return false;
 }
 

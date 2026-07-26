@@ -112,7 +112,7 @@ issues and closures unrelated to a merged pull request.
 
 | Type | Operation | Behavior |
 |---|---|---|
-| Guard | `validate-transition` | Validates the observed state transition against the live issue state and restores an invalid user transition. |
+| Guard | `validate-transition` | Validates the observed state transition against the live issue state; an invalid human transition assigns and warns its triggering user without changing status. |
 | Aggregate | `prepare-task` | Assigns the task owner, blocks existing task branch or linked PR work, otherwise builds task context, renders the task prompt, and configures the Git co-author trailer. |
 | Aggregate | `finalize-task` | Resolves the task branch and pull request, assigns the task owner to the pull request, optionally requests review, updates status, and records task activity. |
 | Aggregate | `prepare-validation` | Builds validation context, resolves the linked pull request, renders the validation prompt, and provides the result path. |

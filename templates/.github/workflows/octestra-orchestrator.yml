@@ -42,7 +42,7 @@ jobs:
   lifecycle:
     name: Lifecycle
     # Cost optimization: skip known-valid transitions that need no arrival workflow.
-    # Invalid transitions still reach the lifecycle guard and are restored; In Progress and
+    # Invalid transitions still reach the lifecycle guard and warn the triggering user; In Progress and
     # Validation still reach their agent workflows. Remove a transition below when it gains work.
     if: >-
       github.event.issue_field.id == __OCTESTRA_STATUS_FIELD_ID__ &&
