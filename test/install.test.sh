@@ -95,10 +95,12 @@ orchestrator="$TEMP_DIR/consumer/.github/workflows/octestra-orchestrator.yml"
 lifecycle="$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle.yml"
 validation="$TEMP_DIR/consumer/.github/workflows/octestra-validation.yml"
 in_progress="$TEMP_DIR/consumer/.github/workflows/octestra-in-progress.yml"
+finalize_merged_task="$TEMP_DIR/consumer/.github/workflows/octestra-finalize-merged-task.yml"
 test -f "$orchestrator"
 test -f "$lifecycle"
 test -f "$validation"
 test -f "$in_progress"
+test -f "$finalize_merged_task"
 test -f "$TEMP_DIR/consumer/.github/octestra-prompts/octestra-in-progress.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra-prompts/octestra-validation.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
@@ -141,6 +143,12 @@ grep -q 'workflow-context:.*inputs.workflow-context' "$in_progress"
 grep -q 'workflow-context:.*inputs.workflow-context' "$validation"
 grep -q 'runs-on:.*fromJSON(inputs.workflow-context).runners.agent' "$in_progress"
 grep -q 'runs-on:.*fromJSON(inputs.workflow-context).runners.agent' "$validation"
+grep -q 'uses:.*octestra-finalize-merged-task.yml' "$orchestrator"
+grep -q 'runs-on:.*fromJSON(inputs.workflow-context).runners.orchestration' "$finalize_merged_task"
+if grep -q 'fromJSON(env.OCTESTRA_WORKFLOW_CONTEXT)' "$orchestrator"; then
+  echo "orchestrator uses env in a jobs.runs-on expression" >&2
+  exit 1
+fi
 grep -q '^  # id-token: write$' "$orchestrator"
 if grep -R -E 'agent_api_key|agent-api-key|failure-runner' \
   "$TEMP_DIR/consumer/.github/workflows" >/dev/null; then
@@ -208,7 +216,7 @@ if grep -R '^  # id-token: write$' "$TEMP_DIR/consumer-oidc/.github/workflows" >
   echo "OIDC-enabled install left a disabled id-token permission" >&2
   exit 1
 fi
-for workflow in octestra-orchestrator.yml octestra-lifecycle.yml octestra-in-progress.yml octestra-validation.yml; do
+for workflow in octestra-orchestrator.yml octestra-lifecycle.yml octestra-in-progress.yml octestra-validation.yml octestra-finalize-merged-task.yml; do
   grep -q '^  id-token: write$' "$TEMP_DIR/consumer-oidc/.github/workflows/$workflow"
 done
 grep -q 'OCTESTRA_GITHUB_APP_CLIENT_ID:.*client-id-123' \
