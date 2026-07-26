@@ -102,7 +102,7 @@ jobs:
   finalize-merged-task:
     name: Complete closed task
     if: github.event.action == 'closed'
-    uses: ./.github/workflows/octestra-finalize-merged-task.yml
+    uses: ainame/octestra/.github/workflows/octestra-finalize-merged-task.yml@main
     secrets:
       github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
     with:

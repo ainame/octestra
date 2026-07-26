@@ -6,6 +6,12 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octestra-install-test.XXXXXX")
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
+remote_finalize_workflow="$ROOT/.github/workflows/octestra-finalize-merged-task.yml"
+test -f "$remote_finalize_workflow"
+grep -q '^  workflow_call:$' "$remote_finalize_workflow"
+grep -q 'runs-on:.*fromJSON(inputs.workflow-context).runners.orchestration' \
+  "$remote_finalize_workflow"
+
 mkdir -p "$TEMP_DIR/bin" "$TEMP_DIR/consumer"
 git -C "$TEMP_DIR/consumer" init --quiet
 git -C "$TEMP_DIR/consumer" remote add origin git@github.com:example-org/consumer.git
@@ -95,12 +101,10 @@ orchestrator="$TEMP_DIR/consumer/.github/workflows/octestra-orchestrator.yml"
 lifecycle="$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle.yml"
 validation="$TEMP_DIR/consumer/.github/workflows/octestra-validation.yml"
 in_progress="$TEMP_DIR/consumer/.github/workflows/octestra-in-progress.yml"
-finalize_merged_task="$TEMP_DIR/consumer/.github/workflows/octestra-finalize-merged-task.yml"
 test -f "$orchestrator"
 test -f "$lifecycle"
 test -f "$validation"
 test -f "$in_progress"
-test -f "$finalize_merged_task"
 test -f "$TEMP_DIR/consumer/.github/octestra-prompts/octestra-in-progress.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra-prompts/octestra-validation.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
@@ -141,10 +145,8 @@ grep -q 'lifecycle-context:.*inputs.lifecycle-context' "$in_progress"
 grep -q 'lifecycle-context:.*inputs.lifecycle-context' "$validation"
 grep -q 'workflow-context:.*inputs.workflow-context' "$in_progress"
 grep -q 'workflow-context:.*inputs.workflow-context' "$validation"
-grep -q 'runs-on:.*fromJSON(inputs.workflow-context).runners.agent' "$in_progress"
-grep -q 'runs-on:.*fromJSON(inputs.workflow-context).runners.agent' "$validation"
-grep -q 'uses:.*octestra-finalize-merged-task.yml' "$orchestrator"
-grep -q 'runs-on:.*fromJSON(inputs.workflow-context).runners.orchestration' "$finalize_merged_task"
+grep -q 'uses:.*ainame/octestra/.github/workflows/octestra-finalize-merged-task.yml@main' "$orchestrator"
+grep -q 'workflow-context:.*\\*workflow-context' "$orchestrator"
 if grep -q 'fromJSON(env.OCTESTRA_WORKFLOW_CONTEXT)' "$orchestrator"; then
   echo "orchestrator uses env in a jobs.runs-on expression" >&2
   exit 1
@@ -216,7 +218,7 @@ if grep -R '^  # id-token: write$' "$TEMP_DIR/consumer-oidc/.github/workflows" >
   echo "OIDC-enabled install left a disabled id-token permission" >&2
   exit 1
 fi
-for workflow in octestra-orchestrator.yml octestra-lifecycle.yml octestra-in-progress.yml octestra-validation.yml octestra-finalize-merged-task.yml; do
+for workflow in octestra-orchestrator.yml octestra-lifecycle.yml octestra-in-progress.yml octestra-validation.yml; do
   grep -q '^  id-token: write$' "$TEMP_DIR/consumer-oidc/.github/workflows/$workflow"
 done
 grep -q 'OCTESTRA_GITHUB_APP_CLIENT_ID:.*client-id-123' \
