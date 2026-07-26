@@ -1,0 +1,27 @@
+{
+  "name": "@ainame/octestra-action",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Octestra GitHub Action for issue-driven migrations",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=cjs --target=node24 --outfile=dist/index.js --minify && esbuild src/proof-action.ts --bundle --platform=node --format=cjs --target=node24 --outfile=proof/dist/index.js --minify",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1",
+    "handlebars": "^4.7.9",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -1,0 +1,168 @@
+# Octestra task-execution workflow.
+#
+# Runs the repository-configured implementation agent when a task enters the
+# `In Progress` AI Task Status. The agent is expected to create the task branch
+# and pull request; this workflow then advances the task to Validation or Human Review.
+name: Octestra - In Progress (Task Execution)
+
+on:
+  workflow_call:
+    inputs:
+      # GitHub App
+      github-app-client-id:
+        description: GitHub App client ID used for Octestra API requests
+        required: true
+        type: string
+
+      # Lifecycle event
+      lifecycle-context:
+        description: JSON object containing the issue, status field, and trigger actor
+        required: true
+        type: string
+
+      # Shared configuration
+      workflow-context:
+        description: JSON object containing runners and a task branch template
+        required: true
+        type: string
+
+    secrets:
+      # GitHub App
+      github_app_private_key:
+        description: Private key for the Octestra GitHub App
+        required: true
+
+permissions:
+  contents: write
+  # Enable only for OIDC federation, for example AWS IAM role assumption with
+  # aws-actions/configure-aws-credentials; also enable it in octestra-orchestrator.yml and octestra-lifecycle.yml.
+  # id-token: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  in-progress:
+    name: Run task agent
+    runs-on: ${{ fromJSON(inputs.workflow-context).runners.agent }}
+    timeout-minutes: 60
+    concurrency:
+      group: octestra-${{ fromJSON(inputs.lifecycle-context).issue_number }}
+      cancel-in-progress: false
+
+    steps:
+      # Use an App token so lifecycle updates and agent pushes can trigger follow-up workflows.
+      - name: Generate a token from GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ inputs.github-app-client-id }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets.github_app_private_key }}
+
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      # prepare-task:
+      # - Assigns the triggering user as task owner when the transition was made by a user.
+      # - Loads the task and parent EPIC configuration.
+      # - Renders the repository's task prompt and publishes it as an Action output.
+      # - Configures the task owner's Git co-author trailer for agent commits.
+      # - Publishes these outputs for the task agent:
+      #   - parent_number: parent EPIC issue number.
+      #   - epic_id: stable EPIC branch namespace.
+      #   - skill_name: optional EPIC agent skill.
+      #   - branch_name: exact task branch used by finalize-task and validation.
+      #   - task_ready: false when existing branch or linked PR work blocked execution.
+      #   - draft_flag: `--draft` when the PR should be a draft.
+      #   - validation_required: whether validation follows task execution.
+      #   - prompt: rendered task instructions.
+      #   - target_file: configured target, if any.
+      #   - task_owner: assigned human task owner.
+      # Use assign-owner and build-task-context separately when custom sequencing is required.
+      - name: Prepare task lifecycle
+        id: epic
+        uses: ainame/octestra@main
+        with:
+          operation: prepare-task
+          github-token: ${{ steps.app-token.outputs.token }}
+          lifecycle-context: ${{ inputs.lifecycle-context }}
+          workflow-context: ${{ inputs.workflow-context }}
+
+      # Add repository-specific environment and dependency setup here.
+
+      - name: Configure task agent
+        id: agent
+        if: steps.epic.outputs.task_ready == 'true'
+        run: |
+          echo "::error::Replace this step with the repository's task agent configuration."
+          exit 1
+
+      # Example: configure cloud credentials with GitHub OIDC.
+      # Also enable `id-token: write` in this workflow, octestra-lifecycle.yml, and octestra-orchestrator.yml.
+      #
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v6
+      #   with:
+      #     role-to-assume: arn:aws:iam::000000000000:role/example-role
+      #     aws-region: example-region
+      #
+      # Example: replace the placeholder step above with Claude Code Action.
+      # `steps.epic.outputs.prompt` is rendered from
+      # .github/octestra-prompts/octestra-in-progress.md.hbs.
+      #
+      # - name: Run Claude Code
+      #   id: agent
+      #   uses: anthropics/claude-code-action@v1
+      #   with:
+      #     anthropic_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
+      #     github_token: ${{ steps.app-token.outputs.token }}
+      #     track_progress: true
+      #     # `branch_name` is the exact branch Octestra will later finalize and validate.
+      #     # Passing it through `{{prefix}}` prevents Claude from adding any suffix.
+      #     branch_prefix: ${{ steps.epic.outputs.branch_name }}
+      #     branch_name_template: "{{prefix}}"
+      #     claude_args: >-
+      #       --allowedTools
+      #       "Bash,Read,Write,Edit,Grep,Glob"
+      #     prompt: ${{ steps.epic.outputs.prompt }}
+
+      # finalize-task:
+      # - Confirms that the agent created the expected branch.
+      # - Resolves the open pull request created from that branch.
+      # - Assigns the Issue task owner to the pull request.
+      # - Requests review from the task owner when the next status is Human Review.
+      # - Updates the lifecycle status and records the resulting Octestra activity.
+      # Use lower-level operations when the repository needs a different completion policy.
+      - name: Finalize task lifecycle
+        if: steps.epic.outputs.task_ready == 'true'
+        uses: ainame/octestra@main
+        with:
+          operation: finalize-task
+          github-token: ${{ steps.app-token.outputs.token }}
+          lifecycle-context: ${{ inputs.lifecycle-context }}
+          workflow-context: ${{ inputs.workflow-context }}
+
+  report-failure:
+    needs: in-progress
+    if: ${{ always() && needs.in-progress.result != 'success' }}
+    runs-on: ${{ fromJSON(inputs.workflow-context).runners.orchestration }}
+    timeout-minutes: 5
+    steps:
+      # Use an App token so lifecycle updates can trigger follow-up workflows.
+      - name: Generate a token from GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ inputs.github-app-client-id }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets.github_app_private_key }}
+
+      - name: Report failure and advance to Blocked
+        uses: ainame/octestra@main
+        with:
+          operation: report-failure
+          github-token: ${{ steps.app-token.outputs.token }}
+          lifecycle-context: ${{ inputs.lifecycle-context }}

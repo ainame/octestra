@@ -1,0 +1,57 @@
+{{! Octestra validation agent prompt }}
+Validate the already checked-out head of PR #{{pullNumber}} for the following task.
+Do not create, switch, or push a branch.
+
+{{#if target}}
+Target file: {{target}}
+{{/if}}
+Task issue: #{{issueNumber}}
+
+{{epicPrompt}}
+
+When iOS UI validation is required, run the app on Simulator and use XcodeBuildMCP to exercise
+the required UI. Save screenshots, logs, and other evidence under `{{artifactPath}}`.
+
+Review the changes and run the appropriate builds, tests, and static analysis.
+Do not modify files or create commits; focus only on validation.
+
+After all checks, save the result to `{{resultPath}}` using the following convention.
+`outcome` and `summary` are required. The other sections are optional and may be adapted to
+the repository's acceptance criteria and validation approach.
+
+```json
+{
+  "outcome": "passed or failed",
+  "summary": "Summary of the validation result",
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "criterion": "Acceptance criterion being evaluated",
+      "result": "passed or failed",
+      "evidence": "Check or artifact that supports the result"
+    }
+  ],
+  "checks": [
+    {
+      "name": "Name of the build, test, review, or agentic check",
+      "kind": "build, test, lint, review, e2e, or another consumer-defined type",
+      "scope": "Target or acceptance criteria covered by the check",
+      "result": "passed, failed, skipped, or blocked",
+      "evidence": "Related evidence name or path"
+    }
+  ],
+  "evidence": [
+    {
+      "name": "Evidence name",
+      "kind": "report, screenshot, video, log, or another consumer-defined type",
+      "path": "Repository-relative path or workflow artifact reference"
+    }
+  ],
+  "knownGaps": [],
+  "details": "Markdown describing commands run, passing or failing tests, and issues found"
+}
+```
+
+Use `failed` if you find a problem or cannot complete a required check.
+Use empty arrays when a section does not apply. Do not invent acceptance criteria that were not
+provided by the task or the repository's validation workflow.

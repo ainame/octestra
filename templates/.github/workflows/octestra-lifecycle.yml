@@ -1,0 +1,164 @@
+name: Octestra Lifecycle
+
+on:
+  workflow_call:
+    inputs:
+      # GitHub App
+      github-app-client-id:
+        description: GitHub App client ID used for task API requests
+        required: true
+        type: string
+      # Issue, lifecycle state, and trigger context
+      lifecycle-context:
+        description: JSON object containing the issue, GitHub Issue Field state, option IDs, and trigger actor
+        required: true
+        type: string
+
+      # Shared configuration
+      workflow-context:
+        description: JSON object containing runners and a task branch template
+        required: true
+        type: string
+
+    secrets:
+      # GitHub App
+      github_app_private_key:
+        description: Private key for the task GitHub App
+        required: true
+
+permissions:
+  contents: write
+  # Enable only for OIDC federation, for example AWS IAM role assumption with
+  # aws-actions/configure-aws-credentials; also enable it in octestra-orchestrator.yml and the state workflow.
+  # id-token: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  # Restores invalid human transitions and only dispatches valid transitions.
+  transition-guard:
+    name: Validate transition
+    runs-on: ${{ fromJSON(inputs.workflow-context).runners.orchestration }}
+    timeout-minutes: 5
+    outputs:
+      valid: ${{ steps.guard.outputs.transition_valid }}
+    steps:
+      # Scope the App token to this repository for Organization Issue Field access.
+      - name: Generate a token from GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ inputs.github-app-client-id }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets.github_app_private_key }}
+
+      - name: Validate and heal state transition
+        id: guard
+        uses: ainame/octestra@main
+        with:
+          operation: validate-transition
+          github-token: ${{ steps.app-token.outputs.token }}
+          lifecycle-context: ${{ inputs.lifecycle-context }}
+
+  # Todo, Ready, Human Review, Blocked, and Done do not run workflows automatically.
+  # If a state needs arrival-time processing, add its reusable workflow and uncomment the
+  # corresponding job below.
+
+  # todo:
+  #   name: Todo
+  #   needs: transition-guard
+  #   if: >-
+  #     needs.transition-guard.outputs.valid == 'true' &&
+  #     fromJSON(inputs.lifecycle-context).current_status_option_id == fromJSON(inputs.lifecycle-context).status_option_ids.todo
+  #   uses: ./.github/workflows/octestra-todo.yml
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.github_app_private_key }}
+  #   with:
+  #     github-app-client-id: ${{ inputs.github-app-client-id }}
+  #     lifecycle-context: ${{ inputs.lifecycle-context }}
+  #     workflow-context: ${{ inputs.workflow-context }}
+
+  # ready:
+  #   name: Ready
+  #   needs: transition-guard
+  #   if: >-
+  #     needs.transition-guard.outputs.valid == 'true' &&
+  #     fromJSON(inputs.lifecycle-context).current_status_option_id == fromJSON(inputs.lifecycle-context).status_option_ids.ready
+  #   uses: ./.github/workflows/octestra-ready.yml
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.github_app_private_key }}
+  #   with:
+  #     github-app-client-id: ${{ inputs.github-app-client-id }}
+  #     lifecycle-context: ${{ inputs.lifecycle-context }}
+  #     workflow-context: ${{ inputs.workflow-context }}
+
+  in-progress:
+    name: In Progress
+    needs: transition-guard
+    if: >-
+      needs.transition-guard.outputs.valid == 'true' &&
+      fromJSON(inputs.lifecycle-context).current_status_option_id == fromJSON(inputs.lifecycle-context).status_option_ids.in_progress
+    uses: ./.github/workflows/octestra-in-progress.yml
+    secrets:
+      github_app_private_key: ${{ secrets.github_app_private_key }}
+    with:
+      github-app-client-id: ${{ inputs.github-app-client-id }}
+      lifecycle-context: ${{ inputs.lifecycle-context }}
+      workflow-context: ${{ inputs.workflow-context }}
+
+  validation:
+    name: Validation
+    needs: transition-guard
+    if: >-
+      needs.transition-guard.outputs.valid == 'true' &&
+      fromJSON(inputs.lifecycle-context).current_status_option_id == fromJSON(inputs.lifecycle-context).status_option_ids.validation
+    uses: ./.github/workflows/octestra-validation.yml
+    secrets:
+      github_app_private_key: ${{ secrets.github_app_private_key }}
+    with:
+      github-app-client-id: ${{ inputs.github-app-client-id }}
+      lifecycle-context: ${{ inputs.lifecycle-context }}
+      workflow-context: ${{ inputs.workflow-context }}
+
+  # human-review:
+  #   name: Human Review
+  #   needs: transition-guard
+  #   if: >-
+  #     needs.transition-guard.outputs.valid == 'true' &&
+  #     fromJSON(inputs.lifecycle-context).current_status_option_id == fromJSON(inputs.lifecycle-context).status_option_ids.human_review
+  #   uses: ./.github/workflows/octestra-human-review.yml
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.github_app_private_key }}
+  #   with:
+  #     github-app-client-id: ${{ inputs.github-app-client-id }}
+  #     lifecycle-context: ${{ inputs.lifecycle-context }}
+  #     workflow-context: ${{ inputs.workflow-context }}
+
+  # blocked:
+  #   name: Blocked
+  #   needs: transition-guard
+  #   if: >-
+  #     needs.transition-guard.outputs.valid == 'true' &&
+  #     fromJSON(inputs.lifecycle-context).current_status_option_id == fromJSON(inputs.lifecycle-context).status_option_ids.blocked
+  #   uses: ./.github/workflows/octestra-blocked.yml
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.github_app_private_key }}
+  #   with:
+  #     github-app-client-id: ${{ inputs.github-app-client-id }}
+  #     lifecycle-context: ${{ inputs.lifecycle-context }}
+  #     workflow-context: ${{ inputs.workflow-context }}
+
+  # done:
+  #   name: Done
+  #   needs: transition-guard
+  #   if: >-
+  #     needs.transition-guard.outputs.valid == 'true' &&
+  #     fromJSON(inputs.lifecycle-context).current_status_option_id == fromJSON(inputs.lifecycle-context).status_option_ids.done
+  #   uses: ./.github/workflows/octestra-done.yml
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.github_app_private_key }}
+  #   with:
+  #     github-app-client-id: ${{ inputs.github-app-client-id }}
+  #     lifecycle-context: ${{ inputs.lifecycle-context }}
+  #     workflow-context: ${{ inputs.workflow-context }}

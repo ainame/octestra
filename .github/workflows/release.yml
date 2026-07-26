@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (for example, v1.0.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          node-version: 24
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "4.0"
+
+      - name: Validate version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "version must use the vMAJOR.MINOR.PATCH format" >&2
+            exit 1
+          fi
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "tag already exists: $VERSION" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - run: make all
+
+      - name: Verify committed bundle
+        run: git diff --exit-code -- dist/index.js proof/dist/index.js
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          major_version=${VERSION%%.*}
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+          git tag -fa "$major_version" -m "Update $major_version to $VERSION"
+          git push origin "$major_version" --force
+
+          gh release create "$VERSION" \
+            --generate-notes \
+            --latest \
+            --title "$VERSION"

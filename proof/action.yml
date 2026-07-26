@@ -1,0 +1,26 @@
+name: Octestra Proof
+description: Render a consumer-owned proof JSON file as a readable GitHub issue comment
+
+inputs:
+  github-token:
+    description: GitHub token used to post the proof comment
+    required: true
+  issue-number:
+    description: Issue that receives the proof comment
+    required: true
+  proof-path:
+    description: Path to the consumer-generated proof JSON file
+    required: true
+  pull-number:
+    description: Optional pull request displayed in the overview
+    required: false
+
+outputs:
+  outcome:
+    description: Outcome read from the proof JSON
+  summary:
+    description: Summary read from the proof JSON
+
+runs:
+  using: node24
+  main: dist/index.js

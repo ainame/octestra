@@ -1,0 +1,88 @@
+name: Octestra
+description: Portable GitHub issue task lifecycle operations
+
+inputs:
+  operation:
+    description: Operation to run (validate-transition, finalize-merged-task, prepare-task, finalize-task, prepare-validation, finalize-validation, assign-owner, assign-pr-owner, build-task-context, build-validation-context, resolve-task-pr, report-proof, request-review, update-status, or report-failure)
+    required: true
+  github-token:
+    description: GitHub App token used for API requests
+    required: true
+  lifecycle-context:
+    description: Optional lifecycle event JSON used to supply issue, status, and trigger values
+    required: false
+  issue-number:
+    description: Task issue number when lifecycle-context is not used
+    required: false
+  trigger-actor:
+    description: User that initiated or started the task
+    required: false
+  trigger-actor-type:
+    description: GitHub sender type that initiated the field change
+    required: false
+  previous-status:
+    description: AI Task Status before the observed transition
+    required: false
+  current-status:
+    description: AI Task Status after the observed transition
+    required: false
+  workflow-context:
+    description: Optional JSON object with runners and a branch template containing {epic_id} and {issue_number}
+    required: false
+  branch-name:
+    description: Explicit branch name for the individual resolve-task-pr operation
+    required: false
+  proof-path:
+    description: Path to a consumer-generated proof JSON file
+    required: false
+  pull-number:
+    description: Task pull request number
+    required: false
+  next-status:
+    description: Status used by the individual update-status operation
+    required: false
+  status-field-name:
+    description: Organization issue field used when lifecycle-context is not used
+    required: false
+  prompt-template:
+    description: Optional prompt template override relative to the checked-out repository
+    required: false
+outputs:
+  transition_valid:
+    description: Whether the observed state transition is allowed
+  parent_number:
+    description: Parent EPIC issue number
+  skill_name:
+    description: Optional task skill configured by the parent EPIC
+  epic_id:
+    description: Stable identifier configured by the parent EPIC
+  branch_name:
+    description: Deterministic task branch resolved from the EPIC ID and issue number
+  task_ready:
+    description: Whether task execution may proceed; false when existing branch or PR work was found
+  draft_flag:
+    description: --draft when the task should create a draft PR
+  validation_required:
+    description: Whether the task must pass through Validation
+  prompt:
+    description: Rendered task prompt
+  pull_number:
+    description: Linked task pull request number
+  result_path:
+    description: Path where the validation agent must write its result
+  artifact_path:
+    description: Directory where the validation agent must save artifacts
+  target_file:
+    description: Optional target from the task-config block
+  reviewer:
+    description: Task owner requested to review the pull request
+  task_owner:
+    description: Human responsible for the task and pull request
+  outcome:
+    description: Outcome read from a proof JSON file
+  summary:
+    description: Summary read from a proof JSON file
+
+runs:
+  using: node24
+  main: dist/index.js

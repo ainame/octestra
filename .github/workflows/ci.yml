@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          node-version: 24
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "4.0"
+
+      - run: npm ci
+
+      - run: make all
+
+      - name: Verify committed bundle
+        run: git diff --exit-code -- dist/index.js proof/dist/index.js

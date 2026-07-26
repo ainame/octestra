@@ -1,0 +1,13 @@
+{{! Octestra task agent prompt }}
+Use /{{skillName}} to complete the following task.
+
+{{#if target}}
+Target file: {{target}}
+{{/if}}
+
+{{epicPrompt}}
+
+Include the following line in the pull request description:
+Closes #{{issueNumber}}
+
+Create the pull request with `gh pr create {{draftFlag}}`.
