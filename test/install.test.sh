@@ -6,12 +6,6 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octestra-install-test.XXXXXX")
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
-remote_finalize_workflow="$ROOT/.github/workflows/octestra-finalize-merged-task.yml"
-test -f "$remote_finalize_workflow"
-grep -q '^  workflow_call:$' "$remote_finalize_workflow"
-grep -q 'runs-on:.*fromJSON(inputs.workflow-context).runners.orchestration' \
-  "$remote_finalize_workflow"
-
 mkdir -p "$TEMP_DIR/bin" "$TEMP_DIR/consumer"
 git -C "$TEMP_DIR/consumer" init --quiet
 git -C "$TEMP_DIR/consumer" remote add origin git@github.com:example-org/consumer.git
@@ -145,8 +139,8 @@ grep -q 'lifecycle-context:.*inputs.lifecycle-context' "$in_progress"
 grep -q 'lifecycle-context:.*inputs.lifecycle-context' "$validation"
 grep -q 'workflow-context:.*inputs.workflow-context' "$in_progress"
 grep -q 'workflow-context:.*inputs.workflow-context' "$validation"
-grep -q 'uses:.*ainame/octestra/.github/workflows/octestra-finalize-merged-task.yml@main' "$orchestrator"
-grep -q 'workflow-context:.*\\*workflow-context' "$orchestrator"
+grep -q 'runs-on: ubuntu-slim' "$orchestrator"
+grep -q 'operation: finalize-merged-task' "$orchestrator"
 if grep -q 'fromJSON(env.OCTESTRA_WORKFLOW_CONTEXT)' "$orchestrator"; then
   echo "orchestrator uses env in a jobs.runs-on expression" >&2
   exit 1

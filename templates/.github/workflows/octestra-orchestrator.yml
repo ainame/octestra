@@ -102,11 +102,22 @@ jobs:
   finalize-merged-task:
     name: Complete closed task
     if: github.event.action == 'closed'
-    uses: ainame/octestra/.github/workflows/octestra-finalize-merged-task.yml@main
-    secrets:
-      github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
-    with:
-      github-app-client-id: *github-app-client-id
-      issue-number: ${{ github.event.issue.number }}
-      status-field-name: __OCTESTRA_STATUS_FIELD_NAME_JSON__
-      workflow-context: *workflow-context
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    steps:
+      - name: Generate a token from GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: *github-app-client-id
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Complete task closed by a merged pull request
+        uses: ainame/octestra@main
+        with:
+          operation: finalize-merged-task
+          github-token: ${{ steps.app-token.outputs.token }}
+          issue-number: ${{ github.event.issue.number }}
+          status-field-name: __OCTESTRA_STATUS_FIELD_NAME_JSON__

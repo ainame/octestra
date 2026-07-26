@@ -32,3 +32,17 @@ Open decisions:
 
 An initial implementation experiment is stored in the Git stash named
 `wip: validation token boundary experiment`.
+
+## Simplify runner configuration for lifecycle workflows
+
+`jobs.<job_id>.runs-on` cannot read the `env` context, so the orchestrator cannot directly
+deserialize `OCTESTRA_WORKFLOW_CONTEXT` there. Reusable workflows can use the same JSON through a
+`workflow_call` input, but adding a consumer-installed workflow solely to finalize a merged task
+is disproportionate.
+
+- Evaluate whether runner configuration should use a first-class input model rather than a JSON
+  `workflow-context`, while retaining a simple consumer customization surface.
+- Evaluate a versioned remote reusable workflow for fixed lifecycle work, including pinning and
+  private-repository Actions access requirements.
+- Keep the generated workflow set minimal; a fixed `ubuntu-slim` runner is currently preferable
+  for `finalize-merged-task` over an extra generated workflow or duplicated runner configuration.
