@@ -74,8 +74,8 @@ export class GitHubClient {
   async listIssues(labels: string[], scanBudget: number): Promise<{ issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }>; partial: boolean }> {
     const issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }> = [];
     let examined = 0;
+    const perPage = 100;
     for (let page = 1; examined < scanBudget; page += 1) {
-      const perPage = Math.min(100, scanBudget - examined);
       const response = await this.octokit.rest.issues.listForRepo({
         owner: this.owner,
         repo: this.repo,
@@ -91,16 +91,16 @@ export class GitHubClient {
         updated_at: issue.updated_at,
         pull_request: issue.pull_request,
       })));
-      if (response.data.length < perPage) return { issues, partial: false };
+      if (response.data.length < perPage) return { issues: issues.slice(0, scanBudget), partial: false };
     }
-    return { issues, partial: true };
+    return { issues: issues.slice(0, scanBudget), partial: true };
   }
 
   async listSubIssues(epic: number, scanBudget: number): Promise<{ issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }>; partial: boolean }> {
     const issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }> = [];
     let examined = 0;
+    const perPage = 100;
     for (let page = 1; examined < scanBudget; page += 1) {
-      const perPage = Math.min(100, scanBudget - examined);
       const response = await this.octokit.request(
         "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
         { owner: this.owner, repo: this.repo, issue_number: epic, page, per_page: perPage },
@@ -108,9 +108,9 @@ export class GitHubClient {
       const entries = response.data as Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }>;
       examined += entries.length;
       issues.push(...entries.filter((issue) => !issue.pull_request));
-      if (entries.length < perPage) return { issues, partial: false };
+      if (entries.length < perPage) return { issues: issues.slice(0, scanBudget), partial: false };
     }
-    return { issues, partial: true };
+    return { issues: issues.slice(0, scanBudget), partial: true };
   }
 
   async getIssue(issueNumber: number): Promise<{ title: string; body: string }> {

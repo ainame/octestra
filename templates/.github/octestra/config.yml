@@ -37,7 +37,7 @@ prompts:
 #       epic: null              # An EPIC number; null requires non-empty labels.
 #       status: Todo
 #       labels: []
-#       updated_before: 24h     # Idempotency guard for recently touched issues.
+#       updated_before: 24h     # Idempotency guard; supported units: s, m, h, d, w.
 #       limit: 10               # Maximum selected tasks.
 #       scan_budget: 300        # Maximum candidates examined, independent of limit.
 #       order: oldest
