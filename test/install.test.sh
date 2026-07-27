@@ -184,3 +184,16 @@ OCTESTRA_TEST_REPO_VIEW_FAIL=true \
 grep -q 'client_id: "replacement-client-id"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 
 printf 'Installer tests passed\n'
+
+test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
+test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
+test -f "$TEMP_DIR/consumer/.github/workflows/octestra-loop-triage-todo.yml"
+grep -q 'operation: lifecycle/prepare-task' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
+grep -q 'operation: lifecycle/prepare-validation' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
+grep -q 'owner: \${{ github.repository_owner }}' "$orchestrator"
+grep -q 'repositories: \${{ github.repository }}' "$orchestrator"
+grep -q 'LOOP_CONTEXT: |' "$TEMP_DIR/consumer/.github/workflows/octestra-loop-triage-todo.yml"
+grep -q 'toJSON(inputs.config-ref ||' "$TEMP_DIR/consumer/.github/workflows/octestra-loop-triage-todo.yml"
+for variable in OCTESTRA_GITHUB_APP_CLIENT_ID OCTESTRA_ORCHESTRATION_RUNNER OCTESTRA_AGENT_RUNNER OCTESTRA_STATUS_FIELD_ID; do
+  grep -q "$variable" "$ROOT/scripts/octestra-vars.mjs"
+done

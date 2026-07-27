@@ -1,8 +1,7 @@
 import * as core from "@actions/core";
 import { GitHubClient } from "./shared/github-client";
 import { loadOctestraConfig } from "./shared/config";
-import { parseLoopContext, selectTasks, finalizeRun } from "./loop/operations";
-import { renderPrompt } from "./shared/prompt";
+import { finalizeRun, loopDefinition, parseLoopContext, prepareRun, reportFailure as reportLoopFailure, selectTasks } from "./loop/operations";
 import {
   assignOwner,
   assignPullRequestOwner,
@@ -102,17 +101,36 @@ export async function run(): Promise<void> {
   if (operation !== requestedOperation) core.warning(`${requestedOperation} is deprecated; use ${operation}`);
   const client = new GitHubClient(token);
   const config = await loadOctestraConfig(client, core.getInput("config-ref"));
-  const issueInput = core.getInput("issue-number") || lifecycleContext.issue_number;
-  const context: OperationContext = { client, issueNumber: operation.startsWith("loop/") && !issueInput ? 0 : positiveNumber("issue-number", issueInput), statusFieldName: contextString(lifecycleContext, "status-field-name", "status_field_name") || config.status.field_name };
+  function lifecycleOperationContext(): OperationContext {
+    const issueInput = core.getInput("issue-number") || lifecycleContext.issue_number;
+    return { client, issueNumber: positiveNumber("issue-number", issueInput), statusFieldName: contextString(lifecycleContext, "status-field-name", "status_field_name") || config.status.field_name };
+  }
   const taskBranchTemplate = branchTemplate(config.branch.task);
+
   switch (operation) {
-    case "loop/select-tasks": { const loop = parseLoopContext(core.getInput("loop-context", { required: true })); const definition = config.loops[loop.loop_id]; if (!definition) throw new Error(`Unknown loop: ${loop.loop_id}`); await selectTasks(client, definition); break; }
-    case "loop/prepare-run": { const loop = parseLoopContext(core.getInput("loop-context", { required: true })); const definition = config.loops[loop.loop_id]; if (!definition) throw new Error(`Unknown loop: ${loop.loop_id}`); const issue = requiredNumber("issue-number"); core.setOutput("result_path", `octestra-loop-${loop.loop_id}-${issue}.json`); core.setOutput("artifact_path", `octestra-loop-${loop.loop_id}-${issue}-artifacts`); core.setOutput("prompt", await renderPrompt(definition.prompt, { skillName: "", epicPrompt: "", issueNumber: issue, pullNumber: undefined, draftFlag: "", resultPath: `octestra-loop-${loop.loop_id}-${issue}.json`, artifactPath: `octestra-loop-${loop.loop_id}-${issue}-artifacts` })); break; }
-    case "loop/finalize-run": { const loop = parseLoopContext(core.getInput("loop-context", { required: true })); const definition = config.loops[loop.loop_id]; if (!definition) throw new Error(`Unknown loop: ${loop.loop_id}`); await finalizeRun(client, requiredNumber("issue-number"), definition, core.getInput("proof-path", { required: true }), loop.dry_run); break; }
-    case "loop/report-failure": { const loop = parseLoopContext(core.getInput("loop-context", { required: true })); const definition = config.loops[loop.loop_id]; if (definition?.report_issue) await client.comment(definition.report_issue, `Octestra loop ${loop.loop_id} failed: ${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`); break; }
+    case "loop/select-tasks": {
+      const loop = parseLoopContext(core.getInput("loop-context", { required: true }));
+      await selectTasks(client, loopDefinition(config, loop), config.status.field_name);
+      break;
+    }
+    case "loop/prepare-run": {
+      const loop = parseLoopContext(core.getInput("loop-context", { required: true }));
+      await prepareRun(loop, loopDefinition(config, loop), requiredNumber("issue-number"));
+      break;
+    }
+    case "loop/finalize-run": {
+      const loop = parseLoopContext(core.getInput("loop-context", { required: true }));
+      await finalizeRun(client, requiredNumber("issue-number"), loopDefinition(config, loop), config.status.field_name, core.getInput("proof-path", { required: true }), loop.dry_run);
+      break;
+    }
+    case "loop/report-failure": {
+      const loop = parseLoopContext(core.getInput("loop-context", { required: true }));
+      await reportLoopFailure(client, loop, loopDefinition(config, loop));
+      break;
+    }
     case "lifecycle/validate-transition":
       await validateTransition(
-        context,
+        lifecycleOperationContext(),
         contextString(lifecycleContext, "previous-status", "previous_status"),
         contextString(lifecycleContext, "current-status", "current_status"),
         contextString(lifecycleContext, "trigger-actor", "trigger_actor", true),
@@ -125,11 +143,11 @@ export async function run(): Promise<void> {
       );
       break;
     case "lifecycle/finalize-merged-task":
-      await finalizeMergedTask(context);
+      await finalizeMergedTask(lifecycleOperationContext());
       break;
     case "assign-owner":
       await assignOwner(
-        context,
+        lifecycleOperationContext(),
         contextString(lifecycleContext, "trigger-actor", "trigger_actor", true),
         contextString(
           lifecycleContext,
@@ -140,11 +158,11 @@ export async function run(): Promise<void> {
       );
       break;
     case "assign-pr-owner":
-      await assignPullRequestOwner(context, requiredNumber("pull-number"));
+      await assignPullRequestOwner(lifecycleOperationContext(), requiredNumber("pull-number"));
       break;
     case "lifecycle/prepare-task":
       await prepareTask(
-        context,
+        lifecycleOperationContext(),
         core.getInput("prompt-template") ||
           config.prompts.lifecycle_in_progress,
         contextString(lifecycleContext, "trigger-actor", "trigger_actor", true),
@@ -159,7 +177,7 @@ export async function run(): Promise<void> {
       break;
     case "lifecycle/build-task-context":
       await buildTaskContext(
-        context,
+        lifecycleOperationContext(),
         core.getInput("prompt-template") ||
           config.prompts.lifecycle_in_progress,
         contextString(lifecycleContext, "trigger-actor", "trigger_actor"),
@@ -173,7 +191,7 @@ export async function run(): Promise<void> {
       break;
     case "lifecycle/build-validation-context":
       await buildValidationContext(
-        context,
+        lifecycleOperationContext(),
         core.getInput("prompt-template") ||
           config.prompts.lifecycle_validation,
         taskBranchTemplate,
@@ -181,30 +199,30 @@ export async function run(): Promise<void> {
       break;
     case "lifecycle/prepare-validation":
       await prepareValidation(
-        context,
+        lifecycleOperationContext(),
         core.getInput("prompt-template") ||
           config.prompts.lifecycle_validation,
         taskBranchTemplate,
       );
       break;
     case "update-status":
-      await updateStatus(context, core.getInput("next-status", { required: true }));
+      await updateStatus(lifecycleOperationContext(), core.getInput("next-status", { required: true }));
       break;
     case "resolve-task-pr":
       await resolveTaskPullRequest(
-        context,
+        lifecycleOperationContext(),
         core.getInput("branch-name", { required: true }),
       );
       break;
     case "lifecycle/finalize-task":
       await finalizeTask(
-        context,
+        lifecycleOperationContext(),
         taskBranchTemplate,
       );
       break;
     case "report-proof":
       await reportProof(
-        context,
+        lifecycleOperationContext(),
         core.getInput("proof-path", { required: true }),
         {
           pullNumber: optionalNumber("pull-number"),
@@ -212,17 +230,17 @@ export async function run(): Promise<void> {
       );
       break;
     case "request-review":
-      await requestReview(context, requiredNumber("pull-number"));
+      await requestReview(lifecycleOperationContext(), requiredNumber("pull-number"));
       break;
     case "lifecycle/finalize-validation":
       await finalizeValidation(
-        context,
+        lifecycleOperationContext(),
         requiredNumber("pull-number"),
         core.getInput("proof-path", { required: true }),
       );
       break;
     case "lifecycle/report-failure":
-      await reportFailure(context);
+      await reportFailure(lifecycleOperationContext());
       break;
     default:
       throw new Error(`Unsupported operation: ${operation}`);

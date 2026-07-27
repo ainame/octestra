@@ -1,0 +1,19 @@
+import { describe, expect, it } from "vitest";
+import { parseOctestraConfig } from "./config";
+const base = `version: 1
+github_app: { client_id: app }
+runners: { orchestration: ubuntu-latest, agent: ubuntu-latest }
+status:
+  field_name: AI Task Status
+  field_id: "1"
+  options: { todo: "1", ready: "2", in_progress: "3", validation: "4", human_review: "5", blocked: "6", done: "7" }
+branch: { task: 'octestra/{epic_id}/issue-{issue_number}', loop: 'octestra/loop/{loop_id}/{run_number}' }
+prompts: { lifecycle_in_progress: task.hbs, lifecycle_validation: validation.hbs }
+loops: {}
+`;
+describe("parseOctestraConfig", () => {
+  it("rejects missing required keys", () => expect(() => parseOctestraConfig("version: 1")).toThrow("github_app"));
+  it("rejects an unsupported version", () => expect(() => parseOctestraConfig(base.replace("version: 1", "version: 2"))).toThrow("version must be 1"));
+  it("rejects an unbounded loop", () => expect(() => parseOctestraConfig(base.replace("loops: {}", "loops:\n  x:\n    prompt: x\n    select: { status: Todo, labels: [], limit: 1, scan_budget: 1 }\n    apply: { allowed_status: [Ready], assign_owner: true, dry_run: false }"))).toThrow("select.epic or select.labels"));
+  it("rejects non-boolean loop flags", () => expect(() => parseOctestraConfig(base.replace("loops: {}", "loops:\n  x:\n    prompt: x\n    select: { status: Todo, labels: [x], limit: 1, scan_budget: 1 }\n    apply: { allowed_status: [Ready], assign_owner: nope, dry_run: false }"))).toThrow("must be booleans"));
+});

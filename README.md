@@ -168,3 +168,18 @@ bundles.
 ## Loops
 
 Loops are opt-in scheduled automation. Add a `loops.<id>` entry to `.github/octestra/config.yml` and copy the matching `octestra-loop-<id>.yml` workflow. Schedules run only from the default branch, are best-effort, and may be disabled after inactivity; every loop must be idempotent. Each loop includes `workflow_dispatch`, which defaults to a dry run.
+
+### Configuration control plane
+
+Installation creates `.github/octestra/config.yml`, the source of truth for platform values,
+status option IDs, branch templates, prompt paths, and loop policy. Four values are mirrored into
+repository variables: `OCTESTRA_GITHUB_APP_CLIENT_ID`, `OCTESTRA_ORCHESTRATION_RUNNER`,
+`OCTESTRA_AGENT_RUNNER`, and `OCTESTRA_STATUS_FIELD_ID`. Run `make octestra-check-vars` to detect
+drift and `make octestra-sync-vars` to apply them. Prompts are read from the checkout under
+`.github/octestra/prompts`; the deprecated `workflow-context` and `prompt-template` inputs remain
+overrides for one release.
+
+Installed workflows are `octestra-lifecycle.yml`, lifecycle in-progress/validation reusable
+workflows, and opt-in `octestra-loop-<id>.yml` files. Lifecycle operations use the
+`lifecycle/<verb>` namespace and loop operations use `loop/<verb>`; old lifecycle names are
+deprecated aliases.

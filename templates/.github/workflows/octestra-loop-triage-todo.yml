@@ -1,56 +1,116 @@
 name: Octestra Loop - Triage Todo
+run-name: "Octestra loop: triage-todo${{ inputs.dry-run && ' (dry run)' || '' }}"
 on:
+  # Loops are opt-in. Uncomment to enable the schedule.
   # schedule:
   #   - cron: "0 21 * * *"
   workflow_dispatch:
     inputs:
-      dry-run: { type: boolean, default: true }
-      config-ref: { type: string, default: "" }
+      dry-run:
+        description: Report the planned actions without changing any task
+        type: boolean
+        default: true
+      config-ref:
+        description: Branch to read .github/octestra/config.yml from
+        type: string
+        default: ""
+permissions:
+  contents: read
+  issues: write
 env:
-  LOOP_CONTEXT: '{"loop_id":"triage-todo","trigger":"${{ github.event_name }}","dry_run":${{ inputs.dry-run || false }},"config_ref":"${{ inputs.config-ref || '' }}"}'
+  LOOP_CONTEXT: |
+    {
+      "loop_id": "triage-todo",
+      "trigger": ${{ toJSON(github.event_name) }},
+      "dry_run": ${{ inputs.dry-run || false }},
+      "config_ref": ${{ toJSON(inputs.config-ref || '') }}
+    }
 jobs:
   select:
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
-    outputs: { issues: '${{ steps.select.outputs.issues }}', loop_ready: '${{ steps.select.outputs.loop_ready }}' }
+    outputs:
+      issues: ${{ steps.select.outputs.issues }}
+      loop_ready: ${{ steps.select.outputs.loop_ready }}
     steps:
       - uses: actions/create-github-app-token@v3
-        id: token
-        with: { client-id: '${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}', owner: '${{ github.repository_owner }}', repositories: '${{ github.repository }}', private-key: '${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}' }
+        id: app-token
+        with:
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
       - id: select
         uses: ainame/octestra@main
-        with: { operation: loop/select-tasks, github-token: '${{ steps.token.outputs.token }}', loop-context: '${{ env.LOOP_CONTEXT }}' }
+        with:
+          operation: loop/select-tasks
+          github-token: ${{ steps.app-token.outputs.token }}
+          loop-context: ${{ env.LOOP_CONTEXT }}
   agent:
     needs: select
     if: needs.select.outputs.loop_ready == 'true'
     runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
-    permissions: { contents: read }
-    strategy: { fail-fast: false, max-parallel: 2, matrix: { task: '${{ fromJSON(needs.select.outputs.issues) }}' } }
-    concurrency: { group: 'octestra-${{ matrix.task.number }}', cancel-in-progress: false }
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        task: ${{ fromJSON(needs.select.outputs.issues) }}
+    concurrency:
+      group: octestra-${{ matrix.task.number }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
-        with: { persist-credentials: false }
+        with:
+          persist-credentials: false
       - id: loop
         uses: ainame/octestra@main
-        with: { operation: loop/prepare-run, github-token: '${{ github.token }}', loop-context: '${{ env.LOOP_CONTEXT }}', issue-number: '${{ matrix.task.number }}' }
-      - run: 'echo "Replace this step with the repository loop agent"; exit 1'
+        with:
+          operation: loop/prepare-run
+          github-token: ${{ github.token }}
+          loop-context: ${{ env.LOOP_CONTEXT }}
+          issue-number: ${{ matrix.task.number }}
+      - name: Configure loop agent
+        run: |
+          echo "::error::Replace this step with the repository's loop agent configuration."
+          exit 1
       - uses: actions/upload-artifact@v4
-        with: { name: 'octestra-loop-triage-todo-${{ matrix.task.number }}', path: '${{ steps.loop.outputs.result_path }}' }
+        with:
+          name: octestra-loop-triage-todo-${{ matrix.task.number }}
+          path: ${{ steps.loop.outputs.result_path }}
   finalize:
     needs: [select, agent]
     if: always() && needs.select.outputs.loop_ready == 'true'
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
-    strategy: { fail-fast: false, matrix: { task: '${{ fromJSON(needs.select.outputs.issues) }}' } }
+    strategy:
+      fail-fast: false
+      matrix:
+        task: ${{ fromJSON(needs.select.outputs.issues) }}
     steps:
       - uses: actions/download-artifact@v4
-        id: result
         continue-on-error: true
-        with: { name: 'octestra-loop-triage-todo-${{ matrix.task.number }}', path: result }
+        id: result
+        with:
+          name: octestra-loop-triage-todo-${{ matrix.task.number }}
+          path: result
       - uses: actions/create-github-app-token@v3
-        id: token
-        with: { client-id: '${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}', owner: '${{ github.repository_owner }}', repositories: '${{ github.repository }}', private-key: '${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}' }
+        id: app-token
+        with:
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
       - if: steps.result.outcome == 'success'
         uses: ainame/octestra@main
-        with: { operation: loop/finalize-run, github-token: '${{ steps.token.outputs.token }}', loop-context: '${{ env.LOOP_CONTEXT }}', issue-number: '${{ matrix.task.number }}', proof-path: 'result/octestra-loop-triage-todo-${{ matrix.task.number }}.json' }
+        with:
+          operation: loop/finalize-run
+          github-token: ${{ steps.app-token.outputs.token }}
+          loop-context: ${{ env.LOOP_CONTEXT }}
+          issue-number: ${{ matrix.task.number }}
+          proof-path: result/octestra-loop-triage-todo-${{ matrix.task.number }}.json
       - if: steps.result.outcome != 'success'
         uses: ainame/octestra@main
-        with: { operation: loop/report-failure, github-token: '${{ steps.token.outputs.token }}', loop-context: '${{ env.LOOP_CONTEXT }}' }
+        with:
+          operation: loop/report-failure
+          github-token: ${{ steps.app-token.outputs.token }}
+          loop-context: ${{ env.LOOP_CONTEXT }}

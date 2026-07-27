@@ -3,7 +3,7 @@ description: Portable GitHub issue task lifecycle operations
 
 inputs:
   operation:
-    description: Operation to run (validate-transition, finalize-merged-task, prepare-task, finalize-task, prepare-validation, finalize-validation, assign-owner, assign-pr-owner, build-task-context, build-validation-context, resolve-task-pr, report-proof, request-review, update-status, or report-failure). Invalid human transitions are assigned and warned without changing their status.
+    description: Operation to run. Lifecycle operations use lifecycle/<verb>; loop operations use loop/select-tasks, loop/prepare-run, loop/finalize-run, or loop/report-failure. Legacy lifecycle names are deprecated aliases.
     required: true
   github-token:
     description: GitHub App token used for API requests
