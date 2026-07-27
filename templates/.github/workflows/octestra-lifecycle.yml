@@ -6,6 +6,7 @@ permissions:
   contents: read
   issues: write
 jobs:
+  # Validate lifecycle transitions before dispatching status-specific jobs.
   guard:
     if: github.event.action == 'field_added' && format('{0}', github.event.issue_field.id) == vars.OCTESTRA_STATUS_FIELD_ID
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
@@ -25,29 +26,112 @@ jobs:
         with:
           operation: lifecycle/validate-transition
           github-token: ${{ steps.app-token.outputs.token }}
-          lifecycle-context: >-
-            {"issue_number":${{ github.event.issue.number }},"previous_status":${{ toJSON(github.event.changes.issue_field_value.from) }},"current_status":${{ toJSON(github.event.issue_field_value.value) }},"trigger_actor":${{ toJSON(github.actor) }},"trigger_actor_type":${{ toJSON(github.event.sender.type) }}}
-          platform-vars: >-
-            {"OCTESTRA_GITHUB_APP_CLIENT_ID":${{ toJSON(vars.OCTESTRA_GITHUB_APP_CLIENT_ID) }},"OCTESTRA_ORCHESTRATION_RUNNER":${{ toJSON(vars.OCTESTRA_ORCHESTRATION_RUNNER) }},"OCTESTRA_AGENT_RUNNER":${{ toJSON(vars.OCTESTRA_AGENT_RUNNER) }},"OCTESTRA_STATUS_FIELD_ID":${{ toJSON(vars.OCTESTRA_STATUS_FIELD_ID) }}}
+          lifecycle-context: |-
+            {
+              "issue_number": ${{ github.event.issue.number }},
+              "previous_status": ${{ toJSON(github.event.changes.issue_field_value.from) }},
+              "current_status": ${{ toJSON(github.event.issue_field_value.value) }},
+              "trigger_actor": ${{ toJSON(github.actor) }},
+              "trigger_actor_type": ${{ toJSON(github.event.sender.type) }}
+            }
+          platform-vars: |-
+            {
+              "OCTESTRA_GITHUB_APP_CLIENT_ID": ${{ toJSON(vars.OCTESTRA_GITHUB_APP_CLIENT_ID) }},
+              "OCTESTRA_ORCHESTRATION_RUNNER": ${{ toJSON(vars.OCTESTRA_ORCHESTRATION_RUNNER) }},
+              "OCTESTRA_AGENT_RUNNER": ${{ toJSON(vars.OCTESTRA_AGENT_RUNNER) }},
+              "OCTESTRA_STATUS_FIELD_ID": ${{ toJSON(vars.OCTESTRA_STATUS_FIELD_ID) }}
+            }
+
+  # ========================================================================
+  # Consumer lifecycle entrypoints: customize the reusable workflows below.
+  # ========================================================================
   in-progress:
+    # Consumer entrypoint for task implementation.
     needs: guard
     if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'in_progress'
     uses: ./.github/workflows/octestra-lifecycle-in-progress.yml
     with:
-      lifecycle-context: >-
-        {"issue_number":${{ github.event.issue.number }},"trigger_actor":${{ toJSON(github.actor) }},"trigger_actor_type":${{ toJSON(github.event.sender.type) }}}
+      lifecycle-context: |-
+        {
+          "issue_number": ${{ github.event.issue.number }},
+          "trigger_actor": ${{ toJSON(github.actor) }},
+          "trigger_actor_type": ${{ toJSON(github.event.sender.type) }}
+        }
     secrets:
       github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
   validation:
+    # Consumer entrypoint for task validation.
     needs: guard
     if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'validation'
     uses: ./.github/workflows/octestra-lifecycle-validation.yml
     with:
-      lifecycle-context: >-
-        {"issue_number":${{ github.event.issue.number }}}
+      lifecycle-context: |-
+        {
+          "issue_number": ${{ github.event.issue.number }}
+        }
     secrets:
       github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
-  merged:
+
+  # Add the matching reusable workflow, then uncomment a status job to enable it.
+  # todo:
+  #   needs: guard
+  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'todo'
+  #   uses: ./.github/workflows/octestra-lifecycle-todo.yml
+  #   with:
+  #     lifecycle-context: |-
+  #       {
+  #         "issue_number": ${{ github.event.issue.number }}
+  #       }
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+  # ready:
+  #   needs: guard
+  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'ready'
+  #   uses: ./.github/workflows/octestra-lifecycle-ready.yml
+  #   with:
+  #     lifecycle-context: |-
+  #       {
+  #         "issue_number": ${{ github.event.issue.number }}
+  #       }
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+  # human-review:
+  #   needs: guard
+  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'human_review'
+  #   uses: ./.github/workflows/octestra-lifecycle-human-review.yml
+  #   with:
+  #     lifecycle-context: |-
+  #       {
+  #         "issue_number": ${{ github.event.issue.number }}
+  #       }
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+  # blocked:
+  #   needs: guard
+  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'blocked'
+  #   uses: ./.github/workflows/octestra-lifecycle-blocked.yml
+  #   with:
+  #     lifecycle-context: |-
+  #       {
+  #         "issue_number": ${{ github.event.issue.number }}
+  #       }
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+  # done:
+  #   needs: guard
+  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'done'
+  #   uses: ./.github/workflows/octestra-lifecycle-done.yml
+  #   with:
+  #     lifecycle-context: |-
+  #       {
+  #         "issue_number": ${{ github.event.issue.number }}
+  #       }
+  #   secrets:
+  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+
+  # Finalize tasks closed because their linked pull request was merged.
+  merged-task-finalization:
+    name: Finalize merged task
     if: github.event.action == 'closed'
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
     steps:
