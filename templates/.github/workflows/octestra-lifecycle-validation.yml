@@ -45,7 +45,7 @@ permissions:
 jobs:
   validation:
     name: Run validation agent
-    runs-on: ${{ fromJSON(inputs.workflow-context).runners.agent }}
+    runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
     steps:
       # Use an App token so lifecycle updates can trigger follow-up workflows.
@@ -53,7 +53,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ inputs.github-app-client-id }}
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.repository }}
           private-key: ${{ secrets.github_app_private_key }}
@@ -74,10 +74,9 @@ jobs:
         id: epic
         uses: ainame/octestra@main
         with:
-          operation: prepare-validation
+          operation: lifecycle/prepare-validation
           github-token: ${{ steps.app-token.outputs.token }}
           lifecycle-context: ${{ inputs.lifecycle-context }}
-          workflow-context: ${{ inputs.workflow-context }}
 
       - name: Checkout task branch
         uses: actions/checkout@v7
@@ -149,7 +148,7 @@ jobs:
       - name: Finalize validation lifecycle
         uses: ainame/octestra@main
         with:
-          operation: finalize-validation
+          operation: lifecycle/finalize-validation
           github-token: ${{ steps.app-token.outputs.token }}
           lifecycle-context: ${{ inputs.lifecycle-context }}
           proof-path: ${{ steps.epic.outputs.result_path }}
@@ -158,7 +157,7 @@ jobs:
   report-failure:
     needs: validation
     if: ${{ always() && needs.validation.result != 'success' }}
-    runs-on: ${{ fromJSON(inputs.workflow-context).runners.orchestration }}
+    runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       # Use an App token so lifecycle updates can trigger follow-up workflows.
@@ -166,7 +165,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ inputs.github-app-client-id }}
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.repository }}
           private-key: ${{ secrets.github_app_private_key }}

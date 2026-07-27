@@ -29,6 +29,12 @@ inputs:
   config-ref:
     description: Optional config branch/ref; default is the repository default branch
     required: false
+  platform-vars:
+    description: Mirrored repository variables used for config drift validation
+    required: false
+  loop-context:
+    description: Loop run identity JSON
+    required: false
   workflow-context:
     description: Optional JSON object with runners and a branch template containing {epic_id} and {issue_number}
     required: false
@@ -51,6 +57,8 @@ inputs:
     description: Optional prompt template override relative to the checked-out repository
     required: false
 outputs:
+  status_key:
+    description: Configured status key emitted by lifecycle transition validation
   transition_valid:
     description: Whether the observed state transition is allowed
   parent_number:

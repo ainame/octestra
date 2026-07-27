@@ -95,7 +95,7 @@ OCTESTRA_TEST_REPO_VIEW_FAIL=true \
     --skill-target codex \
     --yes
 
-orchestrator="$TEMP_DIR/consumer/.github/workflows/octestra-orchestrator.yml"
+orchestrator="$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle.yml"
 test -f "$orchestrator"
 test -f "$TEMP_DIR/consumer/.github/octestra/config.yml"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
@@ -167,7 +167,7 @@ cat "$ROOT/install.sh" |
       --target "$TEMP_DIR/consumer-piped" \
       --skill-target agents \
       --yes
-test -f "$TEMP_DIR/consumer-piped/.github/workflows/octestra-orchestrator.yml"
+test -f "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-setup-migration-epic/SKILL.md"
 
 PATH="$TEMP_DIR/bin:$PATH" \

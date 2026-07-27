@@ -38,6 +38,7 @@ export interface OperationsClient {
   requestReviewer(pullNumber: number, reviewer: string): Promise<void>;
   comment(issueNumber: number, body: string): Promise<void>;
   getStatus(issueNumber: number, fieldName: string): Promise<string | undefined>;
+  getStatusOptionId?(issueNumber: number, fieldName: string): Promise<string | undefined>;
   updateStatus(issueNumber: number, fieldName: string, status: string): Promise<void>;
 }
 
@@ -173,6 +174,7 @@ export async function validateTransition(
 
   const isValid = allowedTransitions.get(previousStatus)?.has(currentStatus) ?? false;
   core.setOutput("transition_valid", String(isValid));
+  core.setOutput("status_key", currentStatus.toLowerCase().replaceAll(" ", "_"));
   if (isValid) {
     return true;
   }

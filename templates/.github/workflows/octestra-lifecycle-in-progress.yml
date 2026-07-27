@@ -43,7 +43,7 @@ permissions:
 jobs:
   in-progress:
     name: Run task agent
-    runs-on: ${{ fromJSON(inputs.workflow-context).runners.agent }}
+    runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
     concurrency:
       group: octestra-${{ fromJSON(inputs.lifecycle-context).issue_number }}
@@ -55,7 +55,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ inputs.github-app-client-id }}
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.repository }}
           private-key: ${{ secrets.github_app_private_key }}
@@ -87,10 +87,9 @@ jobs:
         id: epic
         uses: ainame/octestra@main
         with:
-          operation: prepare-task
+          operation: lifecycle/prepare-task
           github-token: ${{ steps.app-token.outputs.token }}
           lifecycle-context: ${{ inputs.lifecycle-context }}
-          workflow-context: ${{ inputs.workflow-context }}
 
       # Add repository-specific environment and dependency setup here.
 
@@ -143,15 +142,14 @@ jobs:
         if: steps.epic.outputs.task_ready == 'true'
         uses: ainame/octestra@main
         with:
-          operation: finalize-task
+          operation: lifecycle/finalize-task
           github-token: ${{ steps.app-token.outputs.token }}
           lifecycle-context: ${{ inputs.lifecycle-context }}
-          workflow-context: ${{ inputs.workflow-context }}
 
   report-failure:
     needs: in-progress
     if: ${{ always() && needs.in-progress.result != 'success' }}
-    runs-on: ${{ fromJSON(inputs.workflow-context).runners.orchestration }}
+    runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       # Use an App token so lifecycle updates can trigger follow-up workflows.
@@ -159,7 +157,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ inputs.github-app-client-id }}
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.repository }}
           private-key: ${{ secrets.github_app_private_key }}
