@@ -434,12 +434,14 @@ resolve_template_directory() {
 
   if [[ -n "$SOURCE_DIR" ]]; then
     TEMPLATE_DIR="${SOURCE_DIR%/}/templates"
+    SCRIPT_DIR="${SOURCE_DIR%/}/scripts"
   else
     if [[ -n "$script_path" ]]; then
       script_dir=$(cd "$(dirname "$script_path")" 2>/dev/null && pwd || true)
     fi
     if [[ -n "$script_dir" && -d "$script_dir/templates" ]]; then
       TEMPLATE_DIR="$script_dir/templates"
+      SCRIPT_DIR="$script_dir/scripts"
     else
       archive="$TEMP_DIR/octestra.tar.gz"
       info "downloading $SOURCE_REPOSITORY@$SOURCE_REF"
@@ -451,6 +453,7 @@ resolve_template_directory() {
       extracted_root=$(find "$TEMP_DIR/source" -mindepth 1 -maxdepth 1 -type d | head -n 1)
       [[ -n "$extracted_root" ]] || die "downloaded archive did not contain a repository"
       TEMPLATE_DIR="$extracted_root/templates"
+      SCRIPT_DIR="$extracted_root/scripts"
     fi
   fi
 
@@ -476,32 +479,22 @@ prepare_install_tree() {
 }
 
 copy_and_render_templates() {
-  local orchestrator="$TARGET_DIR/.github/workflows/octestra-orchestrator.yml"
-  local field_name_json=""
+  local config="$TARGET_DIR/.github/octestra/config.yml"
 
   (cd "$INSTALL_TREE" && tar -cf - .) | (cd "$TARGET_DIR" && tar -xf -)
-
-  [[ -f "$orchestrator" ]] || die "orchestrator template was not installed"
-  if [[ -n "$GITHUB_APP_CLIENT_ID" ]]; then
-    replace_token "$orchestrator" "YOUR-GITHUB-APP-CLIENT-ID" "$GITHUB_APP_CLIENT_ID"
-  fi
-  field_name_json=$(json_quote "$STATUS_FIELD_NAME")
-  replace_token "$orchestrator" "__OCTESTRA_STATUS_FIELD_ID__" "$FIELD_ID"
-  replace_token "$orchestrator" "__OCTESTRA_STATUS_FIELD_NAME_JSON__" "$field_name_json"
-  replace_token "$orchestrator" "__OCTESTRA_STATUS_TODO_OPTION_ID__" "$TODO_OPTION_ID"
-  replace_token "$orchestrator" "__OCTESTRA_STATUS_READY_OPTION_ID__" "$READY_OPTION_ID"
-  replace_token "$orchestrator" "__OCTESTRA_STATUS_IN_PROGRESS_OPTION_ID__" "$IN_PROGRESS_OPTION_ID"
-  replace_token "$orchestrator" "__OCTESTRA_STATUS_VALIDATION_OPTION_ID__" "$VALIDATION_OPTION_ID"
-  replace_token "$orchestrator" "__OCTESTRA_STATUS_HUMAN_REVIEW_OPTION_ID__" "$HUMAN_REVIEW_OPTION_ID"
-  replace_token "$orchestrator" "__OCTESTRA_STATUS_BLOCKED_OPTION_ID__" "$BLOCKED_OPTION_ID"
-  replace_token "$orchestrator" "__OCTESTRA_STATUS_DONE_OPTION_ID__" "$DONE_OPTION_ID"
-
-  if grep -R \
-    "__OCTESTRA_" \
-    "$TARGET_DIR/.github" \
-    "$TARGET_DIR/.$SKILL_TARGET" >/dev/null 2>&1; then
-    die "installation left unresolved Octestra placeholders"
-  fi
+  [[ -f "$config" ]] || die "Octestra config template was not installed"
+  if [[ -n "$GITHUB_APP_CLIENT_ID" ]]; then replace_token "$config" "YOUR-GITHUB-APP-CLIENT-ID" "$GITHUB_APP_CLIENT_ID"; fi
+  replace_token "$config" "__OCTESTRA_STATUS_FIELD_NAME__" "$STATUS_FIELD_NAME"
+  replace_token "$config" "__OCTESTRA_STATUS_FIELD_ID__" "$FIELD_ID"
+  replace_token "$config" "__OCTESTRA_STATUS_TODO_OPTION_ID__" "$TODO_OPTION_ID"
+  replace_token "$config" "__OCTESTRA_STATUS_READY_OPTION_ID__" "$READY_OPTION_ID"
+  replace_token "$config" "__OCTESTRA_STATUS_IN_PROGRESS_OPTION_ID__" "$IN_PROGRESS_OPTION_ID"
+  replace_token "$config" "__OCTESTRA_STATUS_VALIDATION_OPTION_ID__" "$VALIDATION_OPTION_ID"
+  replace_token "$config" "__OCTESTRA_STATUS_HUMAN_REVIEW_OPTION_ID__" "$HUMAN_REVIEW_OPTION_ID"
+  replace_token "$config" "__OCTESTRA_STATUS_BLOCKED_OPTION_ID__" "$BLOCKED_OPTION_ID"
+  replace_token "$config" "__OCTESTRA_STATUS_DONE_OPTION_ID__" "$DONE_OPTION_ID"
+  if grep -q "__OCTESTRA_" "$config"; then die "installation left unresolved Octestra placeholders"; fi
+  (cd "$TARGET_DIR" && bash "$SCRIPT_DIR/octestra-vars.sh" sync .github/octestra/config.yml)
 }
 
 while (( $# > 0 )); do

@@ -63,6 +63,14 @@ export class GitHubClient {
     this.octokit = getOctokit(token);
   }
 
+  async getContent(path: string, ref?: string): Promise<string> {
+    const response = await this.octokit.rest.repos.getContent({ owner: this.owner, repo: this.repo, path, ref });
+    if (Array.isArray(response.data) || response.data.type !== "file" || !response.data.content) {
+      throw new Error(`Config path is not a file: ${path}`);
+    }
+    return Buffer.from(response.data.content, "base64").toString("utf8");
+  }
+
   async getIssue(issueNumber: number): Promise<{ title: string; body: string }> {
     const response = await this.octokit.rest.issues.get({
       owner: this.owner,

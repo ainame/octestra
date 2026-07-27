@@ -26,6 +26,9 @@ inputs:
   current-status:
     description: AI Task Status after the observed transition
     required: false
+  config-ref:
+    description: Optional config branch/ref; default is the repository default branch
+    required: false
   workflow-context:
     description: Optional JSON object with runners and a branch template containing {epic_id} and {issue_number}
     required: false

@@ -18,3 +18,9 @@ test-installer:
 
 build:
 	npm run build
+
+octestra-sync-vars:
+	bash scripts/octestra-vars.sh sync
+
+octestra-check-vars:
+	bash scripts/octestra-vars.sh check

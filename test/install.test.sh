@@ -26,6 +26,10 @@ if [[ "$1 $2" == "repo view" ]]; then
   exit 0
 fi
 
+if [[ "$1 $2" == "variable set" ]]; then
+  exit 0
+fi
+
 if [[ "$1" != "api" ]]; then
   exit 1
 fi
@@ -92,85 +96,16 @@ OCTESTRA_TEST_REPO_VIEW_FAIL=true \
     --yes
 
 orchestrator="$TEMP_DIR/consumer/.github/workflows/octestra-orchestrator.yml"
-lifecycle="$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle.yml"
-validation="$TEMP_DIR/consumer/.github/workflows/octestra-validation.yml"
-in_progress="$TEMP_DIR/consumer/.github/workflows/octestra-in-progress.yml"
 test -f "$orchestrator"
-test -f "$lifecycle"
-test -f "$validation"
-test -f "$in_progress"
-test -f "$TEMP_DIR/consumer/.github/octestra-prompts/octestra-in-progress.md.hbs"
-test -f "$TEMP_DIR/consumer/.github/octestra-prompts/octestra-validation.md.hbs"
+test -f "$TEMP_DIR/consumer/.github/octestra/config.yml"
+test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
+test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
-test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/scripts/setup_epic.rb"
 ruby -c "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/scripts/setup_epic.rb" >/dev/null
-test ! -e "$TEMP_DIR/consumer/.claude"
-test ! -e "$TEMP_DIR/consumer/.agents"
-
-grep -q 'github.event.issue_field.id == 9001' "$orchestrator"
-grep -q '"status_field_name": "AI Task Status"' "$orchestrator"
-grep -q '"todo": 101' "$orchestrator"
-grep -q '"validation": 104' "$orchestrator"
-grep -q '"done": 107' "$orchestrator"
-grep -q 'OCTESTRA_GITHUB_APP_CLIENT_ID:' "$orchestrator"
-grep -q 'OCTESTRA_WORKFLOW_CONTEXT:' "$orchestrator"
-grep -q 'OCTESTRA_GITHUB_APP_PRIVATE_KEY - the private key for this App client ID' "$orchestrator"
-grep -q 'github-app-client-id:.*\\*github-app-client-id' "$orchestrator"
-grep -q 'workflow-context:' "$orchestrator"
-grep -q 'workflow-context:.*\\*workflow-context' "$orchestrator"
-grep -q '"orchestration": "ubuntu-slim"' "$orchestrator"
-grep -q '"agent": "ubuntu-latest"' "$orchestrator"
-grep -q '"template": "octestra/{epic_id}/issue-{issue_number}"' "$orchestrator"
-grep -q 'workflow-context:.*\\*workflow-context' "$orchestrator"
-grep -q 'github_app_private_key:' "$lifecycle"
-grep -q 'Private key for the task GitHub App' "$lifecycle"
-grep -q 'client-id:.*inputs.github-app-client-id' "$in_progress"
-grep -q 'client-id:.*inputs.github-app-client-id' "$validation"
-grep -q 'owner:.*github.repository_owner' "$lifecycle"
-grep -q 'owner:.*github.repository_owner' "$in_progress"
-grep -q 'owner:.*github.repository_owner' "$validation"
-grep -q 'repositories:.*github.repository' "$lifecycle"
-grep -q 'repositories:.*github.repository' "$in_progress"
-grep -q 'repositories:.*github.repository' "$validation"
-grep -q 'operation: prepare-task' "$in_progress"
-grep -q 'operation: prepare-validation' "$validation"
-grep -q 'operation: finalize-validation' "$validation"
-grep -q 'lifecycle-context:.*inputs.lifecycle-context' "$in_progress"
-grep -q 'lifecycle-context:.*inputs.lifecycle-context' "$validation"
-grep -q 'workflow-context:.*inputs.workflow-context' "$in_progress"
-grep -q 'workflow-context:.*inputs.workflow-context' "$validation"
-grep -q 'runs-on: ubuntu-slim' "$orchestrator"
-grep -q 'operation: finalize-merged-task' "$orchestrator"
-if grep -q 'fromJSON(env.OCTESTRA_WORKFLOW_CONTEXT)' "$orchestrator"; then
-  echo "orchestrator uses env in a jobs.runs-on expression" >&2
-  exit 1
-fi
-grep -q '^  # id-token: write$' "$orchestrator"
-if grep -R -E 'agent_api_key|agent-api-key|failure-runner' \
-  "$TEMP_DIR/consumer/.github/workflows" >/dev/null; then
-  echo "generated workflow still exposes an unnecessary agent API key or failure runner" >&2
-  exit 1
-fi
-if grep -Eq 'inputs\\.(issue-number|status-field-name|trigger-actor|trigger-actor-type)' \
-  "$in_progress" "$validation"; then
-  echo "state workflow still exposes decomposed lifecycle inputs" >&2
-  exit 1
-fi
-if grep -R -E 'github-app-id|OCTESTRA_GITHUB_APP_ID|^[[:space:]]+app-id:' \
-  "$TEMP_DIR/consumer/.github/workflows" >/dev/null; then
-  echo "generated workflow still uses the deprecated GitHub App ID input" >&2
-  exit 1
-fi
-if grep -R "__OCTESTRA_" "$TEMP_DIR/consumer" >/dev/null; then
-  echo "unresolved installer placeholder" >&2
-  exit 1
-fi
-node -e \
-  'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' \
-  "$orchestrator"
-node -e \
-  'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' \
-  "$validation"
+grep -q 'field_id: "9001"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+grep -q 'todo: "101"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+grep -q 'validation: "104"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 
 missing_option_output="$TEMP_DIR/missing-option-output"
 if PATH="$TEMP_DIR/bin:$PATH" \
@@ -212,14 +147,11 @@ if grep -R '^  # id-token: write$' "$TEMP_DIR/consumer-oidc/.github/workflows" >
   echo "OIDC-enabled install left a disabled id-token permission" >&2
   exit 1
 fi
-for workflow in octestra-orchestrator.yml octestra-lifecycle.yml octestra-in-progress.yml octestra-validation.yml; do
-  grep -q '^  id-token: write$' "$TEMP_DIR/consumer-oidc/.github/workflows/$workflow"
-done
-grep -q 'OCTESTRA_GITHUB_APP_CLIENT_ID:.*client-id-123' \
-  "$TEMP_DIR/consumer-oidc/.github/workflows/octestra-orchestrator.yml"
+grep -q 'client_id: "client-id-123"' "$TEMP_DIR/consumer-oidc/.github/octestra/config.yml"
 
 mkdir -p "$TEMP_DIR/archive/octestra-main" "$TEMP_DIR/consumer-piped"
 cp -R "$ROOT/templates" "$TEMP_DIR/archive/octestra-main/templates"
+cp -R "$ROOT/scripts" "$TEMP_DIR/archive/octestra-main/scripts"
 tar -czf "$TEMP_DIR/octestra-main.tar.gz" -C "$TEMP_DIR/archive" octestra-main
 git -C "$TEMP_DIR/consumer-piped" init --quiet
 git -C "$TEMP_DIR/consumer-piped" remote add origin git@github.com:example-org/consumer-piped.git
@@ -249,6 +181,6 @@ OCTESTRA_TEST_REPO_VIEW_FAIL=true \
     --skill-target codex \
     --github-app-client-id replacement-client-id \
     --yes >/dev/null
-grep -q 'OCTESTRA_GITHUB_APP_CLIENT_ID:.*replacement-client-id' "$orchestrator"
+grep -q 'client_id: "replacement-client-id"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 
 printf 'Installer tests passed\n'

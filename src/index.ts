@@ -1,5 +1,6 @@
 import * as core from "@actions/core";
 import { GitHubClient } from "./github-client";
+import { loadOctestraConfig } from "./shared/config";
 import {
   assignOwner,
   assignPullRequestOwner,
@@ -70,10 +71,10 @@ function contextString(
   return value;
 }
 
-function branchTemplate(): string {
+function branchTemplate(configTemplate: string): string {
   const rawValue = core.getInput("workflow-context");
   if (!rawValue) {
-    return defaultBranchTemplate;
+    return configTemplate || defaultBranchTemplate;
   }
   const parsed: unknown = JSON.parse(rawValue);
   const branch = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
@@ -95,18 +96,20 @@ export async function run(): Promise<void> {
   const lifecycleContext = parseLifecycleContext();
   const issueInput = core.getInput("issue-number") ||
     lifecycleContext.issue_number;
+  const client = new GitHubClient(token);
+  const config = await loadOctestraConfig(client, core.getInput("config-ref"));
   const context: OperationContext = {
-    client: new GitHubClient(token),
+    client,
     issueNumber: positiveNumber("issue-number", issueInput),
     statusFieldName: contextString(
       lifecycleContext,
       "status-field-name",
       "status_field_name",
-    ) || "AI Task Status",
+    ) || config.status.field_name,
   };
 
   const operation = core.getInput("operation", { required: true });
-  const taskBranchTemplate = branchTemplate();
+  const taskBranchTemplate = branchTemplate(config.branch.task);
   switch (operation) {
     case "validate-transition":
       await validateTransition(
@@ -144,7 +147,7 @@ export async function run(): Promise<void> {
       await prepareTask(
         context,
         core.getInput("prompt-template") ||
-          ".github/octestra-prompts/octestra-in-progress.md.hbs",
+          config.prompts.lifecycle_in_progress,
         contextString(lifecycleContext, "trigger-actor", "trigger_actor", true),
         contextString(
           lifecycleContext,
@@ -159,7 +162,7 @@ export async function run(): Promise<void> {
       await buildTaskContext(
         context,
         core.getInput("prompt-template") ||
-          ".github/octestra-prompts/octestra-in-progress.md.hbs",
+          config.prompts.lifecycle_in_progress,
         contextString(lifecycleContext, "trigger-actor", "trigger_actor"),
         contextString(
           lifecycleContext,
@@ -173,7 +176,7 @@ export async function run(): Promise<void> {
       await buildValidationContext(
         context,
         core.getInput("prompt-template") ||
-          ".github/octestra-prompts/octestra-validation.md.hbs",
+          config.prompts.lifecycle_validation,
         taskBranchTemplate,
       );
       break;
@@ -181,7 +184,7 @@ export async function run(): Promise<void> {
       await prepareValidation(
         context,
         core.getInput("prompt-template") ||
-          ".github/octestra-prompts/octestra-validation.md.hbs",
+          config.prompts.lifecycle_validation,
         taskBranchTemplate,
       );
       break;
