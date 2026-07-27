@@ -73,21 +73,42 @@ export class GitHubClient {
 
   async listIssues(labels: string[], scanBudget: number): Promise<{ issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }>; partial: boolean }> {
     const issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }> = [];
-    for (let page = 1; issues.length < scanBudget; page += 1) {
-      const response = await this.octokit.rest.issues.listForRepo({ owner: this.owner, repo: this.repo, state: "open", labels: labels.join(","), page, per_page: Math.min(100, scanBudget - issues.length) });
-      issues.push(...response.data.filter((issue) => !issue.pull_request).map((issue) => ({ number: issue.number, title: issue.title, updated_at: issue.updated_at, pull_request: issue.pull_request })));
-      if (response.data.length < 100) return { issues, partial: false };
+    let examined = 0;
+    for (let page = 1; examined < scanBudget; page += 1) {
+      const perPage = Math.min(100, scanBudget - examined);
+      const response = await this.octokit.rest.issues.listForRepo({
+        owner: this.owner,
+        repo: this.repo,
+        state: "open",
+        labels: labels.join(","),
+        page,
+        per_page: perPage,
+      });
+      examined += response.data.length;
+      issues.push(...response.data.filter((issue) => !issue.pull_request).map((issue) => ({
+        number: issue.number,
+        title: issue.title,
+        updated_at: issue.updated_at,
+        pull_request: issue.pull_request,
+      })));
+      if (response.data.length < perPage) return { issues, partial: false };
     }
     return { issues, partial: true };
   }
 
   async listSubIssues(epic: number, scanBudget: number): Promise<{ issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }>; partial: boolean }> {
     const issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }> = [];
-    for (let page = 1; issues.length < scanBudget; page += 1) {
-      const response = await this.octokit.request("GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues", { owner: this.owner, repo: this.repo, issue_number: epic, page, per_page: Math.min(100, scanBudget - issues.length) });
+    let examined = 0;
+    for (let page = 1; examined < scanBudget; page += 1) {
+      const perPage = Math.min(100, scanBudget - examined);
+      const response = await this.octokit.request(
+        "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
+        { owner: this.owner, repo: this.repo, issue_number: epic, page, per_page: perPage },
+      );
       const entries = response.data as Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }>;
+      examined += entries.length;
       issues.push(...entries.filter((issue) => !issue.pull_request));
-      if (entries.length < 100) return { issues, partial: false };
+      if (entries.length < perPage) return { issues, partial: false };
     }
     return { issues, partial: true };
   }

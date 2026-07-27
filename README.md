@@ -92,8 +92,8 @@ Generated state workflows pass shared issue, status, and trigger data through on
 - Proof reporting derives the checked-out commit SHA from the workspace.
 
 Each EPIC's required `epic-config.id` is a lowercase slug that namespaces its task branches. The
-generated orchestrator sets `OCTESTRA_WORKFLOW_CONTEXT` globally; its default branch template is
-`octestra/{epic_id}/issue-{issue_number}`. `prepare-task` exposes the resolved `branch_name` for
+generated lifecycle workflow reads the default branch template from `.github/octestra/config.yml`;
+its default is `octestra/{epic_id}/issue-{issue_number}`. `prepare-task` exposes the resolved `branch_name` for
 any task agent to use directly, while `finalize-task` and `prepare-validation` independently
 resolve the same branch. For Claude Code Action, pass `branch_name` as `branch_prefix` with
 `branch_name_template: "{{prefix}}"`. `epic-config.skill` is optional and is reserved for

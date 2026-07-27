@@ -15,5 +15,6 @@ describe("parseOctestraConfig", () => {
   it("rejects missing required keys", () => expect(() => parseOctestraConfig("version: 1")).toThrow("github_app"));
   it("rejects an unsupported version", () => expect(() => parseOctestraConfig(base.replace("version: 1", "version: 2"))).toThrow("version must be 1"));
   it("rejects an unbounded loop", () => expect(() => parseOctestraConfig(base.replace("loops: {}", "loops:\n  x:\n    prompt: x\n    select: { status: Todo, labels: [], limit: 1, scan_budget: 1 }\n    apply: { allowed_status: [Ready], assign_owner: true, dry_run: false }"))).toThrow("select.epic or select.labels"));
+  it("rejects unsupported updated_before durations", () => expect(() => parseOctestraConfig(base.replace("loops: {}", "loops:\n  x:\n    prompt: x\n    select: { status: Todo, labels: [x], updated_before: yesterday, limit: 1, scan_budget: 1 }\n    apply: { allowed_status: [Ready], assign_owner: true, dry_run: false }"))).toThrow("must be a duration"));
   it("rejects non-boolean loop flags", () => expect(() => parseOctestraConfig(base.replace("loops: {}", "loops:\n  x:\n    prompt: x\n    select: { status: Todo, labels: [x], limit: 1, scan_budget: 1 }\n    apply: { allowed_status: [Ready], assign_owner: nope, dry_run: false }"))).toThrow("must be booleans"));
 });
