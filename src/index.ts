@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { GitHubClient } from "./github-client";
+import { GitHubClient } from "./shared/github-client";
 import { loadOctestraConfig } from "./shared/config";
 import {
   assignOwner,
@@ -19,7 +19,7 @@ import {
   validateTransition,
   defaultBranchTemplate,
   type OperationContext,
-} from "./operations";
+} from "./lifecycle/operations";
 
 type LifecycleContextInput = Record<string, unknown>;
 
@@ -108,10 +108,13 @@ export async function run(): Promise<void> {
     ) || config.status.field_name,
   };
 
-  const operation = core.getInput("operation", { required: true });
+  const requestedOperation = core.getInput("operation", { required: true });
+  const aliases: Record<string, string> = { "validate-transition": "lifecycle/validate-transition", "finalize-merged-task": "lifecycle/finalize-merged-task", "prepare-task": "lifecycle/prepare-task", "finalize-task": "lifecycle/finalize-task", "prepare-validation": "lifecycle/prepare-validation", "finalize-validation": "lifecycle/finalize-validation", "build-task-context": "lifecycle/build-task-context", "build-validation-context": "lifecycle/build-validation-context", "report-failure": "lifecycle/report-failure" };
+  const operation = aliases[requestedOperation] ?? requestedOperation;
+  if (operation !== requestedOperation) core.warning(`${requestedOperation} is deprecated; use ${operation}`);
   const taskBranchTemplate = branchTemplate(config.branch.task);
   switch (operation) {
-    case "validate-transition":
+    case "lifecycle/validate-transition":
       await validateTransition(
         context,
         contextString(lifecycleContext, "previous-status", "previous_status"),
@@ -125,7 +128,7 @@ export async function run(): Promise<void> {
         ),
       );
       break;
-    case "finalize-merged-task":
+    case "lifecycle/finalize-merged-task":
       await finalizeMergedTask(context);
       break;
     case "assign-owner":
@@ -143,7 +146,7 @@ export async function run(): Promise<void> {
     case "assign-pr-owner":
       await assignPullRequestOwner(context, requiredNumber("pull-number"));
       break;
-    case "prepare-task":
+    case "lifecycle/prepare-task":
       await prepareTask(
         context,
         core.getInput("prompt-template") ||
@@ -158,7 +161,7 @@ export async function run(): Promise<void> {
         taskBranchTemplate,
       );
       break;
-    case "build-task-context":
+    case "lifecycle/build-task-context":
       await buildTaskContext(
         context,
         core.getInput("prompt-template") ||
@@ -172,7 +175,7 @@ export async function run(): Promise<void> {
         taskBranchTemplate,
       );
       break;
-    case "build-validation-context":
+    case "lifecycle/build-validation-context":
       await buildValidationContext(
         context,
         core.getInput("prompt-template") ||
@@ -180,7 +183,7 @@ export async function run(): Promise<void> {
         taskBranchTemplate,
       );
       break;
-    case "prepare-validation":
+    case "lifecycle/prepare-validation":
       await prepareValidation(
         context,
         core.getInput("prompt-template") ||
@@ -197,7 +200,7 @@ export async function run(): Promise<void> {
         core.getInput("branch-name", { required: true }),
       );
       break;
-    case "finalize-task":
+    case "lifecycle/finalize-task":
       await finalizeTask(
         context,
         taskBranchTemplate,
@@ -215,14 +218,14 @@ export async function run(): Promise<void> {
     case "request-review":
       await requestReview(context, requiredNumber("pull-number"));
       break;
-    case "finalize-validation":
+    case "lifecycle/finalize-validation":
       await finalizeValidation(
         context,
         requiredNumber("pull-number"),
         core.getInput("proof-path", { required: true }),
       );
       break;
-    case "report-failure":
+    case "lifecycle/report-failure":
       await reportFailure(context);
       break;
     default:
