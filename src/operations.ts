@@ -215,6 +215,7 @@ export async function finalizeMergedTask(context: OperationContext): Promise<voi
     return;
   }
 
+  // Updating status can trigger the next workflow, so all Octestra work must finish first.
   await context.client.updateStatus(
     context.issueNumber,
     context.statusFieldName,
@@ -567,6 +568,7 @@ export async function finalizeTask(
       summary: "The task agent did not create the expected branch.",
       details: `- Expected branch: \`${branchName}\`\n- Move the task to \`Ready\` after resolving the blocker to retry.`,
     });
+    // Updating status can trigger the next workflow, so all Octestra work must finish first.
     await context.client.updateStatus(
       context.issueNumber,
       context.statusFieldName,
@@ -583,11 +585,6 @@ export async function finalizeTask(
   const taskOwner = reviewer ??
     await assignPullRequestOwner(context, pullNumber);
 
-  await context.client.updateStatus(
-    context.issueNumber,
-    context.statusFieldName,
-    nextStatus,
-  );
   await reportActivityBestEffort(context, {
     status: nextStatus,
     outcome: "succeeded",
@@ -601,6 +598,12 @@ export async function finalizeTask(
       `- AI Task Status updated to \`${nextStatus}\``,
     ].filter(Boolean).join("\n"),
   });
+  // Updating status can trigger the next workflow, so all Octestra work must finish first.
+  await context.client.updateStatus(
+    context.issueNumber,
+    context.statusFieldName,
+    nextStatus,
+  );
 }
 
 // Aggregate lifecycle exit point for the default validation policy. Repositories
@@ -614,11 +617,13 @@ export async function finalizeValidation(
     pullNumber,
   });
   if (proof.outcome !== "passed") {
+    // Updating status can trigger the next workflow, so all Octestra work must finish first.
     await updateStatus(context, "Blocked");
     return;
   }
 
   await requestReview(context, pullNumber);
+  // Updating status can trigger the next workflow, so all Octestra work must finish first.
   await updateStatus(context, "Human Review");
 }
 
@@ -639,6 +644,7 @@ export async function reportFailure(
     core.warning(`Failed to post the task failure report: ${String(error)}`);
   }
 
+  // Updating status can trigger the next workflow, so all Octestra work must finish first.
   await context.client.updateStatus(
     context.issueNumber,
     context.statusFieldName,

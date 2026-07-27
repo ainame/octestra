@@ -81,6 +81,8 @@ jobs:
       #   - target_file: configured target, if any.
       #   - task_owner: assigned human task owner.
       # Use assign-owner and build-task-context separately when custom sequencing is required.
+      #
+      # **Keep prepare-task as the first Octestra lifecycle action in this job.**
       - name: Prepare task lifecycle
         id: epic
         uses: ainame/octestra@main
@@ -135,6 +137,8 @@ jobs:
       # - Requests review from the task owner when the next status is Human Review.
       # - Updates the lifecycle status and records the resulting Octestra activity.
       # Use lower-level operations when the repository needs a different completion policy.
+      #
+      # **Keep finalize-task as the last Octestra lifecycle action in this job.**
       - name: Finalize task lifecycle
         if: steps.epic.outputs.task_ready == 'true'
         uses: ainame/octestra@main

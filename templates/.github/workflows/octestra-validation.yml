@@ -68,6 +68,8 @@ jobs:
       # - Renders the consumer's validation prompt.
       # - Publishes the task branch, pull request, prompt, and result-file path as Action outputs.
       # Use build-validation-context directly when custom setup sequencing is required.
+      #
+      # **Keep prepare-validation as the first Octestra lifecycle action in this job.**
       - name: Prepare validation lifecycle
         id: epic
         uses: ainame/octestra@main
@@ -142,6 +144,8 @@ jobs:
       # - For a passed outcome, assigns the Issue task owner to the pull request and requests review.
       # - Moves passed results to Human Review and all other outcomes to Blocked.
       # Compose report-proof, request-review, and update-status for a custom policy.
+      #
+      # **Keep finalize-validation as the last Octestra lifecycle action in this job.**
       - name: Finalize validation lifecycle
         uses: ainame/octestra@main
         with:
