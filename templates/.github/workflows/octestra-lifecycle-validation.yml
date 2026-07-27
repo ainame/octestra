@@ -37,7 +37,7 @@ on:
 permissions:
   contents: read
   # Enable only for OIDC federation, for example AWS IAM role assumption with
-  # aws-actions/configure-aws-credentials; also enable it in octestra-orchestrator.yml and octestra-lifecycle.yml.
+  # aws-actions/configure-aws-credentials; also enable it in octestra-lifecycle.yml.
   # id-token: write
   issues: write
   pull-requests: write
@@ -101,7 +101,7 @@ jobs:
           exit 1
 
       # Example: configure cloud credentials with GitHub OIDC.
-      # Also enable `id-token: write` in this workflow, octestra-lifecycle.yml, and octestra-orchestrator.yml.
+      # Also enable `id-token: write` in this workflow and octestra-lifecycle.yml.
       #
       # - name: Configure AWS credentials
       #   uses: aws-actions/configure-aws-credentials@v6
@@ -113,7 +113,7 @@ jobs:
       # Do not set track_progress here: this workflow is triggered by an issue-field event.
       # Agent mode preserves the task branch checked out above instead of creating a branch.
       # `steps.epic.outputs.prompt` is rendered from
-      # .github/octestra-prompts/octestra-validation.md.hbs.
+      # .github/octestra/prompts/lifecycle-validation.md.hbs.
       #
       # - name: Run Claude Code validation
       #   uses: anthropics/claude-code-action@v1

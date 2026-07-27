@@ -196,4 +196,16 @@ for variable in OCTESTRA_GITHUB_APP_CLIENT_ID OCTESTRA_ORCHESTRATION_RUNNER OCTE
   grep -q "$variable" "$ROOT/scripts/octestra-vars.mjs"
 done
 
+retrospective="$TEMP_DIR/consumer/.github/workflows/octestra-loop-retrospective.yml"
+test -f "$retrospective"
+test -f "$TEMP_DIR/consumer/.github/octestra/prompts/loop-retrospective.md.hbs"
+grep -q 'LOOP_CONTEXT: |' "$retrospective"
+grep -q 'loop-issues: \${{ needs.select.outputs.issues }}' "$retrospective"
+grep -q 'persist-credentials: false' "$retrospective"
+# The aggregate agent job must stay unprivileged: it hands over a patch instead of pushing.
+! grep -q 'app-token' <(sed -n '/^  agent:/,/^  finalize:/p' "$retrospective")
+for loop_id in triage-todo retrospective; do
+  grep -q "^#   $loop_id:" "$TEMP_DIR/consumer/.github/octestra/config.yml"
+done
+
 printf 'Installer tests passed\n'

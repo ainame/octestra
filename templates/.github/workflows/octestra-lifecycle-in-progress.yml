@@ -35,7 +35,7 @@ on:
 permissions:
   contents: write
   # Enable only for OIDC federation, for example AWS IAM role assumption with
-  # aws-actions/configure-aws-credentials; also enable it in octestra-orchestrator.yml and octestra-lifecycle.yml.
+  # aws-actions/configure-aws-credentials; also enable it in octestra-lifecycle.yml.
   # id-token: write
   issues: write
   pull-requests: write
@@ -101,7 +101,7 @@ jobs:
           exit 1
 
       # Example: configure cloud credentials with GitHub OIDC.
-      # Also enable `id-token: write` in this workflow, octestra-lifecycle.yml, and octestra-orchestrator.yml.
+      # Also enable `id-token: write` in this workflow and octestra-lifecycle.yml.
       #
       # - name: Configure AWS credentials
       #   uses: aws-actions/configure-aws-credentials@v6
@@ -111,7 +111,7 @@ jobs:
       #
       # Example: replace the placeholder step above with Claude Code Action.
       # `steps.epic.outputs.prompt` is rendered from
-      # .github/octestra-prompts/octestra-in-progress.md.hbs.
+      # .github/octestra/prompts/lifecycle-in-progress.md.hbs.
       #
       # - name: Run Claude Code
       #   id: agent

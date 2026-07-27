@@ -5,9 +5,10 @@ It combines three components:
 
 1. **GitHub Project task structure**
    Large initiatives are represented by an EPIC issue with task-specific sub-issues.
-2. **Generic lifecycle workflows**
-   `octestra-orchestrator.yml` receives Issue Field events, while `octestra-lifecycle.yml`
-   validates and dispatches transitions across the task state graph.
+2. **Generic lifecycle and loop workflows**
+   `octestra-lifecycle.yml` receives Issue Field events, validates each transition, and dispatches
+   it across the task state graph. `octestra-loop-<id>.yml` files add opt-in scheduled automation
+   over many tasks at once.
 3. **Reusable GitHub Action operations**
    `ainame/octestra@main` provides the shared operations needed to build repository-specific
    workflows, including state updates, prompt preparation, ownership, review requests, and failure
@@ -57,7 +58,8 @@ when an agent assumes a cloud role, for example with
 authentication or static cloud credentials. Noninteractive installs leave OIDC disabled unless
 `--enable-oidc` is passed; `--yes` also accepts that disabled default without prompting.
 
-The installer also optionally records the GitHub App client ID in `octestra-orchestrator.yml`.
+The installer also optionally records the GitHub App client ID in `.github/octestra/config.yml` and
+mirrors it into the `OCTESTRA_GITHUB_APP_CLIENT_ID` repository variable.
 Install that App with repository **Contents**, **Issues**, and **Pull requests** permissions set to
 read and write. Leave the prompt empty to retain `YOUR-GITHUB-APP-CLIENT-ID`, or pass
 `--github-app-client-id` in a noninteractive install. Store its private key as the
@@ -69,10 +71,10 @@ owner configuration or access to the owner's other repositories.
 After installation, customize the generated runners, agent integration, authentication, build
 setup, and prompts for the consumer repository.
 
-The generated `octestra-orchestrator.yml` keeps non-secret consumer settings together in its
-top-level `env` block, including the GitHub App client ID, the runner for lightweight orchestration
-work, and the runner for work that invokes an agent. Edit those flat values directly after
-installation. Keep `OCTESTRA_GITHUB_APP_PRIVATE_KEY` in GitHub Actions Secrets; add agent
+`.github/octestra/config.yml` keeps non-secret consumer settings together, including the GitHub App
+client ID, the runner for lightweight orchestration work, and the runner for work that invokes an
+agent. Edit that file and run `make octestra-sync-vars` to mirror the platform values into
+repository variables. Keep `OCTESTRA_GITHUB_APP_PRIVATE_KEY` in GitHub Actions Secrets; add agent
 credentials only when the chosen agent integration needs them. The workflows use an App token
 instead of `GITHUB_TOKEN` so lifecycle field updates and agent pushes can trigger follow-up
 workflows.
@@ -150,24 +152,36 @@ The default convention requires only `outcome` and `summary`. Optional `acceptan
 top-level fields are ignored so repositories can extend the document. Technical workflow metadata
 and long-form details are collapsed with `<details>` to keep the reviewer-facing result prominent.
 
-The generated `octestra-validation.yml` uses `finalize-validation` for the default policy:
+The generated `octestra-lifecycle-validation.yml` uses `lifecycle/finalize-validation` for the
+default policy:
 `passed` reports proof, requests review, and moves the task to Human Review, while other outcomes
 report proof and move it to Blocked. A consumer can replace that aggregate with the individual
 operations above without reimplementing the underlying GitHub behavior.
 
-## Development
-
-```sh
-npm ci
-make all
-```
-
-`dist/index.js` and `proof/dist/index.js` are committed because they are the GitHub Actions runtime
-bundles.
-
 ## Loops
 
-Loops are opt-in scheduled automation. Add a `loops.<id>` entry to `.github/octestra/config.yml` and copy the matching `octestra-loop-<id>.yml` workflow. Schedules run only from the default branch, are best-effort, and may be disabled after inactivity; every loop must be idempotent. Each loop includes `workflow_dispatch`, which defaults to a dry run.
+Loops are opt-in scheduled automation over many tasks at once. Add a `loops.<id>` entry to
+`.github/octestra/config.yml` and copy the matching `octestra-loop-<id>.yml` workflow. Schedules run
+only from the default branch, are best-effort, and may be disabled after repository inactivity, so
+every loop must be idempotent — use `select.updated_before` to skip recently touched issues. Each
+loop also exposes `workflow_dispatch`, which defaults to a dry run.
+
+A loop selects issues, runs the consumer's agent once per issue (or once for the whole set), and
+then applies the result from a separate trusted job. What it may do is bounded by
+`apply.allowed_status`, `select.limit`, and `select.scan_budget`. A loop that changes a task's
+status emits a normal Issue Field event, so the lifecycle observes it and nothing bypasses the state
+machine.
+
+Two reference templates ship, and between them cover both shapes:
+
+- `octestra-loop-triage-todo.yml` **fans out** — one agent job per selected issue, via a matrix. The
+  agent comments on its issue and may request a status from `apply.allowed_status`.
+- `octestra-loop-retrospective.yml` **aggregates** — one agent job reads the whole selected set and
+  changes no task state. Because it produces code, the untrusted agent job only writes a patch; the
+  trusted finalize job applies it, pushes the branch from `branch.loop`, and opens a pull request.
+
+Copy whichever is closer to what you want and edit it. The operations are the same either way; the
+shape follows from whether the workflow passes an issue number to `loop/prepare-run`.
 
 ### Configuration control plane
 
@@ -183,3 +197,17 @@ Installed workflows are `octestra-lifecycle.yml`, lifecycle in-progress/validati
 workflows, and opt-in `octestra-loop-<id>.yml` files. Lifecycle operations use the
 `lifecycle/<verb>` namespace and loop operations use `loop/<verb>`; old lifecycle names are
 deprecated aliases.
+
+## Development
+
+```sh
+npm ci
+make all
+```
+
+`dist/index.js` and `proof/dist/index.js` are committed because they are the GitHub Actions runtime
+bundles.
+
+`AGENTS.md` is the contract for changing this repository: layout, platform invariants, code style,
+and the review checklist. `docs/design.md` records why the system is shaped the way it is, and
+`TODO.md` tracks open work.

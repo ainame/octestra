@@ -31,6 +31,7 @@ prompts:
 
 # Loops are opt-in. Copy the reference workflow and uncomment/configure an entry.
 # loops:
+#   # Fan-out loop: one agent run per selected issue. Copy octestra-loop-triage-todo.yml.
 #   triage-todo:
 #     prompt: .github/octestra/prompts/loop-triage-todo.md.hbs
 #     select:
@@ -46,3 +47,22 @@ prompts:
 #       assign_owner: true
 #       dry_run: false
 #     report_issue: null
+#
+#   # Aggregate loop: one agent run over the whole selection. Copy
+#   # octestra-loop-retrospective.yml alongside this entry. `report_issue` is required, because an
+#   # aggregate run has no single task to comment on.
+#   retrospective:
+#     prompt: .github/octestra/prompts/loop-retrospective.md.hbs
+#     select:
+#       epic: null
+#       status: Done
+#       labels: [octestra-task]
+#       updated_before: 7d
+#       limit: 20
+#       scan_budget: 300
+#       order: newest
+#     apply:
+#       allowed_status: []     # An aggregate run never moves a task.
+#       assign_owner: false
+#       dry_run: false
+#     report_issue: 1          # Issue that receives the retrospective summary.

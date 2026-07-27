@@ -43,7 +43,7 @@ gh repo view --json nameWithOwner --jq .nameWithOwner
 
 If inference fails, ask for `owner/repository`. The Project owner defaults to the
 repository organization. Use the Issue Field name configured in
-`.github/workflows/octestra-orchestrator.yml`; it normally defaults to `AI Task Status`.
+`.github/octestra/config.yml`; it normally defaults to `AI Task Status`.
 
 ## 2. Build and confirm the task list
 

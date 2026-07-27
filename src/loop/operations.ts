@@ -2,8 +2,10 @@ import path from "node:path";
 import * as core from "@actions/core";
 import type { OperationsClient } from "../lifecycle/operations";
 import type { LoopConfig, OctestraConfig } from "../shared/config";
-import { renderPrompt } from "../shared/prompt";
+import { renderPrompt, type PromptVariables } from "../shared/prompt";
 import { readProofDocument, renderProofComment } from "../shared/proof";
+
+export const defaultLoopBranchTemplate = "octestra/loop/{loop_id}/{run_number}";
 
 export interface LoopIssue {
   number: number;
@@ -32,6 +34,38 @@ export function parseLoopContext(raw: string): LoopContext {
   if (typeof context.loop_id !== "string" || !context.loop_id) throw new Error("loop-context must contain loop_id");
   return { loop_id: context.loop_id, trigger: typeof context.trigger === "string" ? context.trigger : "", dry_run: context.dry_run === true, config_ref: typeof context.config_ref === "string" ? context.config_ref : "" };
 }
+export interface LoopSelection {
+  number: number;
+  title: string;
+  status: string;
+  updated_at: string;
+}
+export function parseLoopSelection(raw: string): LoopSelection[] {
+  const value: unknown = JSON.parse(raw);
+  if (!Array.isArray(value)) throw new Error("loop-issues must be a JSON array");
+  return value.map((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new Error(`loop-issues[${index}] must be an object`);
+    const issue = entry as Record<string, unknown>;
+    if (typeof issue.number !== "number" || !Number.isSafeInteger(issue.number) || issue.number <= 0) throw new Error(`loop-issues[${index}].number must be a positive integer`);
+    return {
+      number: issue.number,
+      title: typeof issue.title === "string" ? issue.title : "",
+      status: typeof issue.status === "string" ? issue.status : "",
+      updated_at: typeof issue.updated_at === "string" ? issue.updated_at : "",
+    };
+  });
+}
+export function resolveLoopBranchName(template: string, loopId: string, runNumber: string): string {
+  if (!template.includes("{loop_id}") || !template.includes("{run_number}")) {
+    throw new Error("config.yml branch.loop must include {loop_id} and {run_number}");
+  }
+  if (!runNumber) throw new Error("loop branch name requires a run number");
+  const branchName = template.replaceAll("{loop_id}", loopId).replaceAll("{run_number}", runNumber);
+  if (branchName.includes("..") || branchName.startsWith("/") || branchName.endsWith("/")) {
+    throw new Error(`branch template resolved to an invalid branch name: ${branchName}`);
+  }
+  return branchName;
+}
 function emitSelection(issues: Array<{ number: number; title: string; status: string; updated_at: string }>, partial: boolean): void {
   core.setOutput("issues", JSON.stringify(issues));
   core.setOutput("count", String(issues.length));
@@ -54,21 +88,45 @@ export async function selectTasks(client: LoopClient, config: LoopConfig, status
   }
   emitSelection(selected, listed.partial);
 }
-export async function prepareRun(loop: LoopContext, config: LoopConfig, issueNumber: number): Promise<void> {
-  const resultPath = `octestra-loop-${loop.loop_id}-${issueNumber}.json`;
-  const artifactPath = `octestra-loop-${loop.loop_id}-${issueNumber}-artifacts`;
+export interface PrepareRunOptions {
+  issueNumber?: number;
+  issues?: LoopSelection[];
+  runNumber?: string;
+  branchTemplate?: string;
+}
+export async function prepareRun(loop: LoopContext, config: LoopConfig, options: PrepareRunOptions): Promise<void> {
+  const scope = options.issueNumber === undefined ? loop.loop_id : `${loop.loop_id}-${options.issueNumber}`;
+  const resultPath = `octestra-loop-${scope}.json`;
+  const artifactPath = `octestra-loop-${scope}-artifacts`;
+  const patchPath = `octestra-loop-${scope}.patch`;
   const templatePath = path.join(process.env.GITHUB_WORKSPACE ?? process.cwd(), config.prompt);
   core.setOutput("result_path", resultPath);
   core.setOutput("artifact_path", artifactPath);
-  core.setOutput("prompt", await renderPrompt(templatePath, { skillName: "", epicPrompt: "", issueNumber, pullNumber: undefined, draftFlag: "", resultPath, artifactPath }));
+  core.setOutput("patch_path", patchPath);
+  const variables: PromptVariables = { resultPath, artifactPath, patchPath, loopId: loop.loop_id };
+  if (options.issueNumber === undefined) {
+    const issues = options.issues ?? [];
+    const branchName = resolveLoopBranchName(options.branchTemplate ?? defaultLoopBranchTemplate, loop.loop_id, options.runNumber ?? "");
+    core.setOutput("branch_name", branchName);
+    variables.branchName = branchName;
+    variables.runNumber = options.runNumber ?? "";
+    variables.issues = issues;
+    variables.issueCount = issues.length;
+  } else {
+    variables.issueNumber = options.issueNumber;
+  }
+  core.setOutput("prompt", await renderPrompt(templatePath, variables));
 }
-export async function finalizeRun(client: OperationsClient, issueNumber: number, config: LoopConfig, statusFieldName: string, proofPath: string, dryRun: boolean): Promise<void> {
+export async function finalizeRun(client: OperationsClient, config: LoopConfig, statusFieldName: string, proofPath: string, requestedDryRun: boolean, issueNumber?: number): Promise<void> {
+  const target = issueNumber ?? config.report_issue;
+  if (!target) throw new Error("loop/finalize-run needs an issue-number or a configured report_issue");
+  const dryRun = requestedDryRun || config.apply.dry_run;
   const proof = await readProofDocument(proofPath);
-  await client.comment(issueNumber, renderProofComment(proof, { issueNumber }));
+  await client.comment(target, renderProofComment(proof, { issueNumber: target }));
+  core.setOutput("outcome", proof.outcome);
   const nextStatus = proof.nextStatus;
-  if (!nextStatus || !config.apply.allowed_status.includes(nextStatus) || dryRun) {
+  if (issueNumber === undefined || !nextStatus || !config.apply.allowed_status.includes(nextStatus) || dryRun) {
     core.setOutput("applied", "false");
-    core.setOutput("outcome", proof.outcome);
     return;
   }
   if (config.apply.assign_owner) {
@@ -78,7 +136,6 @@ export async function finalizeRun(client: OperationsClient, issueNumber: number,
   }
   await client.updateStatus(issueNumber, statusFieldName, nextStatus);
   core.setOutput("applied", "true");
-  core.setOutput("outcome", proof.outcome);
 }
 export async function reportFailure(client: OperationsClient, loop: LoopContext, config: LoopConfig): Promise<void> {
   const message = `Octestra loop ${loop.loop_id} failed: ${(process.env.GITHUB_SERVER_URL ?? "https://github.com")}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;

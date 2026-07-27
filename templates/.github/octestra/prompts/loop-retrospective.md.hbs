@@ -1,0 +1,38 @@
+# Retrospective on completed tasks
+
+You are reviewing {{issueCount}} completed Octestra tasks to find recurring friction and improve the
+instructions future tasks receive.
+
+## Tasks in scope
+
+{{#each issues}}
+- #{{number}} — {{title}} (updated {{updated_at}})
+{{/each}}
+
+## What to do
+
+1. For each task, read the issue and the pull request that closed it, including review comments,
+   requested changes, and any Blocked transitions.
+2. Look for patterns rather than one-off mistakes: instructions that were repeatedly misread,
+   acceptance criteria that were repeatedly missed, review comments that recur across tasks.
+3. Edit `.github/octestra/prompts/` and the agent skill files so that a future task would avoid
+   those patterns. Change instructions, not history: do not edit closed issues or merged pull
+   requests.
+
+Leave your edits in the working tree. Do not commit, push, or open a pull request — a separate
+trusted job turns your changes into a pull request on `{{branchName}}`, and this job holds no
+credentials to do it itself.
+
+## Result document
+
+Write JSON to `{{resultPath}}`:
+
+- `outcome` (required): `passed` when you propose changes, `no_action` when the tasks show no
+  recurring problem worth changing.
+- `summary` (required): what pattern you found and what you changed, for a reader who has not read
+  the tasks.
+- `details` (optional): Markdown with the per-task evidence behind the pattern.
+
+Do not set `next_status`. An aggregate loop has no single task to move, so it is ignored.
+
+Save any supporting files under `{{artifactPath}}`.

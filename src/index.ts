@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import { GitHubClient } from "./shared/github-client";
 import { loadOctestraConfig } from "./shared/config";
-import { finalizeRun, loopDefinition, parseLoopContext, prepareRun, reportFailure as reportLoopFailure, selectTasks } from "./loop/operations";
+import { finalizeRun, loopDefinition, parseLoopContext, parseLoopSelection, prepareRun, reportFailure as reportLoopFailure, selectTasks } from "./loop/operations";
 import {
   assignOwner,
   assignPullRequestOwner,
@@ -115,12 +115,18 @@ export async function run(): Promise<void> {
     }
     case "loop/prepare-run": {
       const loop = parseLoopContext(core.getInput("loop-context", { required: true }));
-      await prepareRun(loop, loopDefinition(config, loop), requiredNumber("issue-number"));
+      const issuesInput = core.getInput("loop-issues");
+      await prepareRun(loop, loopDefinition(config, loop), {
+        issueNumber: optionalNumber("issue-number"),
+        issues: issuesInput ? parseLoopSelection(issuesInput) : undefined,
+        runNumber: process.env.GITHUB_RUN_NUMBER ?? "",
+        branchTemplate: config.branch.loop,
+      });
       break;
     }
     case "loop/finalize-run": {
       const loop = parseLoopContext(core.getInput("loop-context", { required: true }));
-      await finalizeRun(client, requiredNumber("issue-number"), loopDefinition(config, loop), config.status.field_name, core.getInput("proof-path", { required: true }), loop.dry_run);
+      await finalizeRun(client, loopDefinition(config, loop), config.status.field_name, core.getInput("proof-path", { required: true }), loop.dry_run, optionalNumber("issue-number"));
       break;
     }
     case "loop/report-failure": {
