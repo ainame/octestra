@@ -1,6 +1,8 @@
 import * as core from "@actions/core";
 import { GitHubClient } from "./shared/github-client";
 import { loadOctestraConfig } from "./shared/config";
+import { parseLoopContext, selectTasks, finalizeRun } from "./loop/operations";
+import { renderPrompt } from "./shared/prompt";
 import {
   assignOwner,
   assignPullRequestOwner,
@@ -94,26 +96,20 @@ function branchTemplate(configTemplate: string): string {
 export async function run(): Promise<void> {
   const token = core.getInput("github-token", { required: true });
   const lifecycleContext = parseLifecycleContext();
-  const issueInput = core.getInput("issue-number") ||
-    lifecycleContext.issue_number;
-  const client = new GitHubClient(token);
-  const config = await loadOctestraConfig(client, core.getInput("config-ref"));
-  const context: OperationContext = {
-    client,
-    issueNumber: positiveNumber("issue-number", issueInput),
-    statusFieldName: contextString(
-      lifecycleContext,
-      "status-field-name",
-      "status_field_name",
-    ) || config.status.field_name,
-  };
-
   const requestedOperation = core.getInput("operation", { required: true });
   const aliases: Record<string, string> = { "validate-transition": "lifecycle/validate-transition", "finalize-merged-task": "lifecycle/finalize-merged-task", "prepare-task": "lifecycle/prepare-task", "finalize-task": "lifecycle/finalize-task", "prepare-validation": "lifecycle/prepare-validation", "finalize-validation": "lifecycle/finalize-validation", "build-task-context": "lifecycle/build-task-context", "build-validation-context": "lifecycle/build-validation-context", "report-failure": "lifecycle/report-failure" };
   const operation = aliases[requestedOperation] ?? requestedOperation;
   if (operation !== requestedOperation) core.warning(`${requestedOperation} is deprecated; use ${operation}`);
+  const client = new GitHubClient(token);
+  const config = await loadOctestraConfig(client, core.getInput("config-ref"));
+  const issueInput = core.getInput("issue-number") || lifecycleContext.issue_number;
+  const context: OperationContext = { client, issueNumber: operation.startsWith("loop/") && !issueInput ? 0 : positiveNumber("issue-number", issueInput), statusFieldName: contextString(lifecycleContext, "status-field-name", "status_field_name") || config.status.field_name };
   const taskBranchTemplate = branchTemplate(config.branch.task);
   switch (operation) {
+    case "loop/select-tasks": { const loop = parseLoopContext(core.getInput("loop-context", { required: true })); const definition = config.loops[loop.loop_id]; if (!definition) throw new Error(`Unknown loop: ${loop.loop_id}`); await selectTasks(client, definition); break; }
+    case "loop/prepare-run": { const loop = parseLoopContext(core.getInput("loop-context", { required: true })); const definition = config.loops[loop.loop_id]; if (!definition) throw new Error(`Unknown loop: ${loop.loop_id}`); const issue = requiredNumber("issue-number"); core.setOutput("result_path", `octestra-loop-${loop.loop_id}-${issue}.json`); core.setOutput("artifact_path", `octestra-loop-${loop.loop_id}-${issue}-artifacts`); core.setOutput("prompt", await renderPrompt(definition.prompt, { skillName: "", epicPrompt: "", issueNumber: issue, pullNumber: undefined, draftFlag: "", resultPath: `octestra-loop-${loop.loop_id}-${issue}.json`, artifactPath: `octestra-loop-${loop.loop_id}-${issue}-artifacts` })); break; }
+    case "loop/finalize-run": { const loop = parseLoopContext(core.getInput("loop-context", { required: true })); const definition = config.loops[loop.loop_id]; if (!definition) throw new Error(`Unknown loop: ${loop.loop_id}`); await finalizeRun(client, requiredNumber("issue-number"), definition, core.getInput("proof-path", { required: true }), loop.dry_run); break; }
+    case "loop/report-failure": { const loop = parseLoopContext(core.getInput("loop-context", { required: true })); const definition = config.loops[loop.loop_id]; if (definition?.report_issue) await client.comment(definition.report_issue, `Octestra loop ${loop.loop_id} failed: ${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`); break; }
     case "lifecycle/validate-transition":
       await validateTransition(
         context,

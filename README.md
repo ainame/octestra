@@ -164,3 +164,7 @@ make all
 
 `dist/index.js` and `proof/dist/index.js` are committed because they are the GitHub Actions runtime
 bundles.
+
+## Loops
+
+Loops are opt-in scheduled automation. Add a `loops.<id>` entry to `.github/octestra/config.yml` and copy the matching `octestra-loop-<id>.yml` workflow. Schedules run only from the default branch, are best-effort, and may be disabled after inactivity; every loop must be idempotent. Each loop includes `workflow_dispatch`, which defaults to a dry run.
