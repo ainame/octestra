@@ -6,7 +6,6 @@ runners: { orchestration: ubuntu-latest, agent: ubuntu-latest }
 status:
   field_name: AI Task Status
   field_id: "1"
-  options: { todo: "1", ready: "2", in_progress: "3", validation: "4", human_review: "5", blocked: "6", done: "7" }
 branch: { task: 'octestra/{epic_id}/issue-{issue_number}', loop: 'octestra/loop/{loop_id}/{run_number}' }
 prompts: { lifecycle_in_progress: task.hbs, lifecycle_validation: validation.hbs }
 loops: {}

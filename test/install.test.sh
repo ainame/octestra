@@ -50,7 +50,7 @@ if [[ "$args" == *"--method POST"* ]]; then
     shift
   done
   grep -q '"name": "AI Task Status"' "$input"
-  grep -q '"name": "Validation"' "$input"
+  grep -q '"name":"Validation","color":"pink","priority":4' "$input"
   touch "$OCTESTRA_TEST_STATE"
   printf '{}\n'
   exit 0
@@ -64,18 +64,19 @@ if [[ "$args" == *".data_type"* ]]; then
 fi
 
 if [[ "$args" == *".options"* ]]; then
+  # Operations address statuses by name, so the installer asks for option names only.
   cat <<'OPTIONS'
-Todo	101
-Ready	102
-In Progress	103
+Todo
+Ready
+In Progress
 OPTIONS
   if [[ "${OCTESTRA_TEST_MISSING_VALIDATION:-false}" != "true" ]]; then
-    printf 'Validation\t104\n'
+    printf 'Validation\n'
   fi
   cat <<'OPTIONS'
-Human Review	105
-Blocked	106
-Done	107
+Human Review
+Blocked
+Done
 OPTIONS
   exit 0
 fi
@@ -103,8 +104,9 @@ test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 ruby -c "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/scripts/setup_epic.rb" >/dev/null
 grep -q 'field_id: "9001"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
-grep -q 'todo: "101"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
-grep -q 'validation: "104"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+grep -q 'field_name: "AI Task Status"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+# Operations address statuses by name, so no option IDs are written to config.yml.
+! grep -q 'options:' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 
 missing_option_output="$TEMP_DIR/missing-option-output"

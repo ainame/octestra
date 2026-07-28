@@ -35,9 +35,9 @@ nothing bypasses the state machine.
 | D2 | One workflow file per loop, with no central loop router | The only thing a router would have shared is configuration, and D3 removes that need. A router forces routing by `github.event.schedule` string, requiring globally unique cron strings and duplicating each loop's identity across cron condition, dispatch choice list, job name, context JSON, and filename. |
 | D3 | Platform values (runner labels, App client ID, status field ID) live in repository `vars` | `vars` is available in `runs-on`, job `if`, `with`, `concurrency`, and `run-name`; `env` is available in none of them (P2). |
 | D4 | The lifecycle is two workflow layers, not three | The old middle layer existed only to convert workflow `env` into `workflow_call` inputs so `runs-on` could read it. D3 removes that need. |
-| D5 | Per-status routing keys on a `status_key` output from the transition guard, not on option IDs in workflow YAML | The guard already runs for every routed event, so this costs nothing, keeps option IDs authoritative in `config.yml`, and removes seven values from `vars`. |
+| D5 | Per-status routing keys on a `status_key` output from the transition guard, not on per-status values in workflow YAML | The guard already runs for every routed event, so this costs nothing and keeps seven values out of `vars`. |
 | D6 | `config.yml` is the source of truth and the only file `install.sh` generates | One reviewable, version-controlled file. Placeholder substitution collapses from many workflow files to one. |
-| D7 | Status option IDs are the authoritative identity of a status | Consumers may rename labels; IDs are stable. See P1. |
+| D7 | The status *field* is addressed by ID; a status *option* is addressed by its display name | A field rename must not break routing, and `field_id` is available to the guard through a variable. Option IDs cannot be used the same way: the write endpoint accepts a single_select value only as the option name, so an option ID would buy nothing while adding a second vocabulary. See P1 and `TODO.md` §3. |
 | D8 | Prompts live in `.github/octestra/prompts/` | Everything Octestra owns in a consumer repository sits under one directory. |
 | D9 | Operations are namespaced `lifecycle/<verb>`, `loop/<verb>`, bare for scope-neutral | Paired operations get identical names (`lifecycle/report-failure` ↔ `loop/report-failure`), verb-first naming survives inside each namespace, and `src/lifecycle/`, `src/loop/`, `src/shared/` map 1:1. |
 | D10 | Never `secrets: inherit` | It hands every repository and organization secret to a workflow that executes an agent, contradicting the trust boundary. See P7. |
@@ -72,7 +72,7 @@ Split by *when* a value is needed, not by what it is.
 | Tier | Examples | Lives in | Why not elsewhere |
 |---|---|---|---|
 | Platform | runner labels, App client ID, status field ID | `config.yml`, mirrored to `vars` | Needed before a job starts; no file can be read then |
-| Policy | status field name, option IDs, branch templates, prompt paths, loop selection and guard rails | `config.yml`, read at runtime | Reviewable and versioned |
+| Policy | status field name, branch templates, prompt paths, loop selection and guard rails | `config.yml`, read at runtime | Reviewable and versioned |
 | Wiring | cron strings, job graph, agent invocation | workflow YAML | GitHub accepts only literals here; also the consumer's customisation surface |
 | Intent | `epic-config`, `task-config` | issue body | Unchanged |
 
@@ -90,8 +90,9 @@ filter on the field name instead. It does not: the name would still have to come
 because workflow templates install byte-identically, so the variable count is unchanged, and the ID
 survives a field rename while the name does not (D7).
 
-Status option IDs are deliberately not mirrored (D5) — only the transition guard consumes them, and
-it reads `config.yml` directly.
+Status option IDs are not carried at all (D7): every operation names a status by its display name,
+so `config.yml` records only `field_name` and `field_id`. `install.sh` verifies at setup that the
+organization's field has all seven required options.
 
 ### Drift
 

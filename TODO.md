@@ -72,17 +72,16 @@ was implemented and reverted: it adds a second vocabulary (`config.yml` keys alo
 the lifecycle, both loop policy fields, and the agent-authored `next_status`, and still cannot make
 a rename safe without a field-definition lookup on the write path. Not worth the split contract.
 
-What remains true, and cheap, if rename-safety is ever wanted for *routing* only: `status_key` could
-be derived by looking the event's `option.id` up in `config.yml` instead of slugging the display
-name, leaving every API exchange name-based. That is a much smaller change than the one abandoned
-here. It would still leave `updateStatus` and `getStatus` name-keyed.
+`config.yml` therefore records no option IDs at all — only `field_name` and `field_id`. If
+rename-safety is ever wanted for *routing* alone, `status_key` could be derived by looking the
+event's `option.id` up in a key-to-ID map, which would mean reintroducing that map to `config.yml`.
+Every API exchange would stay name-based, so it is a far smaller change than the one abandoned here,
+but it would still leave `updateStatus` and `getStatus` name-keyed.
 
 Revisit if the write endpoint gains ID addressing.
 
 ## 4. `install.sh` hardening
 
-- Validate that the resolved status options match the seven Octestra expects, and fail with the
-  mismatch rather than writing a `config.yml` that only breaks later.
 - Re-running the installer over an existing installation should preserve consumer edits to
   `config.yml`; today it regenerates the file.
 - The installer overwrites workflows, prompts, and the agent skill on every run. Say so before doing

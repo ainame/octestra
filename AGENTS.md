@@ -72,12 +72,16 @@ be rediscovered.
 - **P1. Status option *names* are part of the contract, because the write API gives no
   alternative.** `POST .../issue-field-values` takes `{field_id, value}` and accepts a single_select
   value only as the option's *display name* — there is no `single_select_option_id`. So
-  `allowedTransitions`, `updateStatus`, and `getStatus` all key on the display name, while identity
-  is the option ID. Renaming an option keeps routing working but breaks the operations, and breaks
-  `install.sh`, so it fails at setup rather than silently. Reads *could* be ID-addressed (`GET`
-  returns `issue_field_id` and `single_select_option.id`), but a half-ID design buys nothing while
-  writes still need the name, so names are the single vocabulary throughout. Do not introduce a
-  second one. Revisit only if the write endpoint gains ID addressing.
+  `allowedTransitions`, `updateStatus`, `getStatus`, `status_key`, and loop `select.status` /
+  `apply.allowed_status` all key on the display name. Reads *could* be ID-addressed (`GET` returns
+  `issue_field_id` and `single_select_option.id`), but a half-ID design buys nothing while writes
+  still need the name, so names are the single vocabulary and `config.yml` carries no option IDs —
+  only `field_name` and `field_id`. Do not introduce a second vocabulary.
+  Renaming an option in the organization therefore breaks the installation: the event's new name is
+  absent from `allowedTransitions`, so the guard reports an invalid transition instead of routing,
+  and `install.sh` reports the option as missing on its next run. That is loud rather than silent,
+  which is the only reason this is tolerable. Revisit only if the write endpoint gains ID addressing;
+  see `TODO.md` §3 for what was tried and why it was reverted.
 - **P2. `vars` is available where `env` is not.** `vars` works in `jobs.<id>.runs-on`,
   `jobs.<id>.if`, `jobs.<id>.with.<id>`, `concurrency`, and `run-name`; `env` works in none of them.
   This is the reason the lifecycle is two layers instead of three.

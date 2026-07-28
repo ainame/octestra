@@ -19,7 +19,7 @@ export interface OctestraConfig {
   version: 1;
   github_app: { client_id: string };
   runners: { orchestration: string; agent: string };
-  status: { field_name: string; field_id: string; options: Record<string, string> };
+  status: { field_name: string; field_id: string };
   branch: { task: string; loop: string };
   prompts: { lifecycle_in_progress: string; lifecycle_validation: string };
   loops: Record<string, LoopConfig>;
@@ -50,10 +50,8 @@ export function parseOctestraConfig(raw: string): OctestraConfig {
   const app = mapping(root.github_app, "github_app");
   const runners = mapping(root.runners, "runners");
   const status = mapping(root.status, "status");
-  const options = mapping(status.options, "status.options");
   const branch = mapping(root.branch, "branch");
   const prompts = mapping(root.prompts, "prompts");
-  for (const key of ["todo", "ready", "in_progress", "validation", "human_review", "blocked", "done"]) requiredString(options[key], `status.options.${key}`);
   const loops: Record<string, LoopConfig> = {};
   for (const [id, rawLoop] of Object.entries(mapping(root.loops ?? {}, "loops"))) {
     if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error(`config.yml loops.${id} must use a lowercase slug`);
@@ -80,7 +78,7 @@ export function parseOctestraConfig(raw: string): OctestraConfig {
     version: 1,
     github_app: { client_id: requiredString(app.client_id, "github_app.client_id") },
     runners: { orchestration: requiredString(runners.orchestration, "runners.orchestration"), agent: requiredString(runners.agent, "runners.agent") },
-    status: { field_name: requiredString(status.field_name, "status.field_name"), field_id: requiredString(status.field_id, "status.field_id"), options: Object.fromEntries(Object.entries(options).map(([key, value]) => [key, requiredString(value, `status.options.${key}`)])) },
+    status: { field_name: requiredString(status.field_name, "status.field_name"), field_id: requiredString(status.field_id, "status.field_id") },
     branch: { task: requiredString(branch.task, "branch.task"), loop: requiredString(branch.loop, "branch.loop") },
     prompts: { lifecycle_in_progress: requiredString(prompts.lifecycle_in_progress, "prompts.lifecycle_in_progress"), lifecycle_validation: requiredString(prompts.lifecycle_validation, "prompts.lifecycle_validation") },
     loops,

@@ -3,6 +3,18 @@
 set -euo pipefail
 
 readonly DEFAULT_STATUS_FIELD_NAME="AI Task Status"
+# The Issue Field options Octestra's state graph requires, as name|color|priority.
+# Single source for the creation payload, the missing-option report, and the presence
+# check, so the seven statuses are written out exactly once.
+readonly REQUIRED_OPTIONS=(
+  "Todo|gray|1"
+  "Ready|blue|2"
+  "In Progress|yellow|3"
+  "Validation|pink|4"
+  "Human Review|purple|5"
+  "Blocked|red|6"
+  "Done|green|7"
+)
 readonly DEFAULT_SOURCE_REPOSITORY="ainame/octestra"
 readonly DEFAULT_SOURCE_REF="main"
 readonly API_VERSION="2026-03-10"
@@ -302,15 +314,7 @@ create_issue_field() {
   "description": "Status for agentic tasks",
   "data_type": "single_select",
   "visibility": "organization_members_only",
-  "options": [
-    {"name": "Blocked", "color": "red", "priority": 6},
-    {"name": "Done", "color": "green", "priority": 7},
-    {"name": "Human Review", "color": "purple", "priority": 5},
-    {"name": "In Progress", "color": "yellow", "priority": 3},
-    {"name": "Validation", "color": "pink", "priority": 4},
-    {"name": "Ready", "color": "blue", "priority": 2},
-    {"name": "Todo", "color": "gray", "priority": 1}
-  ]
+  "options": [$(required_options_json "${REQUIRED_OPTIONS[@]}")]
 }
 EOF
 
@@ -325,29 +329,36 @@ EOF
   fi
 }
 
-required_option_json() {
-  case "$1" in
-    "Todo") printf '{"name":"Todo","color":"gray","priority":1}' ;;
-    "Ready") printf '{"name":"Ready","color":"blue","priority":2}' ;;
-    "In Progress") printf '{"name":"In Progress","color":"yellow","priority":3}' ;;
-    "Validation") printf '{"name":"Validation","color":"pink","priority":4}' ;;
-    "Human Review") printf '{"name":"Human Review","color":"purple","priority":5}' ;;
-    "Blocked") printf '{"name":"Blocked","color":"red","priority":6}' ;;
-    "Done") printf '{"name":"Done","color":"green","priority":7}' ;;
-    *) die "unknown required Issue Field option: $1" ;;
-  esac
+# Renders the requested REQUIRED_OPTIONS entries as a JSON array body. Accepts either
+# a full "name|color|priority" entry or a bare name, so the missing-option report can
+# pass the names it collected.
+required_options_json() {
+  local separator=""
+  local requested=""
+  local entry=""
+  local name=""
+  local rest=""
+  local found=false
+
+  for requested in "$@"; do
+    found=false
+    for entry in "${REQUIRED_OPTIONS[@]}"; do
+      if [[ "${entry%%|*}" == "${requested%%|*}" ]]; then
+        name="${entry%%|*}"
+        rest="${entry#*|}"
+        printf '%s{"name":"%s","color":"%s","priority":%s}' \
+          "$separator" "$name" "${rest%%|*}" "${rest##*|}"
+        separator=","
+        found=true
+        break
+      fi
+    done
+    [[ "$found" == true ]] || die "unknown required Issue Field option: $requested"
+  done
 }
 
 print_add_missing_options_command() {
-  local additions="["
-  local separator=""
-  local option=""
-
-  for option in "$@"; do
-    additions+="$separator$(required_option_json "$option")"
-    separator=","
-  done
-  additions+="]"
+  local additions="[$(required_options_json "$@")]"
 
   cat >&2 <<EOF
 
@@ -378,45 +389,31 @@ curl --fail --silent --show-error --location --request PATCH \\
 EOF
 }
 
-load_option_ids() {
-  local id=""
+# Operations address statuses by display name (P1), so the installer does not need
+# option IDs — only the guarantee that every required option exists. Checking here is
+# what makes a missing or renamed option fail at setup instead of mid-workflow.
+verify_required_options() {
+  local present=""
   local name=""
+  local entry=""
+  local required=""
 
-  TODO_OPTION_ID=""
-  READY_OPTION_ID=""
-  IN_PROGRESS_OPTION_ID=""
-  VALIDATION_OPTION_ID=""
-  HUMAN_REVIEW_OPTION_ID=""
-  BLOCKED_OPTION_ID=""
-  DONE_OPTION_ID=""
-
-  while IFS=$'\t' read -r name id; do
-    case "$name" in
-      "Todo") TODO_OPTION_ID="$id" ;;
-      "Ready") READY_OPTION_ID="$id" ;;
-      "In Progress") IN_PROGRESS_OPTION_ID="$id" ;;
-      "Validation") VALIDATION_OPTION_ID="$id" ;;
-      "Human Review") HUMAN_REVIEW_OPTION_ID="$id" ;;
-      "Blocked") BLOCKED_OPTION_ID="$id" ;;
-      "Done") DONE_OPTION_ID="$id" ;;
-    esac
+  while IFS= read -r name; do
+    present+="|$name|"
   done < <(
     gh api \
       -H "Accept: application/vnd.github+json" \
       -H "X-GitHub-Api-Version: $API_VERSION" \
       "/orgs/$ORGANIZATION/issue-fields" \
       --paginate \
-      --jq ".[] | select(.id == $FIELD_ID) | (.options // .single_select_options // [])[] | [.name, .id] | @tsv"
+      --jq ".[] | select(.id == $FIELD_ID) | (.options // .single_select_options // [])[] | .name"
   )
 
   local missing=()
-  [[ -n "$TODO_OPTION_ID" ]] || missing+=("Todo")
-  [[ -n "$READY_OPTION_ID" ]] || missing+=("Ready")
-  [[ -n "$IN_PROGRESS_OPTION_ID" ]] || missing+=("In Progress")
-  [[ -n "$VALIDATION_OPTION_ID" ]] || missing+=("Validation")
-  [[ -n "$HUMAN_REVIEW_OPTION_ID" ]] || missing+=("Human Review")
-  [[ -n "$BLOCKED_OPTION_ID" ]] || missing+=("Blocked")
-  [[ -n "$DONE_OPTION_ID" ]] || missing+=("Done")
+  for entry in "${REQUIRED_OPTIONS[@]}"; do
+    required="${entry%%|*}"
+    [[ "$present" == *"|$required|"* ]] || missing+=("$required")
+  done
 
   if (( ${#missing[@]} > 0 )); then
     printf "Octestra: error: Issue Field '%s' is missing required options: %s\n" \
@@ -486,13 +483,6 @@ copy_and_render_templates() {
   if [[ -n "$GITHUB_APP_CLIENT_ID" ]]; then replace_token "$config" "YOUR-GITHUB-APP-CLIENT-ID" "$GITHUB_APP_CLIENT_ID"; fi
   replace_token "$config" "__OCTESTRA_STATUS_FIELD_NAME__" "$STATUS_FIELD_NAME"
   replace_token "$config" "__OCTESTRA_STATUS_FIELD_ID__" "$FIELD_ID"
-  replace_token "$config" "__OCTESTRA_STATUS_TODO_OPTION_ID__" "$TODO_OPTION_ID"
-  replace_token "$config" "__OCTESTRA_STATUS_READY_OPTION_ID__" "$READY_OPTION_ID"
-  replace_token "$config" "__OCTESTRA_STATUS_IN_PROGRESS_OPTION_ID__" "$IN_PROGRESS_OPTION_ID"
-  replace_token "$config" "__OCTESTRA_STATUS_VALIDATION_OPTION_ID__" "$VALIDATION_OPTION_ID"
-  replace_token "$config" "__OCTESTRA_STATUS_HUMAN_REVIEW_OPTION_ID__" "$HUMAN_REVIEW_OPTION_ID"
-  replace_token "$config" "__OCTESTRA_STATUS_BLOCKED_OPTION_ID__" "$BLOCKED_OPTION_ID"
-  replace_token "$config" "__OCTESTRA_STATUS_DONE_OPTION_ID__" "$DONE_OPTION_ID"
   if grep -q "__OCTESTRA_" "$config"; then die "installation left unresolved Octestra placeholders"; fi
   (cd "$TARGET_DIR" && bash "$SCRIPT_DIR/octestra-vars.sh" sync .github/octestra/config.yml)
 }
@@ -596,7 +586,7 @@ fi
 [[ "$FIELD_DATA_TYPE" == "single_select" ]] ||
   die "Issue Field '$STATUS_FIELD_NAME' must use the single_select data type"
 
-load_option_ids
+verify_required_options
 resolve_template_directory
 prepare_install_tree
 copy_and_render_templates

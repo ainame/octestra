@@ -39,7 +39,8 @@ The installer:
 
 - Infers the organization from the repository
 - Finds or creates the `AI Task Status` Issue Field
-- Resolves the field and status option IDs
+- Verifies the field has the seven status options Octestra requires, and prints the command to add
+  any that are missing
 - Installs and renders the workflows and prompts
 - Installs the EPIC setup skill into the selected `.claude`, `.codex`, or `.agents` directory
 - Overwrites generated workflows, prompts, and the selected agent skill on every run
@@ -187,7 +188,7 @@ shape follows from whether the workflow passes an issue number to `loop/prepare-
 ### Configuration control plane
 
 Installation creates `.github/octestra/config.yml`, the source of truth for platform values,
-status option IDs, branch templates, prompt paths, and loop policy. Four values are mirrored into
+branch templates, prompt paths, and loop policy. Four values are mirrored into
 repository variables: `OCTESTRA_GITHUB_APP_CLIENT_ID`, `OCTESTRA_ORCHESTRATION_RUNNER`,
 `OCTESTRA_AGENT_RUNNER`, and `OCTESTRA_STATUS_FIELD_ID`. Run `make octestra-check-vars` to detect
 drift and `make octestra-sync-vars` to apply them. Prompts are read from the checkout under

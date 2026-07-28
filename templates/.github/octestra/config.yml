@@ -9,17 +9,13 @@ runners: # mirrored to repository variables
   agent: ubuntu-latest
 
 status:
+  # Operations address a status by its option display name, so these names are part
+  # of the contract: renaming an option in the organization breaks the installation.
+  # install.sh verifies all seven exist at setup time.
   field_name: "__OCTESTRA_STATUS_FIELD_NAME__"
+  # Used only to route the Issue Field event; the guard compares it before any job
+  # can read this file, which is why it is mirrored to a repository variable.
   field_id: "__OCTESTRA_STATUS_FIELD_ID__" # mirrored to OCTESTRA_STATUS_FIELD_ID
-  # Option IDs are authoritative and intentionally are not mirrored to vars.
-  options:
-    todo: "__OCTESTRA_STATUS_TODO_OPTION_ID__"
-    ready: "__OCTESTRA_STATUS_READY_OPTION_ID__"
-    in_progress: "__OCTESTRA_STATUS_IN_PROGRESS_OPTION_ID__"
-    validation: "__OCTESTRA_STATUS_VALIDATION_OPTION_ID__"
-    human_review: "__OCTESTRA_STATUS_HUMAN_REVIEW_OPTION_ID__"
-    blocked: "__OCTESTRA_STATUS_BLOCKED_OPTION_ID__"
-    done: "__OCTESTRA_STATUS_DONE_OPTION_ID__"
 
 branch:
   task: "octestra/{epic_id}/issue-{issue_number}"
