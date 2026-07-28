@@ -17,11 +17,11 @@ inputs:
   trigger-actor-type:
     description: GitHub sender type that initiated the field change
     required: false
-  previous-status:
-    description: AI Task Status before the observed transition
+  previous-status-id:
+    description: Status option ID before the observed transition; empty when the task had no status
     required: false
-  current-status:
-    description: AI Task Status after the observed transition
+  current-status-id:
+    description: Status option ID after the observed transition
     required: false
   config-ref:
     description: Optional config branch/ref; default is the repository default branch
@@ -42,10 +42,7 @@ inputs:
     description: Task pull request number
     required: false
   next-status:
-    description: Status used by the individual update-status operation
-    required: false
-  status-field-name:
-    description: Organization issue field override; default comes from config.yml
+    description: config.yml status key (todo, ready, in_progress, validation, human_review, blocked, done) used by the individual update-status operation
     required: false
 outputs:
   status_key:

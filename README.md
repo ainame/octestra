@@ -85,8 +85,10 @@ Octestra exposes aggregate lifecycle operations for the generated workflows and 
 operations for consumers that need custom sequencing or policy.
 
 Generated state workflows pass shared issue, status, and trigger data through named
-action inputs (`issue-number`, `previous-status`, `current-status`, `trigger-actor`,
-`trigger-actor-type`). Aggregate operations infer their fixed lifecycle behavior:
+action inputs (`issue-number`, `previous-status-id`, `current-status-id`, `trigger-actor`,
+`trigger-actor-type`). Statuses cross this boundary as option IDs, never as display names, so
+renaming a status option in the organization does not break an installation. Aggregate operations
+infer their fixed lifecycle behavior:
 
 - Prompt paths default by phase.
 - `finalize-task` reads the EPIC configuration to choose Validation or Human Review.
@@ -128,7 +130,7 @@ issues and closures unrelated to a merged pull request.
 | Individual | `resolve-task-pr` | Resolves the open pull request for a task branch and publishes its number. |
 | Individual | `report-proof` | Renders consumer-owned proof JSON as a reviewer-focused issue comment without changing lifecycle status. |
 | Individual | `request-review` | Ensures the latest human Issue task owner is assigned to the pull request, then requests review from that owner. |
-| Individual | `update-status` | Updates the configured organization Issue Field to the requested status. |
+| Individual | `update-status` | Updates the configured organization Issue Field. Takes a `config.yml` status key (`todo`, `ready`, `in_progress`, `validation`, `human_review`, `blocked`, `done`), not a display name. |
 | Failure | `report-failure` | Records workflow failure details and moves the task to the configured failure status. |
 
 ## Proof reporting
@@ -169,14 +171,16 @@ loop also exposes `workflow_dispatch`, which defaults to a dry run.
 
 A loop selects issues, runs the consumer's agent once per issue (or once for the whole set), and
 then applies the result from a separate trusted job. What it may do is bounded by
-`apply.allowed_status`, `select.limit`, and `select.scan_budget`. A loop that changes a task's
+`apply.allowed_status`, `select.limit`, and `select.scan_budget`, all of which name statuses by
+`config.yml` status key. A loop that changes a task's
 status emits a normal Issue Field event, so the lifecycle observes it and nothing bypasses the state
 machine.
 
 Two reference templates ship, and between them cover both shapes:
 
 - `octestra-loop-triage-todo.yml` **fans out** — one agent job per selected issue, via a matrix. The
-  agent comments on its issue and may request a status from `apply.allowed_status`.
+  agent comments on its issue and may request a status from `apply.allowed_status` by writing a
+  status key to `next_status`.
 - `octestra-loop-retrospective.yml` **aggregates** — one agent job reads the whole selected set and
   changes no task state. Because it produces code, the untrusted agent job only writes a patch; the
   trusted finalize job applies it, pushes the branch from `branch.loop`, and opens a pull request.

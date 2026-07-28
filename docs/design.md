@@ -35,7 +35,7 @@ nothing bypasses the state machine.
 | D2 | One workflow file per loop, with no central loop router | The only thing a router would have shared is configuration, and D3 removes that need. A router forces routing by `github.event.schedule` string, requiring globally unique cron strings and duplicating each loop's identity across cron condition, dispatch choice list, job name, context JSON, and filename. |
 | D3 | Platform values (runner labels, App client ID, status field ID) live in repository `vars` | `vars` is available in `runs-on`, job `if`, `with`, `concurrency`, and `run-name`; `env` is available in none of them (P2). |
 | D4 | The lifecycle is two workflow layers, not three | The old middle layer existed only to convert workflow `env` into `workflow_call` inputs so `runs-on` could read it. D3 removes that need. |
-| D5 | Per-status routing keys on a `status_key` output from the transition guard, not on option IDs in workflow YAML | The guard already runs for every routed event, so this costs nothing, keeps option IDs authoritative in `config.yml`, and removes seven values from `vars`. |
+| D5 | Per-status routing keys on a `status_key` output from the transition guard, not on option IDs in workflow YAML | The guard already runs for every routed event, so this costs nothing, keeps option IDs authoritative in `config.yml`, and removes seven values from `vars`. The guard derives the key by looking the event's option ID up in `config.yml`, so the key is stable across renames. |
 | D6 | `config.yml` is the source of truth and the only file `install.sh` generates | One reviewable, version-controlled file. Placeholder substitution collapses from many workflow files to one. |
 | D7 | Status option IDs are the authoritative identity of a status | Consumers may rename labels; IDs are stable. See P1. |
 | D8 | Prompts live in `.github/octestra/prompts/` | Everything Octestra owns in a consumer repository sits under one directory. |
@@ -90,7 +90,7 @@ filter on the field name instead. It does not: the name would still have to come
 because workflow templates install byte-identically, so the variable count is unchanged, and the ID
 survives a field rename while the name does not (D7).
 
-Status option IDs are deliberately not mirrored (D5) — only the transition guard consumes them, and
+Status option IDs are deliberately not mirrored (D5) — they are consumed at runtime, and
 it reads `config.yml` directly.
 
 ### Drift

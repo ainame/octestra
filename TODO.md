@@ -4,8 +4,8 @@ Open work, ordered by what unblocks what. Design rationale lives in `docs/design
 work must respect live in `AGENTS.md`.
 
 The Loop and configuration restructuring has shipped: the config control plane, the two-layer
-lifecycle topology, operation namespacing, and both loop shapes (per-issue fan-out and aggregate).
-Everything below is what remains.
+lifecycle topology, operation namespacing, both loop shapes (per-issue fan-out and aggregate), and
+ID-addressed status options. Everything below is what remains.
 
 ## 1. `loop/create-task`
 
@@ -54,21 +54,7 @@ An early implementation experiment is in the git stash named
 - Should comment tokens be opt-in rather than present in generated defaults?
 - What cloud and network isolation is required when validation uses Bedrock or another hosted model?
 
-## 3. Address status options by ID
-
-P1 in `AGENTS.md`: `allowedTransitions`, `updateStatus`, and `getStatus` key on the status display
-name while identity is the option ID. Renaming an option in the organization's Issue Field breaks
-the operations. It also breaks `install.sh`, so today it fails at setup rather than silently — the
-only reason this is not urgent.
-
-`GET`/`POST .../issue-field-values` accept `single_select_option_id`, so operations can address
-options by ID and reduce names to presentation. `config.yml` already carries the seven option IDs
-and the transition guard already routes on them, so the remaining work is confined to
-`src/lifecycle/operations.ts` and its transition table.
-
-Acceptance: renaming a status option in the organization leaves a working installation working.
-
-## 4. `install.sh` hardening
+## 3. `install.sh` hardening
 
 - Validate that the resolved status options match the seven Octestra expects, and fail with the
   mismatch rather than writing a `config.yml` that only breaks later.
@@ -77,7 +63,10 @@ Acceptance: renaming a status option in the organization leaves a working instal
 - The installer overwrites workflows, prompts, and the agent skill on every run. Say so before doing
   it.
 
-## 5. Remove deprecated aliases
+## 4. Remove deprecated aliases
 
 `src/index.ts` maps nine bare operation names to their `lifecycle/` equivalents and warns. They were
-kept for one release. Remove the alias table and its warning once consumers have migrated.
+kept for one release. Remove the alias table and its warning once consumers have migrated. Six
+operations were never namespaced at all (`assign-owner`, `assign-pr-owner`, `update-status`,
+`resolve-task-pr`, `report-proof`, `request-review`); decide whether they get a namespace or stay
+bare, so the vocabulary stops being half-migrated.

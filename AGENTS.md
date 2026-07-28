@@ -69,10 +69,14 @@ Each of these was verified against GitHub documentation and cost real debugging.
 produces silent misbehaviour rather than an error, which is why they are listed rather than left to
 be rediscovered.
 
-- **P1. Status option *names* are part of the contract.** `allowedTransitions`, `updateStatus`, and
-  `getStatus` all key on the display name, while identity is the option ID. Renaming an option keeps
-  routing working but breaks the operations, and breaks `install.sh`, so it fails at setup rather
-  than silently. Do not add new name-keyed behaviour. See the ID-addressing item in `TODO.md`.
+- **P1. A status option's identity is its ID, not its display name.** Names are presentation only:
+  a maintainer may rename an option at any time. So the transition graph, routing, loop selection,
+  and `apply.allowed_status` all key on the `status.options` keys in `config.yml`, which map to
+  option IDs; `getStatus` returns an option ID and `validate-transition` takes option IDs from the
+  event payload. The one place a name is unavoidable is the write: `POST .../issue-field-values`
+  accepts a single_select value only as the option's display name, so `updateStatus` resolves the
+  name from the live field definition (memoized per process) rather than from `config.yml`, which
+  is what keeps a rename working without reinstalling. Do not add name-keyed behaviour.
 - **P2. `vars` is available where `env` is not.** `vars` works in `jobs.<id>.runs-on`,
   `jobs.<id>.if`, `jobs.<id>.with.<id>`, `concurrency`, and `run-name`; `env` works in none of them.
   This is the reason the lifecycle is two layers instead of three.

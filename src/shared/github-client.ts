@@ -4,6 +4,7 @@ interface IssueField {
   id: number;
   name: string;
   data_type: string;
+  options?: Array<{ id: number; name: string }>;
 }
 
 interface IssueFieldValue {
@@ -12,8 +13,9 @@ interface IssueFieldValue {
 }
 
 interface CurrentIssueFieldValue {
-  issue_field_name?: string;
+  issue_field_id?: number;
   single_select_option?: {
+    id?: number;
     name?: string;
   } | null;
 }
@@ -60,6 +62,7 @@ function isNotFound(error: unknown): boolean {
 export class GitHubClient {
   private readonly octokit: ReturnType<typeof getOctokit>;
   private readonly assignedUsers = new Map<number, { login: string | undefined }>();
+  private readonly singleSelectFields = new Map<number, IssueField>();
   readonly owner: string;
   readonly repo: string;
 
@@ -375,9 +378,12 @@ export class GitHubClient {
     }
   }
 
-  async updateStatus(issueNumber: number, fieldName: string, status: string): Promise<void> {
-    const field = await this.getSingleSelectField(fieldName);
-    const issueFieldValues: IssueFieldValue[] = [{ field_id: field.id, value: status }];
+  // POST accepts a single_select value only as the option's display name, so a write
+  // has to resolve the ID it was given back to the live name. Reads need no such
+  // lookup: the response carries the option ID directly.
+  async updateStatus(issueNumber: number, fieldId: number, optionId: number): Promise<void> {
+    const value = await this.statusOptionName(fieldId, optionId);
+    const issueFieldValues: IssueFieldValue[] = [{ field_id: fieldId, value }];
     await this.octokit.request(
       "POST /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values",
       {
@@ -392,7 +398,7 @@ export class GitHubClient {
     );
   }
 
-  async getStatus(issueNumber: number, fieldName: string): Promise<string | undefined> {
+  async getStatus(issueNumber: number, fieldId: number): Promise<number | undefined> {
     const response = await this.octokit.request(
       "GET /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values",
       {
@@ -405,12 +411,30 @@ export class GitHubClient {
       },
     );
     const values = response.data as CurrentIssueFieldValue[];
-    return values.find((value) => value.issue_field_name === fieldName)
+    return values.find((value) => value.issue_field_id === fieldId)
       ?.single_select_option
-      ?.name;
+      ?.id;
   }
 
-  private async getSingleSelectField(fieldName: string): Promise<IssueField> {
+  // Resolved from the live field definition rather than from config.yml, so renaming
+  // an option in the organization keeps working without reinstalling.
+  async statusOptionName(fieldId: number, optionId: number): Promise<string> {
+    const field = await this.singleSelectField(fieldId);
+    const option = field.options?.find((candidate) => candidate.id === optionId);
+    if (!option) {
+      throw new Error(`Issue field ${field.name} has no option with ID ${optionId}`);
+    }
+    return option.name;
+  }
+
+  // There is no endpoint for a single issue field, so this lists the organization's
+  // fields. Memoized because one action step is one process: read-only paths never
+  // pay for it, and a step that writes status pays once rather than per write.
+  private async singleSelectField(fieldId: number): Promise<IssueField> {
+    const cached = this.singleSelectFields.get(fieldId);
+    if (cached) {
+      return cached;
+    }
     const fieldsResponse = await this.octokit.request("GET /orgs/{org}/issue-fields", {
       org: this.owner,
       headers: {
@@ -419,11 +443,12 @@ export class GitHubClient {
     });
     const fields = fieldsResponse.data as IssueField[];
     const field = fields.find(
-      (candidate) => candidate.name === fieldName && candidate.data_type === "single_select",
+      (candidate) => candidate.id === fieldId && candidate.data_type === "single_select",
     );
     if (!field) {
-      throw new Error(`Single-select issue field not found: ${fieldName}`);
+      throw new Error(`Single-select issue field not found: ${fieldId}`);
     }
+    this.singleSelectFields.set(fieldId, field);
     return field;
   }
 }
