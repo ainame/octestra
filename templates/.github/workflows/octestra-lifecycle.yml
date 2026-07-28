@@ -10,11 +10,9 @@ permissions:
   # write for pushes, validation and both need pull-requests: write for PR handling).
   # Individual jobs still narrow this at the job level.
   contents: write
-  # Enable only for OIDC federation, for example AWS IAM role assumption with
-  # aws-actions/configure-aws-credentials. Must also be enabled in every reusable
-  # workflow that requests it (id-token is not inherited from the caller unless
-  # the caller also declares it, and a callee requesting id-token: write while
-  # the caller does not causes a startup_failure).
+  # Uncomment for OIDC federation, for example AWS IAM role assumption with
+  # aws-actions/configure-aws-credentials. This is the only place id-token needs to
+  # be declared — the reusable workflows below inherit it from here.
   # id-token: write
   issues: write
   pull-requests: write

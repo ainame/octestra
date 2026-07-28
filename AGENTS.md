@@ -104,11 +104,18 @@ be rediscovered.
   `permissions:` is the ceiling.** If the callee declares any permission the caller does not grant
   at workflow level, the run fails with `startup_failure` before any job is created — `jobs: []`,
   no check-runs, no logs, no annotated line, just the top-of-page banner saying the workflow file
-  is broken. This applies to every permission, not only `id-token: write`. `octestra-lifecycle.yml`
-  therefore declares the *union* of everything its reusable workflows request (currently
-  `contents: write`, `issues: write`, `pull-requests: write`, plus `# id-token: write` for OIDC);
-  guard and merged-task-finalization narrow this at the job level. When adding a new reusable
-  workflow with a new permission, extend the caller's workflow-level block first.
+  is broken. This applies to every permission, not only `id-token: write`. Consequences:
+  (a) `octestra-lifecycle.yml` declares the *union* of everything its reusable workflows request
+  (`contents: write`, `issues: write`, `pull-requests: write`), and each direct job narrows this
+  at the job level. When adding a new reusable workflow with a new permission, extend the caller's
+  workflow-level block first.
+  (b) Reusable workflows must NOT declare `id-token: write`. Permissions a callee does not name
+  are inherited from the caller, so OIDC steps inside a callee work as long as the caller has
+  `id-token: write` — and the caller having it while a callee also declares it in `permissions:`
+  is fine, but the moment a consumer toggles only one side by hand the two files drift, everyone
+  ends up on the startup_failure path, and the fix is not obvious from any log. `id-token: write`
+  therefore lives commented in exactly one place — the caller. `install.sh --enable-oidc` flips
+  that single line.
 
 ## Rules
 
