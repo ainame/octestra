@@ -43,21 +43,11 @@ jobs:
         with:
           operation: lifecycle/validate-transition
           github-token: ${{ steps.app-token.outputs.token }}
-          lifecycle-context: |-
-            {
-              "issue_number": ${{ github.event.issue.number }},
-              "previous_status": ${{ toJSON(github.event.changes.issue_field_value.from.option.name) }},
-              "current_status": ${{ toJSON(github.event.issue_field_value.option.name) }},
-              "trigger_actor": ${{ toJSON(github.actor) }},
-              "trigger_actor_type": ${{ toJSON(github.event.sender.type) }}
-            }
-          platform-vars: |-
-            {
-              "OCTESTRA_GITHUB_APP_CLIENT_ID": ${{ toJSON(vars.OCTESTRA_GITHUB_APP_CLIENT_ID) }},
-              "OCTESTRA_ORCHESTRATION_RUNNER": ${{ toJSON(vars.OCTESTRA_ORCHESTRATION_RUNNER) }},
-              "OCTESTRA_AGENT_RUNNER": ${{ toJSON(vars.OCTESTRA_AGENT_RUNNER) }},
-              "OCTESTRA_STATUS_FIELD_ID": ${{ toJSON(vars.OCTESTRA_STATUS_FIELD_ID) }}
-            }
+          issue-number: ${{ github.event.issue.number }}
+          previous-status: ${{ github.event.changes.issue_field_value.from.option.name }}
+          current-status: ${{ github.event.issue_field_value.option.name }}
+          trigger-actor: ${{ github.actor }}
+          trigger-actor-type: ${{ github.event.sender.type }}
 
   # ========================================================================
   # Consumer lifecycle entrypoints: customize the reusable workflows below.
@@ -68,12 +58,9 @@ jobs:
     if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'in_progress'
     uses: ./.github/workflows/octestra-lifecycle-in-progress.yml
     with:
-      lifecycle-context: |-
-        {
-          "issue_number": ${{ github.event.issue.number }},
-          "trigger_actor": ${{ toJSON(github.actor) }},
-          "trigger_actor_type": ${{ toJSON(github.event.sender.type) }}
-        }
+      issue-number: ${{ github.event.issue.number }}
+      trigger-actor: ${{ github.actor }}
+      trigger-actor-type: ${{ github.event.sender.type }}
     secrets:
       github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
 
@@ -83,10 +70,7 @@ jobs:
     if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'validation'
     uses: ./.github/workflows/octestra-lifecycle-validation.yml
     with:
-      lifecycle-context: |-
-        {
-          "issue_number": ${{ github.event.issue.number }}
-        }
+      issue-number: ${{ github.event.issue.number }}
     secrets:
       github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
 
@@ -97,10 +81,7 @@ jobs:
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'todo'
   #   uses: ./.github/workflows/octestra-lifecycle-todo.yml
   #   with:
-  #     lifecycle-context: |-
-  #       {
-  #         "issue_number": ${{ github.event.issue.number }}
-  #       }
+  #     issue-number: ${{ github.event.issue.number }}
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
   #
@@ -109,10 +90,7 @@ jobs:
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'ready'
   #   uses: ./.github/workflows/octestra-lifecycle-ready.yml
   #   with:
-  #     lifecycle-context: |-
-  #       {
-  #         "issue_number": ${{ github.event.issue.number }}
-  #       }
+  #     issue-number: ${{ github.event.issue.number }}
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
   #
@@ -121,10 +99,7 @@ jobs:
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'human_review'
   #   uses: ./.github/workflows/octestra-lifecycle-human-review.yml
   #   with:
-  #     lifecycle-context: |-
-  #       {
-  #         "issue_number": ${{ github.event.issue.number }}
-  #       }
+  #     issue-number: ${{ github.event.issue.number }}
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
   #
@@ -133,10 +108,7 @@ jobs:
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'blocked'
   #   uses: ./.github/workflows/octestra-lifecycle-blocked.yml
   #   with:
-  #     lifecycle-context: |-
-  #       {
-  #         "issue_number": ${{ github.event.issue.number }}
-  #       }
+  #     issue-number: ${{ github.event.issue.number }}
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
   #
@@ -145,10 +117,7 @@ jobs:
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'done'
   #   uses: ./.github/workflows/octestra-lifecycle-done.yml
   #   with:
-  #     lifecycle-context: |-
-  #       {
-  #         "issue_number": ${{ github.event.issue.number }}
-  #       }
+  #     issue-number: ${{ github.event.issue.number }}
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
 

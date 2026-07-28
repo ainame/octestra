@@ -10,11 +10,10 @@ name: Octestra - Validation (Task Verification)
 on:
   workflow_call:
     inputs:
-      # Lifecycle event
-      lifecycle-context:
-        description: JSON object containing the issue and status field
+      issue-number:
+        description: Task issue number
         required: true
-        type: string
+        type: number
 
     secrets:
       # GitHub App
@@ -61,7 +60,7 @@ jobs:
         with:
           operation: lifecycle/prepare-validation
           github-token: ${{ steps.app-token.outputs.token }}
-          lifecycle-context: ${{ inputs.lifecycle-context }}
+          issue-number: ${{ inputs.issue-number }}
 
       - name: Checkout task branch
         uses: actions/checkout@v7
@@ -115,7 +114,7 @@ jobs:
       #   if: always()
       #   uses: actions/upload-artifact@v4
       #   with:
-      #     name: octestra-validation-${{ fromJSON(inputs.lifecycle-context).issue_number }}
+      #     name: octestra-validation-${{ inputs.issue-number }}
       #     path: |
       #       ${{ steps.epic.outputs.artifact_path }}
       #       ${{ steps.epic.outputs.result_path }}
@@ -134,7 +133,7 @@ jobs:
         with:
           operation: lifecycle/finalize-validation
           github-token: ${{ steps.app-token.outputs.token }}
-          lifecycle-context: ${{ inputs.lifecycle-context }}
+          issue-number: ${{ inputs.issue-number }}
           proof-path: ${{ steps.epic.outputs.result_path }}
           pull-number: ${{ steps.epic.outputs.pull_number }}
 
@@ -159,4 +158,4 @@ jobs:
         with:
           operation: report-failure
           github-token: ${{ steps.app-token.outputs.token }}
-          lifecycle-context: ${{ inputs.lifecycle-context }}
+          issue-number: ${{ inputs.issue-number }}

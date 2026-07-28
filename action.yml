@@ -29,9 +29,6 @@ inputs:
   config-ref:
     description: Optional config branch/ref; default is the repository default branch
     required: false
-  platform-vars:
-    description: Mirrored repository variables used for config drift validation
-    required: false
   loop-context:
     description: Loop run identity JSON
     required: false

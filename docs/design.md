@@ -98,13 +98,15 @@ it reads `config.yml` directly.
 Mirroring creates a window where `vars` and `config.yml` disagree. It is contained by:
 
 1. **A small surface.** Four values, three of which change approximately never.
-2. **Loud failure.** `lifecycle/validate-transition` takes a `platform-vars` input carrying the four
-   values, compares them against `config.yml`, and fails with a diff. The guard already runs on
-   every routed event, so this needs no extra job.
-3. **No chicken-and-egg.** Runner labels have literal fallbacks (P3), so the guard can start and
-   report the problem even when its own variable is unset.
-4. **A local check.** `make octestra-check-vars` exits non-zero on drift; `make octestra-sync-vars`
+2. **No chicken-and-egg.** Runner labels have literal fallbacks (P3), so the guard can start even
+   when its own variable is unset.
+3. **A local check.** `make octestra-check-vars` exits non-zero on drift; `make octestra-sync-vars`
    applies; `install.sh` syncs at the end of installation.
+
+A runtime drift check inside `lifecycle/validate-transition` was scoped but never implemented — the
+`platform-vars` input that would have carried the four values does not exist, and the local check
+plus install-time sync have covered the actual failure mode in practice. If a runtime check is
+added later, it belongs in the guard job so it runs on every routed event with no extra job.
 
 ## 4. Loop contract
 

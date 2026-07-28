@@ -84,8 +84,11 @@ workflows.
 Octestra exposes aggregate lifecycle operations for the generated workflows and individual
 operations for consumers that need custom sequencing or policy.
 
-Generated state workflows pass shared issue, status, and trigger data through one
-`lifecycle-context` input. Aggregate operations infer their fixed lifecycle behavior:
+Generated state workflows pass shared issue, status, and trigger data through named
+action inputs (`issue-number`, `previous-status`, `current-status`, `trigger-actor`,
+`trigger-actor-type`); the `lifecycle-context` JSON envelope is still accepted as a
+fallback for consumers that prefer it. Aggregate operations infer their fixed lifecycle
+behavior:
 
 - Prompt paths default by phase.
 - `finalize-task` reads the EPIC configuration to choose Validation or Human Review.

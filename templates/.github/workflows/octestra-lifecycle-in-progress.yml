@@ -8,9 +8,16 @@ name: Octestra - In Progress (Task Execution)
 on:
   workflow_call:
     inputs:
-      # Lifecycle event
-      lifecycle-context:
-        description: JSON object containing the issue, status field, and trigger actor
+      issue-number:
+        description: Task issue number
+        required: true
+        type: number
+      trigger-actor:
+        description: GitHub actor that initiated the status transition
+        required: true
+        type: string
+      trigger-actor-type:
+        description: GitHub sender type of the trigger actor (User or Bot)
         required: true
         type: string
 
@@ -31,7 +38,7 @@ jobs:
     runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
     concurrency:
-      group: octestra-${{ fromJSON(inputs.lifecycle-context).issue_number }}
+      group: octestra-${{ inputs.issue-number }}
       cancel-in-progress: false
 
     steps:
@@ -74,7 +81,9 @@ jobs:
         with:
           operation: lifecycle/prepare-task
           github-token: ${{ steps.app-token.outputs.token }}
-          lifecycle-context: ${{ inputs.lifecycle-context }}
+          issue-number: ${{ inputs.issue-number }}
+          trigger-actor: ${{ inputs.trigger-actor }}
+          trigger-actor-type: ${{ inputs.trigger-actor-type }}
 
       # Add repository-specific environment and dependency setup here.
 
@@ -128,7 +137,7 @@ jobs:
         with:
           operation: lifecycle/finalize-task
           github-token: ${{ steps.app-token.outputs.token }}
-          lifecycle-context: ${{ inputs.lifecycle-context }}
+          issue-number: ${{ inputs.issue-number }}
 
   report-failure:
     needs: in-progress
@@ -151,4 +160,4 @@ jobs:
         with:
           operation: report-failure
           github-token: ${{ steps.app-token.outputs.token }}
-          lifecycle-context: ${{ inputs.lifecycle-context }}
+          issue-number: ${{ inputs.issue-number }}
