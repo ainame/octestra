@@ -10,21 +10,9 @@ name: Octestra - Validation (Task Verification)
 on:
   workflow_call:
     inputs:
-      # GitHub App
-      github-app-client-id:
-        description: GitHub App client ID used for task API requests
-        required: true
-        type: string
-
       # Lifecycle event
       lifecycle-context:
         description: JSON object containing the issue and status field
-        required: true
-        type: string
-
-      # Shared configuration
-      workflow-context:
-        description: JSON object containing runners and a task branch template
         required: true
         type: string
 

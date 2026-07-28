@@ -8,21 +8,9 @@ name: Octestra - In Progress (Task Execution)
 on:
   workflow_call:
     inputs:
-      # GitHub App
-      github-app-client-id:
-        description: GitHub App client ID used for Octestra API requests
-        required: true
-        type: string
-
       # Lifecycle event
       lifecycle-context:
         description: JSON object containing the issue, status field, and trigger actor
-        required: true
-        type: string
-
-      # Shared configuration
-      workflow-context:
-        description: JSON object containing runners and a task branch template
         required: true
         type: string
 
