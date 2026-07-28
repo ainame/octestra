@@ -69,10 +69,15 @@ Each of these was verified against GitHub documentation and cost real debugging.
 produces silent misbehaviour rather than an error, which is why they are listed rather than left to
 be rediscovered.
 
-- **P1. Status option *names* are part of the contract.** `allowedTransitions`, `updateStatus`, and
-  `getStatus` all key on the display name, while identity is the option ID. Renaming an option keeps
-  routing working but breaks the operations, and breaks `install.sh`, so it fails at setup rather
-  than silently. Do not add new name-keyed behaviour. See the ID-addressing item in `TODO.md`.
+- **P1. Status option *names* are part of the contract, because the write API gives no
+  alternative.** `POST .../issue-field-values` takes `{field_id, value}` and accepts a single_select
+  value only as the option's *display name* — there is no `single_select_option_id`. So
+  `allowedTransitions`, `updateStatus`, and `getStatus` all key on the display name, while identity
+  is the option ID. Renaming an option keeps routing working but breaks the operations, and breaks
+  `install.sh`, so it fails at setup rather than silently. Reads *could* be ID-addressed (`GET`
+  returns `issue_field_id` and `single_select_option.id`), but a half-ID design buys nothing while
+  writes still need the name, so names are the single vocabulary throughout. Do not introduce a
+  second one. Revisit only if the write endpoint gains ID addressing.
 - **P2. `vars` is available where `env` is not.** `vars` works in `jobs.<id>.runs-on`,
   `jobs.<id>.if`, `jobs.<id>.with.<id>`, `concurrency`, and `run-name`; `env` works in none of them.
   This is the reason the lifecycle is two layers instead of three.

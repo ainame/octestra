@@ -18,9 +18,14 @@ import {
 } from "../shared/proof";
 import { workflowRunUrl } from "../shared/workflow-run";
 
-export interface OperationContext {
+// Reporting proof needs no status field, and the dedicated proof action has none to
+// give, so it is a separate narrower context rather than a dummy value.
+export interface ProofContext {
   client: OperationsClient;
   issueNumber: number;
+}
+
+export interface OperationContext extends ProofContext {
   statusFieldName: string;
 }
 
@@ -478,7 +483,7 @@ export async function assignPullRequestOwner(
 }
 
 export async function reportProof(
-  context: OperationContext,
+  context: ProofContext,
   proofPath: string,
   options: ProofReportOptions = {},
 ): Promise<ProofDocument> {

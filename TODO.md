@@ -54,19 +54,30 @@ An early implementation experiment is in the git stash named
 - Should comment tokens be opt-in rather than present in generated defaults?
 - What cloud and network isolation is required when validation uses Bedrock or another hosted model?
 
-## 3. Address status options by ID
+## 3. Status options stay name-addressed (closed, not planned)
 
-P1 in `AGENTS.md`: `allowedTransitions`, `updateStatus`, and `getStatus` key on the status display
-name while identity is the option ID. Renaming an option in the organization's Issue Field breaks
-the operations. It also breaks `install.sh`, so today it fails at setup rather than silently — the
-only reason this is not urgent.
+Kept as a record so this is not re-attempted. Renaming a status option in the organization does
+break an installation, and the fix looked available — but it is not, and the earlier claim here that
+`GET`/`POST .../issue-field-values` both accept `single_select_option_id` was wrong.
 
-`GET`/`POST .../issue-field-values` accept `single_select_option_id`, so operations can address
-options by ID and reduce names to presentation. `config.yml` already carries the seven option IDs
-and the transition guard already routes on them, so the remaining work is confined to
-`src/lifecycle/operations.ts` and its transition table.
+Checked against the REST docs for `2026-03-10` and a live organization field:
 
-Acceptance: renaming a status option in the organization leaves a working installation working.
+- `GET .../issue-field-values` returns `issue_field_id` per element and `id`, `name`, `color` inside
+  `single_select_option`. Reads can be ID-addressed.
+- `POST .../issue-field-values` takes `{field_id, value}`, and for a single_select the `value` must
+  be the option's **display name**. There is no ID form.
+
+So a write must know the live name either way. ID-addressing the reads while writes resolve a name
+was implemented and reverted: it adds a second vocabulary (`config.yml` keys alongside names) across
+the lifecycle, both loop policy fields, and the agent-authored `next_status`, and still cannot make
+a rename safe without a field-definition lookup on the write path. Not worth the split contract.
+
+What remains true, and cheap, if rename-safety is ever wanted for *routing* only: `status_key` could
+be derived by looking the event's `option.id` up in `config.yml` instead of slugging the display
+name, leaving every API exchange name-based. That is a much smaller change than the one abandoned
+here. It would still leave `updateStatus` and `getStatus` name-keyed.
+
+Revisit if the write endpoint gains ID addressing.
 
 ## 4. `install.sh` hardening
 

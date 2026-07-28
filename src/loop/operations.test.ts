@@ -31,16 +31,32 @@ const config: LoopConfig = {
 
 const loop: LoopContext = { loop_id: "triage-todo", dry_run: false };
 
+// Every method is spelled out rather than cast, so adding a required method to
+// LoopClient breaks this file at compile time instead of at runtime.
 interface FakeClient extends LoopClient {
   listIssues: Mock;
+  listSubIssues: Mock;
   comment: Mock;
   assignIssue: Mock;
+  getStatus: Mock;
   updateStatus: Mock;
   getLatestAssignedUser: Mock;
 }
 
 function fakeClient(items: Array<Record<string, unknown>> = [], partial = true): FakeClient {
+  const unusedByLoops = {
+    getIssue: vi.fn(),
+    isClosedByMergedPullRequest: vi.fn(),
+    getParentNumber: vi.fn(),
+    getUserDisplayName: vi.fn(),
+    branchExists: vi.fn(),
+    findOpenPullRequest: vi.fn(),
+    assignPullRequest: vi.fn(),
+    findLinkedOpenPullRequest: vi.fn(),
+    requestReviewer: vi.fn(),
+  };
   return {
+    ...unusedByLoops,
     listIssues: vi.fn().mockResolvedValue({ issues: items, partial }),
     listSubIssues: vi.fn().mockResolvedValue({ issues: [], partial: false }),
     getStatus: vi.fn().mockResolvedValue("Todo"),
@@ -48,7 +64,7 @@ function fakeClient(items: Array<Record<string, unknown>> = [], partial = true):
     assignIssue: vi.fn(),
     updateStatus: vi.fn(),
     getLatestAssignedUser: vi.fn(),
-  } as unknown as FakeClient;
+  };
 }
 
 function outputValue(name: string): string | undefined {

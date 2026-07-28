@@ -60,6 +60,7 @@ function isNotFound(error: unknown): boolean {
 export class GitHubClient {
   private readonly octokit: ReturnType<typeof getOctokit>;
   private readonly assignedUsers = new Map<number, { login: string | undefined }>();
+  private readonly singleSelectFields = new Map<string, IssueField>();
   readonly owner: string;
   readonly repo: string;
 
@@ -410,7 +411,14 @@ export class GitHubClient {
       ?.name;
   }
 
+  // Lists the organization's fields, because there is no endpoint for a single one.
+  // Memoized because one action step is one process, so a step that writes status
+  // more than once pays for this lookup only on the first write.
   private async getSingleSelectField(fieldName: string): Promise<IssueField> {
+    const cached = this.singleSelectFields.get(fieldName);
+    if (cached) {
+      return cached;
+    }
     const fieldsResponse = await this.octokit.request("GET /orgs/{org}/issue-fields", {
       org: this.owner,
       headers: {
@@ -424,6 +432,7 @@ export class GitHubClient {
     if (!field) {
       throw new Error(`Single-select issue field not found: ${fieldName}`);
     }
+    this.singleSelectFields.set(fieldName, field);
     return field;
   }
 }
