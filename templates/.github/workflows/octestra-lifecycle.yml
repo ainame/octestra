@@ -46,8 +46,8 @@ jobs:
           lifecycle-context: |-
             {
               "issue_number": ${{ github.event.issue.number }},
-              "previous_status": ${{ toJSON(github.event.changes.issue_field_value.from) }},
-              "current_status": ${{ toJSON(github.event.issue_field_value.value) }},
+              "previous_status": ${{ toJSON(github.event.changes.issue_field_value.from.option.name) }},
+              "current_status": ${{ toJSON(github.event.issue_field_value.option.name) }},
               "trigger_actor": ${{ toJSON(github.actor) }},
               "trigger_actor_type": ${{ toJSON(github.event.sender.type) }}
             }
