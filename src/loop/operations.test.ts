@@ -29,7 +29,7 @@ const config: LoopConfig = {
   report_issue: null,
 };
 
-const loop: LoopContext = { loop_id: "triage-todo", trigger: "schedule", dry_run: false, config_ref: "" };
+const loop: LoopContext = { loop_id: "triage-todo", dry_run: false };
 
 interface FakeClient extends LoopClient {
   listIssues: Mock;

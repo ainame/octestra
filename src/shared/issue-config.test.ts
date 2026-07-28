@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEpicConfig, parseTaskConfig } from "./config";
+import { parseEpicConfig, parseTaskConfig } from "./issue-config";
 
 describe("parseEpicConfig", () => {
   it("parses required configuration and optional prompt", () => {

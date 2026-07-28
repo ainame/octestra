@@ -37,7 +37,21 @@ interface TimelineEvent {
   };
 }
 
+export interface ListedIssue {
+  number: number;
+  title: string;
+  updated_at: string;
+  pull_request?: unknown;
+}
+
+export interface ListedIssues {
+  issues: ListedIssue[];
+  partial: boolean;
+}
+
 const mergeClosureWindowMilliseconds = 60_000;
+
+const perPage = 100;
 
 function isNotFound(error: unknown): boolean {
   return typeof error === "object" && error !== null && "status" in error && error.status === 404;
@@ -45,6 +59,7 @@ function isNotFound(error: unknown): boolean {
 
 export class GitHubClient {
   private readonly octokit: ReturnType<typeof getOctokit>;
+  private readonly assignedUsers = new Map<number, { login: string | undefined }>();
   readonly owner: string;
   readonly repo: string;
 
@@ -71,11 +86,28 @@ export class GitHubClient {
     return Buffer.from(response.data.content, "base64").toString("utf8");
   }
 
-  async listIssues(labels: string[], scanBudget: number): Promise<{ issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }>; partial: boolean }> {
-    const issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }> = [];
+  // P9: per_page stays constant across pages of one sweep and the result is
+  // truncated afterwards, so no record is re-fetched or skipped. `partial`
+  // reports that the scan budget ran out before the listing did.
+  private async scanIssues(
+    fetchPage: (page: number) => Promise<ListedIssue[]>,
+    scanBudget: number,
+  ): Promise<ListedIssues> {
+    const issues: ListedIssue[] = [];
     let examined = 0;
-    const perPage = 100;
     for (let page = 1; examined < scanBudget; page += 1) {
+      const entries = await fetchPage(page);
+      examined += entries.length;
+      issues.push(...entries.filter((issue) => !issue.pull_request));
+      if (entries.length < perPage) {
+        return { issues: issues.slice(0, scanBudget), partial: false };
+      }
+    }
+    return { issues: issues.slice(0, scanBudget), partial: true };
+  }
+
+  async listIssues(labels: string[], scanBudget: number): Promise<ListedIssues> {
+    return this.scanIssues(async (page) => {
       const response = await this.octokit.rest.issues.listForRepo({
         owner: this.owner,
         repo: this.repo,
@@ -84,33 +116,23 @@ export class GitHubClient {
         page,
         per_page: perPage,
       });
-      examined += response.data.length;
-      issues.push(...response.data.filter((issue) => !issue.pull_request).map((issue) => ({
+      return response.data.map((issue) => ({
         number: issue.number,
         title: issue.title,
         updated_at: issue.updated_at,
         pull_request: issue.pull_request,
-      })));
-      if (response.data.length < perPage) return { issues: issues.slice(0, scanBudget), partial: false };
-    }
-    return { issues: issues.slice(0, scanBudget), partial: true };
+      }));
+    }, scanBudget);
   }
 
-  async listSubIssues(epic: number, scanBudget: number): Promise<{ issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }>; partial: boolean }> {
-    const issues: Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }> = [];
-    let examined = 0;
-    const perPage = 100;
-    for (let page = 1; examined < scanBudget; page += 1) {
+  async listSubIssues(epic: number, scanBudget: number): Promise<ListedIssues> {
+    return this.scanIssues(async (page) => {
       const response = await this.octokit.request(
         "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
         { owner: this.owner, repo: this.repo, issue_number: epic, page, per_page: perPage },
       );
-      const entries = response.data as Array<{ number: number; title: string; updated_at: string; pull_request?: unknown }>;
-      examined += entries.length;
-      issues.push(...entries.filter((issue) => !issue.pull_request));
-      if (entries.length < perPage) return { issues: issues.slice(0, scanBudget), partial: false };
-    }
-    return { issues: issues.slice(0, scanBudget), partial: true };
+      return response.data as ListedIssue[];
+    }, scanBudget);
   }
 
   async getIssue(issueNumber: number): Promise<{ title: string; body: string }> {
@@ -135,36 +157,7 @@ export class GitHubClient {
       return false;
     }
 
-    const timeline: TimelineEvent[] = [];
-    for (let page = 1; ; page += 1) {
-      const response = await this.octokit.request(
-        "GET /repos/{owner}/{repo}/issues/{issue_number}/timeline",
-        {
-          owner: this.owner,
-          repo: this.repo,
-          issue_number: issueNumber,
-          page,
-          per_page: 100,
-          headers: {
-            accept: "application/vnd.github+json",
-          },
-        },
-      );
-      const events = response.data as TimelineEvent[];
-      timeline.push(...events);
-      if (events.length < 100) {
-        break;
-      }
-    }
-    const linkedPullNumbers = timeline
-      .filter(
-        (event) =>
-          event.event === "cross-referenced" &&
-          event.source?.issue?.pull_request &&
-          event.source.issue.number,
-      )
-      .map((event) => event.source?.issue?.number)
-      .filter((pullNumber): pullNumber is number => pullNumber !== undefined);
+    const linkedPullNumbers = await this.crossReferencedPullNumbers(issueNumber);
 
     for (const pullNumber of linkedPullNumbers) {
       const pull = await this.octokit.rest.pulls.get({
@@ -276,7 +269,20 @@ export class GitHubClient {
     });
   }
 
+  // Every finalize resolves the same owner at least twice, and each resolution
+  // paginates the issue's whole event history. One action step is one process,
+  // so caching for the life of the client cannot go stale within a run.
   async getLatestAssignedUser(issueNumber: number): Promise<string | undefined> {
+    const cached = this.assignedUsers.get(issueNumber);
+    if (cached !== undefined) {
+      return cached.login;
+    }
+    const login = await this.fetchLatestAssignedUser(issueNumber);
+    this.assignedUsers.set(issueNumber, { login });
+    return login;
+  }
+
+  private async fetchLatestAssignedUser(issueNumber: number): Promise<string | undefined> {
     const events = await this.octokit.paginate(
       this.octokit.rest.issues.listEvents,
       {
@@ -303,39 +309,10 @@ export class GitHubClient {
     issueNumber: number,
     headBranch?: string,
   ): Promise<number | undefined> {
-    const timeline: TimelineEvent[] = [];
-    for (let page = 1; ; page += 1) {
-      const response = await this.octokit.request(
-        "GET /repos/{owner}/{repo}/issues/{issue_number}/timeline",
-        {
-          owner: this.owner,
-          repo: this.repo,
-          issue_number: issueNumber,
-          page,
-          per_page: 100,
-          headers: {
-            accept: "application/vnd.github+json",
-          },
-        },
-      );
-      const events = response.data as TimelineEvent[];
-      timeline.push(...events);
-      if (events.length < 100) {
-        break;
-      }
-    }
-
-    const pullNumbers = timeline
-      .filter(
-        (event) =>
-          event.event === "cross-referenced" &&
-          event.source?.issue?.pull_request &&
-          event.source.issue.state === "open" &&
-          event.source.issue.number,
-      )
-      .map((event) => event.source?.issue?.number)
-      .filter((pullNumber): pullNumber is number => pullNumber !== undefined)
-      .reverse();
+    const pullNumbers = (await this.crossReferencedPullNumbers(
+      issueNumber,
+      (event) => event.source?.issue?.state === "open",
+    )).reverse();
 
     if (!headBranch) {
       return pullNumbers[0];
@@ -355,6 +332,47 @@ export class GitHubClient {
       }
     }
     return undefined;
+  }
+
+  // Only the linked pull request numbers are retained. Mapping each page down
+  // before moving on keeps a long issue's full timeline payload from being held
+  // in memory all at once.
+  private async crossReferencedPullNumbers(
+    issueNumber: number,
+    accept: (event: TimelineEvent) => boolean = () => true,
+  ): Promise<number[]> {
+    const pullNumbers: number[] = [];
+    for (let page = 1; ; page += 1) {
+      const response = await this.octokit.request(
+        "GET /repos/{owner}/{repo}/issues/{issue_number}/timeline",
+        {
+          owner: this.owner,
+          repo: this.repo,
+          issue_number: issueNumber,
+          page,
+          per_page: perPage,
+          headers: {
+            accept: "application/vnd.github+json",
+          },
+        },
+      );
+      const events = response.data as TimelineEvent[];
+      pullNumbers.push(
+        ...events
+          .filter(
+            (event) =>
+              event.event === "cross-referenced" &&
+              event.source?.issue?.pull_request &&
+              event.source.issue.number &&
+              accept(event),
+          )
+          .map((event) => event.source?.issue?.number)
+          .filter((pullNumber): pullNumber is number => pullNumber !== undefined),
+      );
+      if (events.length < perPage) {
+        return pullNumbers;
+      }
+    }
   }
 
   async updateStatus(issueNumber: number, fieldName: string, status: string): Promise<void> {

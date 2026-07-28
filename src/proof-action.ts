@@ -1,17 +1,14 @@
 import * as core from "@actions/core";
-import { GitHubClient } from "./github-client";
-import { reportProof, type OperationContext } from "./operations";
+import { reportProof, type OperationContext } from "./lifecycle/operations";
+import { GitHubClient } from "./shared/github-client";
+import { positiveInteger } from "./shared/validate";
 
 function positiveIntegerInput(name: string, required: boolean): number | undefined {
   const raw = core.getInput(name, { required });
   if (!raw && !required) {
     return undefined;
   }
-  const value = Number(raw);
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new Error(`${name} must be a positive integer`);
-  }
-  return value;
+  return positiveInteger(name, raw);
 }
 
 export async function run(): Promise<void> {

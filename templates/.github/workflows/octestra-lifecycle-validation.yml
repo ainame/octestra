@@ -156,6 +156,6 @@ jobs:
       - name: Report failure and advance to Blocked
         uses: ainame/octestra@main
         with:
-          operation: report-failure
+          operation: lifecycle/report-failure
           github-token: ${{ steps.app-token.outputs.token }}
           issue-number: ${{ inputs.issue-number }}

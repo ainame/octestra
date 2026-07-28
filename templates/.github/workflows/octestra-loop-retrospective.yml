@@ -24,9 +24,7 @@ env:
   LOOP_CONTEXT: |
     {
       "loop_id": "retrospective",
-      "trigger": ${{ toJSON(github.event_name) }},
-      "dry_run": ${{ inputs.dry-run || false }},
-      "config_ref": ${{ toJSON(inputs.config-ref || '') }}
+      "dry_run": ${{ inputs.dry-run || false }}
     }
 jobs:
   select:
@@ -48,6 +46,7 @@ jobs:
           operation: loop/select-tasks
           github-token: ${{ steps.app-token.outputs.token }}
           loop-context: ${{ env.LOOP_CONTEXT }}
+          config-ref: ${{ inputs.config-ref }}
       - name: Record the selection
         run: |
           printf '## Retrospective selection\n\n%s\n' "${DIGEST}" >>"${GITHUB_STEP_SUMMARY}"
@@ -71,6 +70,7 @@ jobs:
           operation: loop/prepare-run
           github-token: ${{ github.token }}
           loop-context: ${{ env.LOOP_CONTEXT }}
+          config-ref: ${{ inputs.config-ref }}
           loop-issues: ${{ needs.select.outputs.issues }}
       # Replace this step with the repository's agent. It receives the rendered prompt in
       # steps.loop.outputs.prompt and must write its result document to
@@ -115,7 +115,9 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.repository }}
           private-key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
-      - if: steps.result.outcome == 'success'
+      # Only the pull request step below needs a workspace, and it is skipped on a dry
+      # run. loop/finalize-run reads the proof from runner.temp, so guard both alike.
+      - if: steps.result.outcome == 'success' && !(inputs.dry-run || false)
         uses: actions/checkout@v7
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -152,6 +154,7 @@ jobs:
           operation: loop/finalize-run
           github-token: ${{ steps.app-token.outputs.token }}
           loop-context: ${{ env.LOOP_CONTEXT }}
+          config-ref: ${{ inputs.config-ref }}
           proof-path: ${{ runner.temp }}/octestra-result/octestra-loop-retrospective.json
       - if: steps.result.outcome != 'success'
         uses: ainame/octestra@main
@@ -159,3 +162,4 @@ jobs:
           operation: loop/report-failure
           github-token: ${{ steps.app-token.outputs.token }}
           loop-context: ${{ env.LOOP_CONTEXT }}
+          config-ref: ${{ inputs.config-ref }}

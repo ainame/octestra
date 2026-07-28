@@ -8,11 +8,8 @@ inputs:
   github-token:
     description: GitHub App token used for API requests
     required: true
-  lifecycle-context:
-    description: Optional lifecycle event JSON used to supply issue, status, and trigger values
-    required: false
   issue-number:
-    description: Task issue number when lifecycle-context is not used
+    description: Task issue number
     required: false
   trigger-actor:
     description: User that initiated or started the task
@@ -35,9 +32,6 @@ inputs:
   loop-issues:
     description: Selection JSON emitted by loop/select-tasks; used by an aggregate loop/prepare-run
     required: false
-  workflow-context:
-    description: Optional JSON object with runners and a branch template containing {epic_id} and {issue_number}
-    required: false
   branch-name:
     description: Explicit branch name for the individual resolve-task-pr operation
     required: false
@@ -51,10 +45,7 @@ inputs:
     description: Status used by the individual update-status operation
     required: false
   status-field-name:
-    description: Organization issue field used when lifecycle-context is not used
-    required: false
-  prompt-template:
-    description: Optional prompt template override relative to the checked-out repository
+    description: Organization issue field override; default comes from config.yml
     required: false
 outputs:
   status_key:

@@ -86,9 +86,7 @@ operations for consumers that need custom sequencing or policy.
 
 Generated state workflows pass shared issue, status, and trigger data through named
 action inputs (`issue-number`, `previous-status`, `current-status`, `trigger-actor`,
-`trigger-actor-type`); the `lifecycle-context` JSON envelope is still accepted as a
-fallback for consumers that prefer it. Aggregate operations infer their fixed lifecycle
-behavior:
+`trigger-actor-type`). Aggregate operations infer their fixed lifecycle behavior:
 
 - Prompt paths default by phase.
 - `finalize-task` reads the EPIC configuration to choose Validation or Human Review.
@@ -193,8 +191,7 @@ status option IDs, branch templates, prompt paths, and loop policy. Four values 
 repository variables: `OCTESTRA_GITHUB_APP_CLIENT_ID`, `OCTESTRA_ORCHESTRATION_RUNNER`,
 `OCTESTRA_AGENT_RUNNER`, and `OCTESTRA_STATUS_FIELD_ID`. Run `make octestra-check-vars` to detect
 drift and `make octestra-sync-vars` to apply them. Prompts are read from the checkout under
-`.github/octestra/prompts`; the deprecated `workflow-context` and `prompt-template` inputs remain
-overrides for one release.
+`.github/octestra/prompts`, at the paths `config.yml` names.
 
 Installed workflows are `octestra-lifecycle.yml`, lifecycle in-progress/validation reusable
 workflows, and opt-in `octestra-loop-<id>.yml` files. Lifecycle operations use the

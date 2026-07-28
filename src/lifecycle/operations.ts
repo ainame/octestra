@@ -3,17 +3,20 @@ import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import * as core from "@actions/core";
+import { renderBranchTemplate } from "../shared/branch";
 import {
   parseEpicConfig,
   parseTaskConfig,
   type EpicConfig,
-} from "../config";
-import { renderPrompt } from "../prompt";
+} from "../shared/issue-config";
+import { markdownTable } from "../shared/markdown";
+import { renderPrompt } from "../shared/prompt";
 import {
   readProofDocument,
   renderProofComment,
   type ProofDocument,
-} from "../proof";
+} from "../shared/proof";
+import { workflowRunUrl } from "../shared/workflow-run";
 
 export interface OperationContext {
   client: OperationsClient;
@@ -38,7 +41,6 @@ export interface OperationsClient {
   requestReviewer(pullNumber: number, reviewer: string): Promise<void>;
   comment(issueNumber: number, body: string): Promise<void>;
   getStatus(issueNumber: number, fieldName: string): Promise<string | undefined>;
-  getStatusOptionId?(issueNumber: number, fieldName: string): Promise<string | undefined>;
   updateStatus(issueNumber: number, fieldName: string, status: string): Promise<void>;
 }
 
@@ -61,16 +63,11 @@ export function resolveTaskBranchName(
   issueNumber: number,
   branchTemplate = defaultBranchTemplate,
 ): string {
-  if (!branchTemplate.includes("{epic_id}") || !branchTemplate.includes("{issue_number}")) {
-    throw new Error("branch template must include {epic_id} and {issue_number}");
-  }
-  const branchName = branchTemplate
-    .replaceAll("{epic_id}", epicId)
-    .replaceAll("{issue_number}", String(issueNumber));
-  if (!branchName || branchName.includes("..") || branchName.startsWith("/") || branchName.endsWith("/")) {
-    throw new Error(`branch template resolved to an invalid branch name: ${branchName}`);
-  }
-  return branchName;
+  return renderBranchTemplate(
+    branchTemplate,
+    { epic_id: epicId, issue_number: String(issueNumber) },
+    "branch template must include {epic_id} and {issue_number}",
+  );
 }
 
 const execFileAsync = promisify(execFile);
@@ -86,16 +83,6 @@ const allowedTransitions = new Map<string, Set<string>>([
   ["Done", new Set()],
 ]);
 
-function workflowRunUrl(): string {
-  const serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com";
-  const repository = process.env.GITHUB_REPOSITORY;
-  const runId = process.env.GITHUB_RUN_ID;
-  if (!repository || !runId) {
-    throw new Error("GITHUB_REPOSITORY and GITHUB_RUN_ID must be set");
-  }
-  return `${serverUrl}/${repository}/actions/runs/${runId}`;
-}
-
 async function reportActivity(
   context: OperationContext,
   activity: ActivityReport,
@@ -107,14 +94,12 @@ async function reportActivity(
   const owner = await context.client.getLatestAssignedUser(context.issueNumber);
   const actor = process.env.GITHUB_ACTOR;
   const runUrl = workflowRunUrl();
-  const metadata = [
-    "| Field | Value |",
-    "| --- | --- |",
-    `| Workflow run | [View run](${runUrl}) |`,
-    `| Trigger actor | ${actor ? `@${actor}` : "N/A"} |`,
-    `| Task owner | ${owner ? `@${owner}` : "Unassigned"} |`,
-    `| Recorded at | ${new Date().toISOString()} |`,
-  ].join("\n");
+  const metadata = markdownTable(["Field", "Value"], [
+    ["Workflow run", `[View run](${runUrl})`],
+    ["Trigger actor", actor ? `@${actor}` : "N/A"],
+    ["Task owner", owner ? `@${owner}` : "Unassigned"],
+    ["Recorded at", new Date().toISOString()],
+  ]);
   const details = activity.details?.trim()
     ? `\n\n### Details\n\n${activity.details.trim()}`
     : "";

@@ -112,15 +112,15 @@ added later, it belongs in the guard job so it runs on every routed event with n
 
 ### `loop-context`
 
-Peer of `lifecycle-context`: one JSON input carrying the run's identity. Selection policy and guard
-rails stay in `config.yml`, so changing policy does not mean editing workflow wiring.
+One JSON input carrying the run's identity. Selection policy and guard rails stay in `config.yml`,
+so changing policy does not mean editing workflow wiring. The config ref travels as the action's
+own `config-ref` input rather than inside this envelope, because every operation reads it the same
+way whether or not it is a loop.
 
 ```jsonc
 {
   "loop_id": "triage-todo",
-  "trigger": "schedule",     // or "workflow_dispatch"
-  "dry_run": false,          // OR-ed with loops.<id>.apply.dry_run
-  "config_ref": ""           // empty means default branch
+  "dry_run": false           // OR-ed with loops.<id>.apply.dry_run
 }
 ```
 

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { markdownTable } from "./markdown";
 
 type ProofRow = Record<string, unknown>;
 
@@ -134,49 +135,49 @@ function resultLabel(value: unknown): string {
   }
 }
 
-function markdownTable(headers: string[], rows: string[][]): string {
-  return [
-    `| ${headers.join(" | ")} |`,
-    `| ${headers.map(() => "---").join(" | ")} |`,
-    ...rows.map((row) => `| ${row.join(" | ")} |`),
-  ].join("\n");
+// A column is a header plus the row keys it reads, most-preferred key first.
+// `fallback` supplies a positional label when a row names nothing usable, and
+// `label` marks the columns whose value is a pass/fail result rather than text.
+interface ProofColumn {
+  header: string;
+  keys: string[];
+  fallback?: (index: number) => string;
+  label?: boolean;
 }
 
-function renderAcceptance(rows: ProofRow[]): string {
+function renderProofRows(columns: ProofColumn[], rows: ProofRow[]): string {
   return markdownTable(
-    ["ID", "Criterion", "Result", "Evidence"],
-    rows.map((row, index) => [
-      tableCell(valueFrom(row, "id"), `AC-${index + 1}`),
-      tableCell(valueFrom(row, "criterion", "description", "name", "summary")),
-      tableCell(resultLabel(valueFrom(row, "result", "outcome", "status"))),
-      tableCell(valueFrom(row, "evidence", "evidenceRefs", "evidence_refs")),
-    ]),
+    columns.map((column) => column.header),
+    rows.map((row, index) => columns.map((column) => {
+      const value = valueFrom(row, ...column.keys);
+      if (column.label) {
+        return tableCell(resultLabel(value));
+      }
+      return tableCell(value, column.fallback?.(index));
+    })),
   );
 }
 
-function renderChecks(rows: ProofRow[]): string {
-  return markdownTable(
-    ["Check", "Type", "Scope", "Result", "Evidence"],
-    rows.map((row, index) => [
-      tableCell(valueFrom(row, "name", "id"), `Check ${index + 1}`),
-      tableCell(valueFrom(row, "type", "kind")),
-      tableCell(valueFrom(row, "scope")),
-      tableCell(resultLabel(valueFrom(row, "result", "outcome", "status"))),
-      tableCell(valueFrom(row, "evidence", "evidenceRefs", "evidence_refs")),
-    ]),
-  );
-}
+const acceptanceColumns: ProofColumn[] = [
+  { header: "ID", keys: ["id"], fallback: (index) => `AC-${index + 1}` },
+  { header: "Criterion", keys: ["criterion", "description", "name", "summary"] },
+  { header: "Result", keys: ["result", "outcome", "status"], label: true },
+  { header: "Evidence", keys: ["evidence", "evidenceRefs", "evidence_refs"] },
+];
 
-function renderEvidence(rows: ProofRow[]): string {
-  return markdownTable(
-    ["Evidence", "Type", "Reference"],
-    rows.map((row, index) => [
-      tableCell(valueFrom(row, "name", "id"), `Evidence ${index + 1}`),
-      tableCell(valueFrom(row, "type", "kind")),
-      tableCell(valueFrom(row, "reference", "url", "link", "path")),
-    ]),
-  );
-}
+const checkColumns: ProofColumn[] = [
+  { header: "Check", keys: ["name", "id"], fallback: (index) => `Check ${index + 1}` },
+  { header: "Type", keys: ["type", "kind"] },
+  { header: "Scope", keys: ["scope"] },
+  { header: "Result", keys: ["result", "outcome", "status"], label: true },
+  { header: "Evidence", keys: ["evidence", "evidenceRefs", "evidence_refs"] },
+];
+
+const evidenceColumns: ProofColumn[] = [
+  { header: "Evidence", keys: ["name", "id"], fallback: (index) => `Evidence ${index + 1}` },
+  { header: "Type", keys: ["type", "kind"] },
+  { header: "Reference", keys: ["reference", "url", "link", "path"] },
+];
 
 export function renderProofComment(
   proof: ProofDocument,
@@ -216,13 +217,13 @@ export function renderProofComment(
   ];
 
   if (proof.acceptance?.length) {
-    sections.push("", "### Acceptance criteria", "", renderAcceptance(proof.acceptance));
+    sections.push("", "### Acceptance criteria", "", renderProofRows(acceptanceColumns, proof.acceptance));
   }
   if (proof.checks?.length) {
-    sections.push("", "### Checks", "", renderChecks(proof.checks));
+    sections.push("", "### Checks", "", renderProofRows(checkColumns, proof.checks));
   }
   if (evidence.length) {
-    sections.push("", "### Evidence", "", renderEvidence(evidence));
+    sections.push("", "### Evidence", "", renderProofRows(evidenceColumns, evidence));
   }
   if (proof.knownGaps?.length) {
     sections.push(

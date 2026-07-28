@@ -191,7 +191,7 @@ grep -q 'operation: lifecycle/prepare-validation' "$TEMP_DIR/consumer/.github/wo
 grep -q 'owner: \${{ github.repository_owner }}' "$orchestrator"
 grep -q 'repositories: \${{ github.repository }}' "$orchestrator"
 grep -q 'LOOP_CONTEXT: |' "$TEMP_DIR/consumer/.github/workflows/octestra-loop-triage-todo.yml"
-grep -q 'toJSON(inputs.config-ref ||' "$TEMP_DIR/consumer/.github/workflows/octestra-loop-triage-todo.yml"
+grep -q 'config-ref: ${{ inputs.config-ref }}' "$TEMP_DIR/consumer/.github/workflows/octestra-loop-triage-todo.yml"
 for variable in OCTESTRA_GITHUB_APP_CLIENT_ID OCTESTRA_ORCHESTRATION_RUNNER OCTESTRA_AGENT_RUNNER OCTESTRA_STATUS_FIELD_ID; do
   grep -q "$variable" "$ROOT/scripts/octestra-vars.mjs"
 done
