@@ -76,6 +76,7 @@ jobs:
         }
     secrets:
       github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+
   validation:
     # Consumer entrypoint for task validation.
     needs: guard
@@ -90,6 +91,7 @@ jobs:
       github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
 
   # Add the matching reusable workflow, then uncomment a status job to enable it.
+  #
   # todo:
   #   needs: guard
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'todo'
@@ -101,6 +103,7 @@ jobs:
   #       }
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+  #
   # ready:
   #   needs: guard
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'ready'
@@ -112,6 +115,7 @@ jobs:
   #       }
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+  #
   # human-review:
   #   needs: guard
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'human_review'
@@ -123,6 +127,7 @@ jobs:
   #       }
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+  #
   # blocked:
   #   needs: guard
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'blocked'
@@ -134,6 +139,7 @@ jobs:
   #       }
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+  #
   # done:
   #   needs: guard
   #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'done'
