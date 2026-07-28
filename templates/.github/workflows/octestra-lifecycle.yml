@@ -3,13 +3,32 @@ on:
   issues:
     types: [field_added, closed]
 permissions:
-  contents: read
+  # These are the workflow-level permissions, which serve as the ceiling for every
+  # called reusable workflow. A callee that declares a permission this ceiling does
+  # not grant fails the entire run with startup_failure before any job is created —
+  # so the caller must be a superset of every callee (in-progress needs contents:
+  # write for pushes, validation and both need pull-requests: write for PR handling).
+  # Individual jobs still narrow this at the job level.
+  contents: write
+  # Enable only for OIDC federation, for example AWS IAM role assumption with
+  # aws-actions/configure-aws-credentials. Must also be enabled in every reusable
+  # workflow that requests it (id-token is not inherited from the caller unless
+  # the caller also declares it, and a callee requesting id-token: write while
+  # the caller does not causes a startup_failure).
+  # id-token: write
   issues: write
+  pull-requests: write
 jobs:
   # Validate lifecycle transitions before dispatching status-specific jobs.
   guard:
     if: github.event.action == 'field_added' && format('{0}', github.event.issue_field.id) == vars.OCTESTRA_STATUS_FIELD_ID
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
+    # Narrow the workflow-level ceiling to what guard actually uses. The reusable
+    # workflows below still see the full ceiling because job-level permissions only
+    # apply to this job, not to the ones started by `uses:`.
+    permissions:
+      contents: read
+      issues: read
     outputs:
       valid: ${{ steps.guard.outputs.transition_valid }}
       status_key: ${{ steps.guard.outputs.status_key }}
@@ -134,6 +153,10 @@ jobs:
     name: Finalize merged task
     if: github.event.action == 'closed'
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
+    # Narrow the workflow-level ceiling to what finalize-merged-task actually uses.
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/create-github-app-token@v3
         id: app-token

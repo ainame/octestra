@@ -100,6 +100,15 @@ be rediscovered.
   same sweep re-fetches or skips records. Keep it constant and truncate afterwards.
 - **P10. Reusable workflow nesting allows ten levels** (caller plus nine). Recorded because an
   earlier draft claimed four and constrained the design for no reason.
+- **P11. A reusable workflow's `permissions:` block is a request, and the caller's workflow-level
+  `permissions:` is the ceiling.** If the callee declares any permission the caller does not grant
+  at workflow level, the run fails with `startup_failure` before any job is created — `jobs: []`,
+  no check-runs, no logs, no annotated line, just the top-of-page banner saying the workflow file
+  is broken. This applies to every permission, not only `id-token: write`. `octestra-lifecycle.yml`
+  therefore declares the *union* of everything its reusable workflows request (currently
+  `contents: write`, `issues: write`, `pull-requests: write`, plus `# id-token: write` for OIDC);
+  guard and merged-task-finalization narrow this at the job level. When adding a new reusable
+  workflow with a new permission, extend the caller's workflow-level block first.
 
 ## Rules
 

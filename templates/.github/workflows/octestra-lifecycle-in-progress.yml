@@ -23,7 +23,9 @@ on:
 permissions:
   contents: write
   # Enable only for OIDC federation, for example AWS IAM role assumption with
-  # aws-actions/configure-aws-credentials; also enable it in octestra-lifecycle.yml.
+  # aws-actions/configure-aws-credentials. Must be uncommented together with the
+  # matching line in octestra-lifecycle.yml — a callee that requests id-token: write
+  # while the caller does not causes a startup_failure at graph-build time.
   # id-token: write
   issues: write
   pull-requests: write
