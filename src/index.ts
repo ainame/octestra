@@ -11,7 +11,6 @@ import {
 } from "./loop/operations";
 import { loadOctestraConfig, type LoopConfig } from "./shared/config";
 import { GitHubClient } from "./shared/github-client";
-import { parseOptionId, statusVocabulary } from "./shared/status";
 import { positiveInteger } from "./shared/validate";
 import {
   assignOwner,
@@ -73,13 +72,11 @@ export async function run(): Promise<void> {
   }
   const client = new GitHubClient(token);
   const config = await loadOctestraConfig(client, core.getInput("config-ref"));
-  // Status identity comes from config.yml option IDs, never from display names (P1).
-  const status = statusVocabulary(config);
   function lifecycleOperationContext(): OperationContext {
     return {
       client,
       issueNumber: requiredNumber("issue-number"),
-      status,
+      statusFieldName: core.getInput("status-field-name") || config.status.field_name,
     };
   }
   function loopOperationContext(): [LoopContext, LoopConfig] {
@@ -90,7 +87,7 @@ export async function run(): Promise<void> {
   switch (operation) {
     case "loop/select-tasks": {
       const [, definition] = loopOperationContext();
-      await selectTasks(client, definition, status);
+      await selectTasks(client, definition, config.status.field_name);
       break;
     }
     case "loop/prepare-run": {
@@ -109,7 +106,7 @@ export async function run(): Promise<void> {
       await finalizeRun(
         client,
         definition,
-        status,
+        config.status.field_name,
         core.getInput("proof-path", { required: true }),
         loop.dry_run,
         optionalNumber("issue-number"),
@@ -124,8 +121,8 @@ export async function run(): Promise<void> {
     case "lifecycle/validate-transition":
       await validateTransition(
         lifecycleOperationContext(),
-        parseOptionId(core.getInput("previous-status-id")),
-        parseOptionId(core.getInput("current-status-id")),
+        core.getInput("previous-status"),
+        core.getInput("current-status"),
         ...triggerActorPair(true),
       );
       break;

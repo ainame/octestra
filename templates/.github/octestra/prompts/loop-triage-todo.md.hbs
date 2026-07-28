@@ -4,6 +4,6 @@ Review the task and write a JSON result to `{{resultPath}}`.
 
 The document must contain non-empty `outcome` and `summary` fields. `outcome` describes the
 analysis (for example `passed`, `blocked`, or `no_action`); it does not change task status.
-To request a status change, add optional `next_status` with one of the status keys permitted by the
+To request a status change, add optional `next_status` with one of the statuses permitted by the
 loop configuration. Omit `next_status` for a comment-only/no-op result. Store supporting files in
 `{{artifactPath}}`.

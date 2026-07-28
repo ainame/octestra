@@ -44,10 +44,8 @@ jobs:
           operation: lifecycle/validate-transition
           github-token: ${{ steps.app-token.outputs.token }}
           issue-number: ${{ github.event.issue.number }}
-          # Option IDs, not names: the ID is the option's identity, so renaming a
-          # status option in the organization cannot break routing (P1).
-          previous-status-id: ${{ github.event.changes.issue_field_value.from.option.id }}
-          current-status-id: ${{ github.event.issue_field_value.option.id }}
+          previous-status: ${{ github.event.changes.issue_field_value.from.option.name }}
+          current-status: ${{ github.event.issue_field_value.option.name }}
           trigger-actor: ${{ github.actor }}
           trigger-actor-type: ${{ github.event.sender.type }}
 

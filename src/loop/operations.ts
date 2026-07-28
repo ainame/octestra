@@ -7,7 +7,6 @@ import type { ListedIssue, ListedIssues } from "../shared/github-client";
 import { markdownTable } from "../shared/markdown";
 import { renderPrompt, type PromptLoopIssue, type PromptVariables } from "../shared/prompt";
 import { readProofDocument, renderProofComment } from "../shared/proof";
-import { optionIdOf, statusKeyOf, type StatusKey, type StatusVocabulary } from "../shared/status";
 import { workflowRunUrl } from "../shared/workflow-run";
 
 export const defaultLoopBranchTemplate = "octestra/loop/{loop_id}/{run_number}";
@@ -114,7 +113,7 @@ function filteredCandidates(
 export async function selectTasks(
   client: LoopClient,
   config: LoopConfig,
-  status: StatusVocabulary,
+  statusFieldName: string,
   now = new Date(),
 ): Promise<void> {
   const listed = config.select.epic === null
@@ -123,8 +122,7 @@ export async function selectTasks(
   const limit = Math.min(config.select.limit, matrixJobLimit);
   const selected: LoopSelection[] = [];
   for (const candidate of filteredCandidates(listed.issues, config, now)) {
-    const optionId = await client.getStatus(candidate.number, status.fieldId);
-    if (statusKeyOf(status, optionId) !== config.select.status) {
+    if (await client.getStatus(candidate.number, statusFieldName) !== config.select.status) {
       continue;
     }
     selected.push({
@@ -189,7 +187,7 @@ export async function prepareRun(
 export async function finalizeRun(
   client: OperationsClient,
   config: LoopConfig,
-  status: StatusVocabulary,
+  statusFieldName: string,
   proofPath: string,
   requestedDryRun: boolean,
   issueNumber?: number,
@@ -202,14 +200,11 @@ export async function finalizeRun(
   const proof = await readProofDocument(proofPath);
   await client.comment(target, renderProofComment(proof, { issueNumber: target }));
   core.setOutput("outcome", proof.outcome);
-  // The agent writes a config.yml status key, checked against the loop's own
-  // allow list. An unknown key is simply not allowed, so a typo cannot promote.
-  const nextStatus = proof.nextStatus as StatusKey | undefined;
+  const nextStatus = proof.nextStatus;
   if (
     issueNumber === undefined ||
     !nextStatus ||
     !config.apply.allowed_status.includes(nextStatus) ||
-    !status.keyToOptionId.has(nextStatus) ||
     dryRun
   ) {
     core.setOutput("applied", "false");
@@ -222,7 +217,7 @@ export async function finalizeRun(
     }
     await client.assignIssue(issueNumber, owner);
   }
-  await client.updateStatus(issueNumber, status.fieldId, optionIdOf(status, nextStatus));
+  await client.updateStatus(issueNumber, statusFieldName, nextStatus);
   core.setOutput("applied", "true");
 }
 

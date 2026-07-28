@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { reportProof, type ProofContext } from "./lifecycle/operations";
+import { reportProof, type OperationContext } from "./lifecycle/operations";
 import { GitHubClient } from "./shared/github-client";
 import { positiveInteger } from "./shared/validate";
 
@@ -14,9 +14,10 @@ function positiveIntegerInput(name: string, required: boolean): number | undefin
 export async function run(): Promise<void> {
   const token = core.getInput("github-token", { required: true });
   const issueNumber = positiveIntegerInput("issue-number", true)!;
-  const context: ProofContext = {
+  const context: OperationContext = {
     client: new GitHubClient(token),
     issueNumber,
+    statusFieldName: "",
   };
 
   // The dedicated Action is a convenient wrapper around the same public operation.

@@ -21,7 +21,6 @@ import {
   type OperationsClient,
   type OperationContext,
 } from "./operations";
-import type { StatusKey, StatusVocabulary } from "../shared/status";
 
 vi.mock("@actions/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@actions/core")>();
@@ -49,37 +48,6 @@ async function proofResultPath(outcome: "passed" | "failed"): Promise<string> {
   return resultPath;
 }
 
-// Option IDs stand in for the organization's real ones. Deliberately unrelated to
-// the display names, so a test that leaks a name back into behaviour will fail.
-const optionIds: Record<StatusKey, number> = {
-  todo: 7001,
-  ready: 7002,
-  in_progress: 7003,
-  validation: 7004,
-  human_review: 7005,
-  blocked: 7006,
-  done: 7007,
-};
-
-const optionLabels: Record<number, string> = {
-  7001: "Todo",
-  7002: "Ready",
-  7003: "In Progress",
-  7004: "Validation",
-  7005: "Human Review",
-  7006: "Blocked",
-  7007: "Done",
-};
-
-const vocabulary: StatusVocabulary = {
-  fieldId: 5001,
-  fieldName: "AI Task Status",
-  keyToOptionId: new Map(Object.entries(optionIds) as Array<[StatusKey, number]>),
-  optionIdToKey: new Map(
-    Object.entries(optionIds).map(([key, id]) => [id, key as StatusKey]),
-  ),
-};
-
 function createClient(overrides: Partial<OperationsClient> = {}): OperationsClient {
   return {
     getIssue: vi.fn().mockResolvedValue({
@@ -104,9 +72,6 @@ function createClient(overrides: Partial<OperationsClient> = {}): OperationsClie
     requestReviewer: vi.fn(),
     comment: vi.fn(),
     getStatus: vi.fn(),
-    statusOptionName: vi.fn().mockImplementation(
-      (_fieldId: number, optionId: number) => Promise.resolve(optionLabels[optionId] ?? "Unknown"),
-    ),
     updateStatus: vi.fn(),
     ...overrides,
   };
@@ -116,7 +81,7 @@ function createContext(client: OperationsClient): OperationContext {
   return {
     client,
     issueNumber: 123,
-    status: vocabulary,
+    statusFieldName: "AI Task Status",
   };
 }
 
@@ -230,7 +195,7 @@ describe("prepareTask", () => {
 
     await prepareTask(createContext(client), "prompt.md.hbs", "task-owner", "User");
 
-    expect(client.updateStatus).toHaveBeenCalledWith(123, vocabulary.fieldId, optionIds.blocked);
+    expect(client.updateStatus).toHaveBeenCalledWith(123, "AI Task Status", "Blocked");
     expect(client.comment).toHaveBeenCalledWith(
       123,
       expect.stringContaining("@task-owner"),
@@ -321,88 +286,42 @@ describe("prepareValidation", () => {
 
 describe("validateTransition", () => {
   it.each([
-    [undefined, "todo"],
-    ["todo", "ready"],
-    ["ready", "in_progress"],
-    ["in_progress", "validation"],
-    ["validation", "human_review"],
-    ["human_review", "done"],
-    ["in_progress", "blocked"],
-    ["blocked", "ready"],
-  ] as Array<[StatusKey | undefined, StatusKey]>)(
-    "allows %s -> %s",
-    async (previousStatus, currentStatus) => {
-      const currentOptionId = optionIds[currentStatus];
-      const client = createClient({
-        getStatus: vi.fn().mockResolvedValue(currentOptionId),
-      });
-
-      await expect(
-        validateTransition(
-          createContext(client),
-          previousStatus === undefined ? undefined : optionIds[previousStatus],
-          currentOptionId,
-          "task-owner",
-          "User",
-        ),
-      ).resolves.toBe(true);
-
-      expect(vi.mocked(core.setOutput)).toHaveBeenCalledWith("status_key", currentStatus);
-      expect(client.updateStatus).not.toHaveBeenCalled();
-    },
-  );
-
-  it("ignores an option that is not part of the Octestra status graph", async () => {
-    const foreignOptionId = 9999;
+    ["", "Todo"],
+    ["Todo", "Ready"],
+    ["Ready", "In Progress"],
+    ["In Progress", "Validation"],
+    ["Validation", "Human Review"],
+    ["Human Review", "Done"],
+    ["In Progress", "Blocked"],
+    ["Blocked", "Ready"],
+  ])("allows %s -> %s", async (previousStatus, currentStatus) => {
     const client = createClient({
-      getStatus: vi.fn().mockResolvedValue(foreignOptionId),
+      getStatus: vi.fn().mockResolvedValue(currentStatus || undefined),
     });
 
     await expect(
       validateTransition(
         createContext(client),
-        optionIds.todo,
-        foreignOptionId,
-        "task-owner",
-        "User",
-      ),
-    ).resolves.toBe(false);
-
-    expect(vi.mocked(core.setOutput)).toHaveBeenCalledWith("transition_valid", "false");
-    expect(client.assignIssue).not.toHaveBeenCalled();
-    expect(client.comment).not.toHaveBeenCalled();
-  });
-
-  it("routes on the option ID, so renaming a status option changes nothing", async () => {
-    // The client reports only IDs; no display name is involved in routing at all.
-    const client = createClient({
-      getStatus: vi.fn().mockResolvedValue(optionIds.in_progress),
-      statusOptionName: vi.fn().mockResolvedValue("Doing Work Now"),
-    });
-
-    await expect(
-      validateTransition(
-        createContext(client),
-        optionIds.ready,
-        optionIds.in_progress,
+        previousStatus,
+        currentStatus,
         "task-owner",
         "User",
       ),
     ).resolves.toBe(true);
 
-    expect(vi.mocked(core.setOutput)).toHaveBeenCalledWith("status_key", "in_progress");
+    expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
   it("assigns and warns the triggering user after an invalid transition", async () => {
     const client = createClient({
-      getStatus: vi.fn().mockResolvedValue(optionIds.validation),
+      getStatus: vi.fn().mockResolvedValue("Validation"),
     });
 
     await expect(
       validateTransition(
         createContext(client),
-        optionIds.todo,
-        optionIds.validation,
+        "Todo",
+        "Validation",
         "task-owner",
         "User",
       ),
@@ -411,41 +330,35 @@ describe("validateTransition", () => {
     expect(client.assignIssue).toHaveBeenCalledWith(123, "task-owner");
     expect(client.comment).toHaveBeenCalledWith(
       123,
-      expect.stringMatching(/@task-owner[\s\S]*`todo -> validation`/),
+      expect.stringMatching(/@task-owner[\s\S]*`Todo -> Validation`/),
     );
     expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
   it("warns when an invalid initial field value is set", async () => {
     const client = createClient({
-      getStatus: vi.fn().mockResolvedValue(optionIds.done),
+      getStatus: vi.fn().mockResolvedValue("Done"),
     });
 
-    await validateTransition(
-      createContext(client),
-      undefined,
-      optionIds.done,
-      "task-owner",
-      "User",
-    );
+    await validateTransition(createContext(client), "", "Done", "task-owner", "User");
 
     expect(client.assignIssue).toHaveBeenCalledWith(123, "task-owner");
     expect(client.comment).toHaveBeenCalledWith(
       123,
-      expect.stringContaining("`(unset) -> done`"),
+      expect.stringContaining("`(unset) -> Done`"),
     );
     expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
   it("does not warn for an invalid transition triggered by a bot", async () => {
     const client = createClient({
-      getStatus: vi.fn().mockResolvedValue(optionIds.todo),
+      getStatus: vi.fn().mockResolvedValue("Todo"),
     });
 
     await validateTransition(
       createContext(client),
-      optionIds.validation,
-      optionIds.todo,
+      "Validation",
+      "Todo",
       "octestra-app[bot]",
       "Bot",
     );
@@ -462,8 +375,8 @@ describe("validateTransition", () => {
 
     await validateTransition(
       createContext(client),
-      optionIds.validation,
-      undefined,
+      "Validation",
+      "",
       "task-owner",
       "User",
     );
@@ -471,20 +384,20 @@ describe("validateTransition", () => {
     expect(client.assignIssue).toHaveBeenCalledWith(123, "task-owner");
     expect(client.comment).toHaveBeenCalledWith(
       123,
-      expect.stringContaining("`validation -> `"),
+      expect.stringContaining("`Validation -> `"),
     );
     expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
   it("ignores a stale event when the live status has changed", async () => {
     const client = createClient({
-      getStatus: vi.fn().mockResolvedValue(optionIds.blocked),
+      getStatus: vi.fn().mockResolvedValue("Blocked"),
     });
 
     await validateTransition(
       createContext(client),
-      optionIds.todo,
-      optionIds.ready,
+      "Todo",
+      "Ready",
       "task-owner",
       "User",
     );
@@ -499,34 +412,34 @@ describe("finalizeMergedTask", () => {
   it("moves a human-reviewed issue closed by a merged pull request to Done", async () => {
     const client = createClient({
       isClosedByMergedPullRequest: vi.fn().mockResolvedValue(true),
-      getStatus: vi.fn().mockResolvedValue(optionIds.human_review),
+      getStatus: vi.fn().mockResolvedValue("Human Review"),
     });
 
     await finalizeMergedTask(createContext(client));
 
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      vocabulary.fieldId,
-      optionIds.done,
+      "AI Task Status",
+      "Done",
     );
   });
 
   it("leaves an issue closed without a merged pull request unchanged", async () => {
     const client = createClient({
       isClosedByMergedPullRequest: vi.fn().mockResolvedValue(false),
-      getStatus: vi.fn().mockResolvedValue(optionIds.human_review),
+      getStatus: vi.fn().mockResolvedValue("Human Review"),
     });
 
     await finalizeMergedTask(createContext(client));
 
-    expect(client.getStatus).toHaveBeenCalledWith(123, vocabulary.fieldId);
+    expect(client.getStatus).toHaveBeenCalledWith(123, "AI Task Status");
     expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
   it("ignores a closed issue without a task awaiting review", async () => {
     const client = createClient({
       isClosedByMergedPullRequest: vi.fn().mockResolvedValue(true),
-      getStatus: vi.fn().mockResolvedValue(optionIds.validation),
+      getStatus: vi.fn().mockResolvedValue("Validation"),
     });
 
     await finalizeMergedTask(createContext(client));
@@ -549,8 +462,8 @@ describe("finalizeTask", () => {
     expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      vocabulary.fieldId,
-      optionIds.validation,
+      "AI Task Status",
+      "Validation",
     );
   });
 
@@ -574,8 +487,8 @@ describe("finalizeTask", () => {
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      vocabulary.fieldId,
-      optionIds.human_review,
+      "AI Task Status",
+      "Human Review",
     );
   });
 
@@ -589,8 +502,8 @@ describe("finalizeTask", () => {
     expect(client.findOpenPullRequest).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      vocabulary.fieldId,
-      optionIds.blocked,
+      "AI Task Status",
+      "Blocked",
     );
   });
 });
@@ -765,8 +678,8 @@ describe("finalizeValidation", () => {
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      vocabulary.fieldId,
-      optionIds.human_review,
+      "AI Task Status",
+      "Human Review",
     );
   });
 
@@ -784,8 +697,8 @@ describe("finalizeValidation", () => {
     expect(client.requestReviewer).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      vocabulary.fieldId,
-      optionIds.blocked,
+      "AI Task Status",
+      "Blocked",
     );
   });
 });
@@ -802,8 +715,8 @@ describe("reportFailure", () => {
 
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      vocabulary.fieldId,
-      optionIds.blocked,
+      "AI Task Status",
+      "Blocked",
     );
   });
 });

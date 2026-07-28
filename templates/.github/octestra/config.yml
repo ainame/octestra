@@ -11,10 +11,7 @@ runners: # mirrored to repository variables
 status:
   field_name: "__OCTESTRA_STATUS_FIELD_NAME__"
   field_id: "__OCTESTRA_STATUS_FIELD_ID__" # mirrored to OCTESTRA_STATUS_FIELD_ID
-  # Option IDs are the authoritative identity and intentionally are not mirrored to
-  # vars. The keys below are Octestra's status vocabulary: loops and the individual
-  # update-status operation refer to a status by key, never by display name, so
-  # renaming an option in the organization does not break an installation.
+  # Option IDs are authoritative and intentionally are not mirrored to vars.
   options:
     todo: "__OCTESTRA_STATUS_TODO_OPTION_ID__"
     ready: "__OCTESTRA_STATUS_READY_OPTION_ID__"
@@ -39,14 +36,14 @@ prompts:
 #     prompt: .github/octestra/prompts/loop-triage-todo.md.hbs
 #     select:
 #       epic: null              # An EPIC number; null requires non-empty labels.
-#       status: todo            # A status key from status.options above.
+#       status: Todo
 #       labels: []
 #       updated_before: 24h     # Idempotency guard; supported units: s, m, h, d, w.
 #       limit: 10               # Maximum selected tasks.
 #       scan_budget: 300        # Maximum candidates examined, independent of limit.
 #       order: oldest
 #     apply:
-#       allowed_status: [ready, blocked]   # Status keys the loop may apply.
+#       allowed_status: [Ready, Blocked]
 #       assign_owner: true
 #       dry_run: false
 #     report_issue: null
@@ -58,7 +55,7 @@ prompts:
 #     prompt: .github/octestra/prompts/loop-retrospective.md.hbs
 #     select:
 #       epic: null
-#       status: done
+#       status: Done
 #       labels: [octestra-task]
 #       updated_before: 7d
 #       limit: 20

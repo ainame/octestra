@@ -16,23 +16,12 @@ import {
   renderProofComment,
   type ProofDocument,
 } from "../shared/proof";
-import {
-  optionIdOf,
-  statusKeyOf,
-  type StatusKey,
-  type StatusVocabulary,
-} from "../shared/status";
 import { workflowRunUrl } from "../shared/workflow-run";
 
-// Reporting proof needs no status vocabulary, and the dedicated proof action has
-// none to give, so it is a separate narrower context rather than a dummy value.
-export interface ProofContext {
+export interface OperationContext {
   client: OperationsClient;
   issueNumber: number;
-}
-
-export interface OperationContext extends ProofContext {
-  status: StatusVocabulary;
+  statusFieldName: string;
 }
 
 export interface OperationsClient {
@@ -51,9 +40,8 @@ export interface OperationsClient {
   ): Promise<number | undefined>;
   requestReviewer(pullNumber: number, reviewer: string): Promise<void>;
   comment(issueNumber: number, body: string): Promise<void>;
-  getStatus(issueNumber: number, fieldId: number): Promise<number | undefined>;
-  statusOptionName(fieldId: number, optionId: number): Promise<string>;
-  updateStatus(issueNumber: number, fieldId: number, optionId: number): Promise<void>;
+  getStatus(issueNumber: number, fieldName: string): Promise<string | undefined>;
+  updateStatus(issueNumber: number, fieldName: string, status: string): Promise<void>;
 }
 
 interface ActivityReport {
@@ -84,55 +72,16 @@ export function resolveTaskBranchName(
 
 const execFileAsync = promisify(execFile);
 
-// Keyed on config.yml status keys, never on display names: the option ID is the
-// identity, and a maintainer renaming an option must not change the graph (P1).
-// The empty key is a task entering the graph with no previous status.
-const allowedTransitions = new Map<string, Set<StatusKey>>([
-  ["", new Set<StatusKey>(["todo"])],
-  ["todo", new Set<StatusKey>(["ready"])],
-  ["ready", new Set<StatusKey>(["in_progress", "blocked"])],
-  ["in_progress", new Set<StatusKey>(["validation", "human_review", "blocked"])],
-  ["validation", new Set<StatusKey>(["human_review", "blocked"])],
-  ["human_review", new Set<StatusKey>(["done", "blocked"])],
-  ["blocked", new Set<StatusKey>(["ready"])],
-  ["done", new Set<StatusKey>()],
+const allowedTransitions = new Map<string, Set<string>>([
+  ["", new Set(["Todo"])],
+  ["Todo", new Set(["Ready"])],
+  ["Ready", new Set(["In Progress", "Blocked"])],
+  ["In Progress", new Set(["Validation", "Human Review", "Blocked"])],
+  ["Validation", new Set(["Human Review", "Blocked"])],
+  ["Human Review", new Set(["Done", "Blocked"])],
+  ["Blocked", new Set(["Ready"])],
+  ["Done", new Set()],
 ]);
-
-// The individual update-status operation takes a status from a consumer workflow.
-// Accept a config key; names are rejected so nothing new becomes name-keyed (P1).
-function requireStatusKey(context: OperationContext, value: string): StatusKey {
-  const key = value.trim() as StatusKey;
-  if (!context.status.keyToOptionId.has(key)) {
-    throw new Error(
-      `next-status must be one of the config.yml status keys (${[...context.status.keyToOptionId.keys()].join(", ")}), got ${value}`,
-    );
-  }
-  return key;
-}
-
-async function currentStatusKey(context: OperationContext): Promise<StatusKey | undefined> {
-  const optionId = await context.client.getStatus(
-    context.issueNumber,
-    context.status.fieldId,
-  );
-  return statusKeyOf(context.status, optionId);
-}
-
-// The live display name, for comments only. Never compared against.
-async function statusLabel(context: OperationContext, key: StatusKey): Promise<string> {
-  return context.client.statusOptionName(
-    context.status.fieldId,
-    optionIdOf(context.status, key),
-  );
-}
-
-async function applyStatus(context: OperationContext, key: StatusKey): Promise<void> {
-  await context.client.updateStatus(
-    context.issueNumber,
-    context.status.fieldId,
-    optionIdOf(context.status, key),
-  );
-}
 
 async function reportActivity(
   context: OperationContext,
@@ -191,44 +140,26 @@ async function reportActivityBestEffort(
 
 export async function validateTransition(
   context: OperationContext,
-  previousOptionId: number | undefined,
-  currentOptionId: number | undefined,
+  previousStatus: string,
+  currentStatus: string,
   triggerActor: string,
   triggerActorType: string,
 ): Promise<boolean> {
-  const liveOptionId = await context.client.getStatus(
+  const liveStatus = await context.client.getStatus(
     context.issueNumber,
-    context.status.fieldId,
+    context.statusFieldName,
   );
-  // Comparing option IDs, so a rename between the event and this check cannot look
-  // like a stale event.
-  if (liveOptionId !== currentOptionId) {
+  if ((liveStatus ?? "") !== currentStatus) {
     core.setOutput("transition_valid", "false");
     core.warning(
-      `Ignoring stale transition event: event=${currentOptionId ?? "(unset)"}, live=${liveOptionId ?? "(unset)"}`,
+      `Ignoring stale transition event: event=${currentStatus || "(unset)"}, live=${liveStatus || "(unset)"}`,
     );
     return false;
   }
 
-  const previousStatus = statusKeyOf(context.status, previousOptionId) ?? "";
-  // An empty key means the status was cleared, which is a real transition the graph
-  // rejects. A non-empty option ID that config.yml does not know is a different
-  // thing: an option outside the Octestra graph, which is not ours to police.
-  const currentStatus = currentOptionId === undefined
-    ? ""
-    : statusKeyOf(context.status, currentOptionId);
-  if (currentStatus === undefined) {
-    core.setOutput("transition_valid", "false");
-    core.info(
-      `Issue #${context.issueNumber} moved to an option that is not an Octestra status; ignoring.`,
-    );
-    return false;
-  }
-
-  const isValid = currentStatus !== "" &&
-    (allowedTransitions.get(previousStatus)?.has(currentStatus) ?? false);
+  const isValid = allowedTransitions.get(previousStatus)?.has(currentStatus) ?? false;
   core.setOutput("transition_valid", String(isValid));
-  core.setOutput("status_key", currentStatus);
+  core.setOutput("status_key", currentStatus.toLowerCase().replaceAll(" ", "_"));
   if (isValid) {
     return true;
   }
@@ -253,23 +184,30 @@ export async function validateTransition(
 }
 
 export async function finalizeMergedTask(context: OperationContext): Promise<void> {
-  const currentStatus = await currentStatusKey(context);
-  if (currentStatus !== "human_review") {
+  const currentStatus = await context.client.getStatus(
+    context.issueNumber,
+    context.statusFieldName,
+  );
+  if (currentStatus !== "Human Review") {
     core.info(
-      `Issue #${context.issueNumber} is ${currentStatus ?? "unset"}, not an Octestra task awaiting review; leaving ${context.status.fieldName} unchanged.`,
+      `Issue #${context.issueNumber} is ${currentStatus ?? "unset"}, not an Octestra task awaiting review; leaving AI Task Status unchanged.`,
     );
     return;
   }
 
   if (!await context.client.isClosedByMergedPullRequest(context.issueNumber)) {
     core.info(
-      `Issue #${context.issueNumber} was not closed by a merged pull request; leaving ${context.status.fieldName} unchanged.`,
+      `Issue #${context.issueNumber} was not closed by a merged pull request; leaving AI Task Status unchanged.`,
     );
     return;
   }
 
   // Updating status can trigger the next workflow, so all Octestra work must finish first.
-  await applyStatus(context, "done");
+  await context.client.updateStatus(
+    context.issueNumber,
+    context.statusFieldName,
+    "Done",
+  );
 }
 
 async function configureCoauthor(
@@ -341,7 +279,7 @@ export async function buildTaskContext(
         linkedPullNumber ? `open PR #${linkedPullNumber}` : undefined,
       ].filter(Boolean).join(" and ");
       await reportActivityBestEffort(context, {
-        status: await statusLabel(context, "blocked"),
+        status: "Blocked",
         outcome: "blocked",
         summary: "Task execution was not started because existing work was found.",
         details: [
@@ -350,7 +288,11 @@ export async function buildTaskContext(
           "Then move this task to `Ready`, followed by `In Progress`.",
         ].join("\n\n"),
       });
-      await applyStatus(context, "blocked");
+      await context.client.updateStatus(
+        context.issueNumber,
+        context.statusFieldName,
+        "Blocked",
+      );
       core.setOutput("branch_name", branchName);
       core.setOutput("task_ready", "false");
       return;
@@ -490,7 +432,11 @@ export async function updateStatus(
   if (!nextStatus) {
     throw new Error("next-status is required for update-status");
   }
-  await applyStatus(context, requireStatusKey(context, nextStatus));
+  await context.client.updateStatus(
+    context.issueNumber,
+    context.statusFieldName,
+    nextStatus,
+  );
 }
 
 export async function assignOwner(
@@ -532,7 +478,7 @@ export async function assignPullRequestOwner(
 }
 
 export async function reportProof(
-  context: ProofContext,
+  context: OperationContext,
   proofPath: string,
   options: ProofReportOptions = {},
 ): Promise<ProofDocument> {
@@ -599,32 +545,35 @@ export async function finalizeTask(
     context.issueNumber,
     branchTemplate,
   );
-  const failureStatus: StatusKey = "blocked";
+  const failureStatus = "Blocked";
 
   if (!(await context.client.branchExists(branchName))) {
     core.warning("Task branch was not found. Issue left open for manual review.");
     await reportActivity(context, {
-      status: await statusLabel(context, failureStatus),
+      status: failureStatus,
       outcome: "blocked",
       summary: "The task agent did not create the expected branch.",
       details: `- Expected branch: \`${branchName}\`\n- Move the task to \`Ready\` after resolving the blocker to retry.`,
     });
     // Updating status can trigger the next workflow, so all Octestra work must finish first.
-    await applyStatus(context, failureStatus);
+    await context.client.updateStatus(
+      context.issueNumber,
+      context.statusFieldName,
+      failureStatus,
+    );
     return;
   }
 
-  const nextStatus: StatusKey = config.validationRequired ? "validation" : "human_review";
+  const nextStatus = config.validationRequired ? "Validation" : "Human Review";
   const pullNumber = await resolveTaskPullRequest(context, branchName);
-  const reviewer = nextStatus === "human_review"
+  const reviewer = nextStatus === "Human Review"
     ? await requestReview(context, pullNumber)
     : undefined;
   const taskOwner = reviewer ??
     await assignPullRequestOwner(context, pullNumber);
 
-  const nextStatusLabel = await statusLabel(context, nextStatus);
   await reportActivityBestEffort(context, {
-    status: nextStatusLabel,
+    status: nextStatus,
     outcome: "succeeded",
     summary: reviewer
       ? `Created task PR #${pullNumber} and requested review from @${reviewer}.`
@@ -633,11 +582,15 @@ export async function finalizeTask(
       `- Pull request: #${pullNumber}`,
       `- Pull request assigned to @${taskOwner}`,
       reviewer ? `- Reviewer: @${reviewer}` : undefined,
-      `- ${context.status.fieldName} updated to \`${nextStatusLabel}\``,
+      `- AI Task Status updated to \`${nextStatus}\``,
     ].filter(Boolean).join("\n"),
   });
   // Updating status can trigger the next workflow, so all Octestra work must finish first.
-  await applyStatus(context, nextStatus);
+  await context.client.updateStatus(
+    context.issueNumber,
+    context.statusFieldName,
+    nextStatus,
+  );
 }
 
 // Aggregate lifecycle exit point for the default validation policy. Repositories
@@ -652,24 +605,24 @@ export async function finalizeValidation(
   });
   if (proof.outcome !== "passed") {
     // Updating status can trigger the next workflow, so all Octestra work must finish first.
-    await applyStatus(context, "blocked");
+    await updateStatus(context, "Blocked");
     return;
   }
 
   await requestReview(context, pullNumber);
   // Updating status can trigger the next workflow, so all Octestra work must finish first.
-  await applyStatus(context, "human_review");
+  await updateStatus(context, "Human Review");
 }
 
 export async function reportFailure(
   context: OperationContext,
 ): Promise<void> {
-  const failureStatus: StatusKey = "blocked";
+  const failureStatus = "Blocked";
   const runUrl = workflowRunUrl();
 
   try {
     await reportActivity(context, {
-      status: await statusLabel(context, failureStatus),
+      status: failureStatus,
       outcome: "failed",
       summary: "The task workflow failed or was cancelled.",
       details: `- Failed workflow run: ${runUrl}\n- Move the task to \`Ready\` after resolving the blocker to retry.`,
@@ -679,5 +632,9 @@ export async function reportFailure(
   }
 
   // Updating status can trigger the next workflow, so all Octestra work must finish first.
-  await applyStatus(context, failureStatus);
+  await context.client.updateStatus(
+    context.issueNumber,
+    context.statusFieldName,
+    failureStatus,
+  );
 }

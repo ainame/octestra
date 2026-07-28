@@ -53,15 +53,7 @@ export function parseOctestraConfig(raw: string): OctestraConfig {
   const options = mapping(status.options, "status.options");
   const branch = mapping(root.branch, "branch");
   const prompts = mapping(root.prompts, "prompts");
-  const statusKeys = ["todo", "ready", "in_progress", "validation", "human_review", "blocked", "done"];
-  for (const key of statusKeys) requiredString(options[key], `status.options.${key}`);
-  // A loop refers to a status by key. Validating here means a typo fails at parse
-  // time rather than silently matching no issues on every scheduled sweep.
-  function statusKey(value: unknown, name: string): string {
-    const key = requiredString(value, name);
-    if (!statusKeys.includes(key)) throw new Error(`config.yml ${name} must be one of the status.options keys (${statusKeys.join(", ")}), got ${key}`);
-    return key;
-  }
+  for (const key of ["todo", "ready", "in_progress", "validation", "human_review", "blocked", "done"]) requiredString(options[key], `status.options.${key}`);
   const loops: Record<string, LoopConfig> = {};
   for (const [id, rawLoop] of Object.entries(mapping(root.loops ?? {}, "loops"))) {
     if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error(`config.yml loops.${id} must use a lowercase slug`);
@@ -75,13 +67,12 @@ export function parseOctestraConfig(raw: string): OctestraConfig {
     if (epic === null && labels.length === 0) throw new Error(`config.yml loops.${id} must set select.epic or select.labels`);
     const order = select.order ?? "oldest";
     if (order !== "oldest" && order !== "newest") throw new Error(`config.yml loops.${id}.select.order must be oldest or newest`);
-    if (!Array.isArray(apply.allowed_status)) throw new Error(`config.yml loops.${id}.apply.allowed_status must be an array of status keys`);
-    const allowedStatus = apply.allowed_status.map((candidate, index) => statusKey(candidate, `loops.${id}.apply.allowed_status[${index}]`));
+    if (!Array.isArray(apply.allowed_status) || apply.allowed_status.some((candidate) => typeof candidate !== "string" || !candidate.trim())) throw new Error(`config.yml loops.${id}.apply.allowed_status must be strings`);
     if (typeof apply.assign_owner !== "boolean" || typeof apply.dry_run !== "boolean") throw new Error(`config.yml loops.${id}.apply assign_owner and dry_run must be booleans`);
     loops[id] = {
       prompt: requiredString(loop.prompt, `loops.${id}.prompt`),
-      select: { epic: epic as number | null, status: statusKey(select.status, `loops.${id}.select.status`), labels, updated_before: durationSeconds(select.updated_before, `loops.${id}.select.updated_before`), limit: positiveInteger(select.limit, `loops.${id}.select.limit`), scan_budget: positiveInteger(select.scan_budget, `loops.${id}.select.scan_budget`), order },
-      apply: { allowed_status: allowedStatus, assign_owner: apply.assign_owner as boolean, dry_run: apply.dry_run as boolean },
+      select: { epic: epic as number | null, status: requiredString(select.status, `loops.${id}.select.status`), labels, updated_before: durationSeconds(select.updated_before, `loops.${id}.select.updated_before`), limit: positiveInteger(select.limit, `loops.${id}.select.limit`), scan_budget: positiveInteger(select.scan_budget, `loops.${id}.select.scan_budget`), order },
+      apply: { allowed_status: apply.allowed_status as string[], assign_owner: apply.assign_owner as boolean, dry_run: apply.dry_run as boolean },
       report_issue: loop.report_issue == null ? null : positiveInteger(loop.report_issue, `loops.${id}.report_issue`),
     };
   }

@@ -19,76 +19,36 @@ import {
   type LoopClient,
   type LoopContext,
 } from "./operations";
-import type { StatusKey, StatusVocabulary } from "../shared/status";
 
 const output = core.setOutput as ReturnType<typeof vi.fn>;
 
-// Loops address statuses by config key; these IDs are deliberately unrelated to any
-// display name so a test cannot pass by leaking a name back into behaviour.
-const optionIds: Record<StatusKey, number> = {
-  todo: 7001,
-  ready: 7002,
-  in_progress: 7003,
-  validation: 7004,
-  human_review: 7005,
-  blocked: 7006,
-  done: 7007,
-};
-
-const vocabulary: StatusVocabulary = {
-  fieldId: 5001,
-  fieldName: "AI Task Status",
-  keyToOptionId: new Map(Object.entries(optionIds) as Array<[StatusKey, number]>),
-  optionIdToKey: new Map(
-    Object.entries(optionIds).map(([key, id]) => [id, key as StatusKey]),
-  ),
-};
-
 const config: LoopConfig = {
   prompt: "prompts/loop.md.hbs",
-  select: { epic: null, status: "todo", labels: ["task"], limit: 300, scan_budget: 300, order: "oldest" },
-  apply: { allowed_status: ["ready"], assign_owner: false, dry_run: false },
+  select: { epic: null, status: "Todo", labels: ["task"], limit: 300, scan_budget: 300, order: "oldest" },
+  apply: { allowed_status: ["Ready"], assign_owner: false, dry_run: false },
   report_issue: null,
 };
 
 const loop: LoopContext = { loop_id: "triage-todo", dry_run: false };
 
-// Every method is spelled out rather than cast, so adding a required method to
-// LoopClient breaks this file at compile time instead of at runtime.
 interface FakeClient extends LoopClient {
   listIssues: Mock;
-  listSubIssues: Mock;
   comment: Mock;
   assignIssue: Mock;
-  getStatus: Mock;
-  statusOptionName: Mock;
   updateStatus: Mock;
   getLatestAssignedUser: Mock;
 }
 
 function fakeClient(items: Array<Record<string, unknown>> = [], partial = true): FakeClient {
-  const unusedByLoops = {
-    getIssue: vi.fn(),
-    isClosedByMergedPullRequest: vi.fn(),
-    getParentNumber: vi.fn(),
-    getUserDisplayName: vi.fn(),
-    branchExists: vi.fn(),
-    findOpenPullRequest: vi.fn(),
-    assignPullRequest: vi.fn(),
-    findLinkedOpenPullRequest: vi.fn(),
-    requestReviewer: vi.fn(),
-  };
   return {
-    ...unusedByLoops,
     listIssues: vi.fn().mockResolvedValue({ issues: items, partial }),
     listSubIssues: vi.fn().mockResolvedValue({ issues: [], partial: false }),
-    getStatus: vi.fn().mockResolvedValue(optionIds.todo),
-    statusOptionName: vi.fn().mockResolvedValue("Todo"),
+    getStatus: vi.fn().mockResolvedValue("Todo"),
     comment: vi.fn(),
     assignIssue: vi.fn(),
     updateStatus: vi.fn(),
     getLatestAssignedUser: vi.fn(),
-  };
+  } as unknown as FakeClient;
 }
 
 function outputValue(name: string): string | undefined {
@@ -100,7 +60,7 @@ afterEach(() => output.mockClear());
 
 describe("selectTasks", () => {
   it("emits a parseable empty selection", async () => {
-    await selectTasks(fakeClient([]), config, vocabulary);
+    await selectTasks(fakeClient([]), config, "Custom");
 
     expect(outputValue("issues")).toBe("[]");
     expect(outputValue("count")).toBe("0");
@@ -113,7 +73,7 @@ describe("selectTasks", () => {
       { number: 2, title: "Issue", updated_at: "2020-01-01T00:00:00Z" },
     ]);
 
-    await selectTasks(client, config, vocabulary);
+    await selectTasks(client, config, "Custom");
 
     expect(outputValue("partial")).toBe("true");
     expect(outputValue("issues")).toContain('"number":2');
@@ -127,7 +87,7 @@ describe("selectTasks", () => {
       updated_at: "2020-01-01T00:00:00Z",
     }));
 
-    await selectTasks(fakeClient(items), config, vocabulary);
+    await selectTasks(fakeClient(items), config, "Custom");
 
     expect(JSON.parse(outputValue("issues") as string)).toHaveLength(256);
   });
@@ -139,7 +99,7 @@ describe("selectTasks", () => {
     ]);
     const stale = { ...config, select: { ...config.select, limit: 1, updated_before: 86400 } };
 
-    await selectTasks(client, stale, vocabulary, new Date("2024-01-03T00:00:00Z"));
+    await selectTasks(client, stale, "Custom", new Date("2024-01-03T00:00:00Z"));
 
     expect(outputValue("issues")).toContain('"number":2');
     expect(outputValue("issues")).not.toContain('"number":1');
@@ -154,9 +114,9 @@ describe("parseLoopSelection", () => {
   });
 
   it("keeps the fields an aggregate prompt renders", () => {
-    const parsed = parseLoopSelection('[{"number":7,"title":"t","status":"done","updated_at":"2024-01-01"}]');
+    const parsed = parseLoopSelection('[{"number":7,"title":"t","status":"Done","updated_at":"2024-01-01"}]');
 
-    expect(parsed).toEqual([{ number: 7, title: "t", status: "done", updated_at: "2024-01-01" }]);
+    expect(parsed).toEqual([{ number: 7, title: "t", status: "Done", updated_at: "2024-01-01" }]);
   });
 });
 
@@ -207,8 +167,8 @@ describe("prepareRun", () => {
       "{{issueCount}} on {{branchName}}:{{#each issues}} #{{number}}{{/each}} -> {{patchPath}}",
     );
     const issues = [
-      { number: 7, title: "a", status: "done", updated_at: "2024-01-01" },
-      { number: 8, title: "b", status: "done", updated_at: "2024-01-02" },
+      { number: 7, title: "a", status: "Done", updated_at: "2024-01-01" },
+      { number: 8, title: "b", status: "Done", updated_at: "2024-01-02" },
     ];
 
     await prepareRun(loop, config, { issues, runNumber: "12", branchTemplate: "octestra/loop/{loop_id}/{run_number}" });
@@ -239,40 +199,27 @@ describe("finalizeRun", () => {
   }
 
   it("rejects a missing proof document", async () => {
-    await expect(finalizeRun(fakeClient(), config, vocabulary, proofPath, false, 1)).rejects.toThrow();
+    await expect(finalizeRun(fakeClient(), config, "Custom", proofPath, false, 1)).rejects.toThrow();
   });
 
   it("applies an allowed status and posts the proof comment", async () => {
-    await writeProof({ outcome: "passed", summary: "ok", next_status: "ready" });
+    await writeProof({ outcome: "passed", summary: "ok", next_status: "Ready" });
     const client = fakeClient();
 
-    await finalizeRun(client, config, vocabulary, proofPath, false, 7);
+    await finalizeRun(client, config, "Custom Field", proofPath, false, 7);
 
     expect(client.comment).toHaveBeenCalledTimes(1);
-    expect(client.updateStatus).toHaveBeenCalledWith(7, vocabulary.fieldId, optionIds.ready);
+    expect(client.updateStatus).toHaveBeenCalledWith(7, "Custom Field", "Ready");
     expect(outputValue("applied")).toBe("true");
     expect(outputValue("outcome")).toBe("passed");
   });
 
-  it("does not apply a next_status that is not a config status key", async () => {
-    // A display name is exactly the mistake this rejects: it is not a key.
-    await writeProof({ outcome: "passed", summary: "ok", next_status: "Ready" });
-    const client = fakeClient();
-
-    await finalizeRun(client, config, vocabulary, proofPath, false, 7);
-
-    expect(client.updateStatus).not.toHaveBeenCalled();
-    expect(outputValue("applied")).toBe("false");
-  });
-
   it("comments but never writes for a dry run or a disallowed status", async () => {
-    // `blocked` is a real status key, so this exercises the allow list itself
-    // rather than being rejected as an unknown key.
-    await writeProof({ outcome: "passed", summary: "ok", next_status: "blocked" });
+    await writeProof({ outcome: "passed", summary: "ok", next_status: "Blocked" });
     const client = fakeClient();
 
-    await finalizeRun(client, config, vocabulary, proofPath, true, 7);
-    await finalizeRun(client, config, vocabulary, proofPath, false, 7);
+    await finalizeRun(client, config, "Custom", proofPath, true, 7);
+    await finalizeRun(client, config, "Custom", proofPath, false, 7);
 
     expect(client.comment).toHaveBeenCalledTimes(2);
     expect(client.updateStatus).not.toHaveBeenCalled();
@@ -280,11 +227,11 @@ describe("finalizeRun", () => {
   });
 
   it("honours a loop pinned to dry run in config even when the run did not ask for one", async () => {
-    await writeProof({ outcome: "passed", summary: "ok", next_status: "ready" });
+    await writeProof({ outcome: "passed", summary: "ok", next_status: "Ready" });
     const client = fakeClient();
     const pinned = { ...config, apply: { ...config.apply, dry_run: true } };
 
-    await finalizeRun(client, pinned, vocabulary, proofPath, false, 7);
+    await finalizeRun(client, pinned, "Custom", proofPath, false, 7);
 
     expect(client.comment).toHaveBeenCalledTimes(1);
     expect(client.updateStatus).not.toHaveBeenCalled();
@@ -292,23 +239,23 @@ describe("finalizeRun", () => {
   });
 
   it("assigns the task owner before promoting and refuses when there is none", async () => {
-    await writeProof({ outcome: "passed", summary: "ok", next_status: "ready" });
+    await writeProof({ outcome: "passed", summary: "ok", next_status: "Ready" });
     const client = fakeClient();
     const assigning = { ...config, apply: { ...config.apply, assign_owner: true } };
     client.getLatestAssignedUser.mockResolvedValue("owner");
 
-    await finalizeRun(client, assigning, vocabulary, proofPath, false, 7);
+    await finalizeRun(client, assigning, "Custom", proofPath, false, 7);
     expect(client.assignIssue).toHaveBeenCalledWith(7, "owner");
 
     client.getLatestAssignedUser.mockResolvedValue(undefined);
-    await expect(finalizeRun(client, assigning, vocabulary, proofPath, false, 7)).rejects.toThrow("no task owner");
+    await expect(finalizeRun(client, assigning, "Custom", proofPath, false, 7)).rejects.toThrow("no task owner");
   });
 
   it("reports an aggregate run on report_issue and never changes a status", async () => {
-    await writeProof({ outcome: "passed", summary: "ok", next_status: "ready" });
+    await writeProof({ outcome: "passed", summary: "ok", next_status: "Ready" });
     const client = fakeClient();
 
-    await finalizeRun(client, { ...config, report_issue: 99 }, vocabulary, proofPath, false);
+    await finalizeRun(client, { ...config, report_issue: 99 }, "Custom", proofPath, false);
 
     expect(client.comment).toHaveBeenCalledTimes(1);
     expect(client.comment.mock.calls[0][0]).toBe(99);
@@ -319,6 +266,6 @@ describe("finalizeRun", () => {
   it("fails when an aggregate run has nowhere to report", async () => {
     await writeProof({ outcome: "passed", summary: "ok" });
 
-    await expect(finalizeRun(fakeClient(), config, vocabulary, proofPath, false)).rejects.toThrow("report_issue");
+    await expect(finalizeRun(fakeClient(), config, "Custom", proofPath, false)).rejects.toThrow("report_issue");
   });
 });
