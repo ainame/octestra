@@ -10,10 +10,9 @@ It combines three components:
    it across the task state graph.
 3. **Reusable GitHub Action operations**
    `ainame/octestra` provides the shared operations needed to build repository-specific
-   workflows, including state updates, prompt preparation, ownership, review requests, and failure
-   reporting. `ainame/octestra/proof` is an optional renderer for consumer-owned proof JSON. The
-   installer decides which repository and ref the generated workflows call; see
-   [Which Octestra the workflows call](#which-octestra-the-workflows-call).
+   workflows, including state updates, prompt preparation, ownership, review requests, proof
+   rendering, and failure reporting. The installer decides which repository and ref the generated
+   workflows call; see [Which Octestra the workflows call](#which-octestra-the-workflows-call).
 
 ## Requirements
 
@@ -203,15 +202,16 @@ issues and closures unrelated to a merged pull request.
 
 ## Proof reporting
 
-`ainame/octestra/proof@main` is a convenient wrapper around the individual `report-proof` operation.
-It reads a consumer-generated JSON file, posts a concise table-based issue comment, and exposes the
-reported outcome. Acceptance criteria, checks, and evidence remain consumer-owned.
+The `report-proof` operation reads a consumer-generated JSON file, posts a concise table-based issue
+comment, and exposes the reported outcome without touching lifecycle status. Acceptance criteria,
+checks, and evidence remain consumer-owned.
 
 ```yaml
 - name: Report validation proof
   id: proof
-  uses: ainame/octestra/proof@main
+  uses: ainame/octestra@main
   with:
+    operation: report-proof
     github-token: ${{ steps.app-token.outputs.token }}
     issue-number: ${{ inputs.issue-number }}
     proof-path: ${{ steps.prepare.outputs.result_path }}
@@ -250,8 +250,7 @@ npm ci
 make all
 ```
 
-`dist/index.js` and `proof/dist/index.js` are committed because they are the GitHub Actions runtime
-bundles.
+`dist/index.js` is committed because it is the GitHub Actions runtime bundle.
 
 `AGENTS.md` is the contract for changing this repository: layout, platform invariants, code style,
 and the review checklist. `docs/design.md` records why the system is shaped the way it is, and

@@ -35,7 +35,6 @@ src/
   shared/                      config.ts, github-client.ts, prompt.ts, proof.ts
   lifecycle/operations.ts      lifecycle/<verb> implementations
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
-proof/                         separate action for rendering consumer proof JSON
 templates/.github/
   workflows/                   no placeholders; install.sh rewrites only the action ref and OIDC
   octestra/config.yml          the ONLY file install.sh generates
@@ -51,8 +50,8 @@ docs/design.md                 decisions and rationale
 make all          # typecheck + vitest + ruby tests + install tests + rebuild bundles
 ```
 
-`make all` must be green before any commit. It rebuilds `dist/index.js` and `proof/dist/index.js`,
-so commit those alongside source changes or the action ships stale code.
+`make all` must be green before any commit. It rebuilds `dist/index.js`, so commit that alongside
+source changes or the action ships stale code.
 
 Targeted loops while iterating: `npx vitest run src/lifecycle`, `bash test/install.test.sh`.
 

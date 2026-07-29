@@ -29,4 +29,4 @@ jobs:
       - run: make all
 
       - name: Verify committed bundle
-        run: git diff --exit-code -- dist/index.js proof/dist/index.js
+        run: git diff --exit-code -- dist/index.js

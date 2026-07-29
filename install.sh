@@ -571,8 +571,10 @@ prepare_install_tree() {
 # valid rather than filling in a placeholder, so a template still runs unmodified from a
 # checkout of Octestra itself.
 rewrite_action_references() {
-  # The optional group carries a subpath, so `<repo>/proof@<ref>` moves with the root
-  # action. BSD sed rejects an alternation with an anchor inside a group, so the pattern
+  # The optional group carries a subpath, so a nested action reference like
+  # `<repo>/<subpath>@<ref>` would move with the root action. Nothing Octestra ships uses
+  # one today; the group stays so that adding one is not a silent install-time trap.
+  # BSD sed rejects an alternation with an anchor inside a group, so the pattern
   # carries no left boundary; it does not need one, because the literal it matches is one
   # Octestra ships rather than anything a consumer could write.
   local pattern="$TEMPLATE_ACTION_REPOSITORY(/[^@[:space:]]+)?@$TEMPLATE_ACTION_REF"

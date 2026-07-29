@@ -18,8 +18,8 @@ import {
 } from "../shared/proof";
 import { workflowRunUrl } from "../shared/workflow-run";
 
-// Reporting proof needs no status field, and the dedicated proof action has none to
-// give, so it is a separate narrower context rather than a dummy value.
+// Reporting proof needs no status field, so it takes a narrower context than the
+// operations that move a task through the state graph.
 export interface ProofContext {
   client: OperationsClient;
   issueNumber: number;
