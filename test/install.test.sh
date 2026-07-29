@@ -617,8 +617,11 @@ if grep -q "Replace this step with the repository's task agent configuration" \
   echo "the update restored the placeholder agent step over the consumer's own" >&2
   exit 1
 fi
-if ls "$update_dir"/.github/workflows/*.octestra-bak >/dev/null 2>&1; then
-  echo "a mergeable update still left a backup" >&2
+# Anywhere under .github, not only the workflows: the maintenance script mentions the marker
+# prefix in a constant without declaring a region, and must not be mistaken for one.
+if [[ -n "$(find "$update_dir/.github" -name "*.octestra-bak" -print)" ]]; then
+  echo "a mergeable update still left a backup:" >&2
+  find "$update_dir/.github" -name "*.octestra-bak" -print >&2
   exit 1
 fi
 parses_as_yaml "$update_in_progress"

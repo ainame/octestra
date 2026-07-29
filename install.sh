@@ -798,7 +798,9 @@ merge_custom_regions() {
   local installed=""
 
   while IFS= read -r template; do
-    if ! grep -q -- "$CUSTOM_REGION_PREFIX" "$template"; then
+    # Only a file that declares a region takes part. Testing for the marker prefix instead
+    # would also match the maintenance script, which merely mentions it in a constant.
+    if [[ -z "$(custom_region_names "$template")" ]]; then
       continue
     fi
     relative="${template#"$INSTALL_TREE"/}"
