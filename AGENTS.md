@@ -38,7 +38,7 @@ dist/index.js                  committed esbuild bundle — regenerate, never ha
 templates/.github/
   workflows/                   no placeholders; install.sh rewrites only the action ref and OIDC
   octestra/config.yml          the ONLY file install.sh generates
-  octestra/octestra.sh         installed maintenance CLI: doctor, vars check|sync, ref
+  octestra/octestra.sh         installed maintenance CLI: doctor, update, vars check|sync, ref
   octestra/prompts/            handlebars prompts, read from the consumer's checkout
 install.sh, test/install.test.sh
 docs/design.md                 decisions and rationale
@@ -55,10 +55,11 @@ source changes or the action ships stale code.
 
 Targeted loops while iterating: `npx vitest run src/lifecycle`, `bash test/install.test.sh`.
 
-There is no make target for the mirrored repository variables: that job belongs to a *consumer*
-repository, and `templates/.github/octestra/octestra.sh` is installed there to do it
-(`octestra.sh vars check|sync`). `install.sh` runs the copy it just installed for the initial
-sync, so every install exercises the tool consumers rely on afterwards.
+There is no make target for the mirrored repository variables or for updating an installation: both
+jobs belong to a *consumer* repository, and `templates/.github/octestra/octestra.sh` is installed
+there to do them (`octestra.sh vars check|sync`, `octestra.sh update`). `install.sh` runs the copy
+it just installed for the initial sync, so every install exercises the tool consumers rely on
+afterwards.
 
 ## Platform invariants
 
@@ -142,6 +143,42 @@ whose *input* is not valid on its own is a placeholder by another name; that val
 finds it with or without a `/subpath`, and fails the install loudly if a reference survives
 unrewritten.
 
+**Custom regions are the update contract (D14).** A rerun of `install.sh` replaces an installed
+workflow except for the parts between `# octestra:custom:begin <name>` and
+`# octestra:custom:end <name>`, whose contents it carries into the new version. So the line between
+mechanism and policy is now written into the templates themselves, and it cuts both ways:
+
+- Content a consumer is expected to write goes **inside** a region. If it is outside one, every
+  update silently discards it.
+- Content Octestra needs to keep updating — `prepare-*`, `finalize-*`, the guard, the permissions
+  ceiling (P11) — stays **outside**. Anything you put inside a region freezes at the version each
+  consumer installed, and you cannot fix it for them later.
+
+Give a region the narrowest scope that holds one decision (`agent-credentials`, not `the whole
+job`). Never rename or drop a region without accepting that every installation that used it gets a
+`.octestra-bak` file and a manual migration. Every template that declares a region also documents
+it in the file's header comment, because that comment is where a consumer looks first.
+
+The consumer's entry point is `octestra.sh update`, which downloads a reference and runs **that
+version's** `install.sh` against the repository. Two consequences:
+
+- The merge, the action-reference rewrite and the variable sync live in `install.sh` only. Do not
+  reimplement any of them in `octestra.sh`; an update is meant to run the new logic, not the old.
+- The flags `update` passes — `--target`, `--source-dir`, `--org`, `--status-field`,
+  `--skill-target`, `--github-app-client-id`, `--repository`, `--ref`, `--yes`, `--enable-oidc` —
+  are a compatibility surface with *older installed scripts*. Removing or renaming one breaks
+  `update` for every installation that predates the change.
+
+Anything that lives outside a custom region and that a consumer can still toggle must be
+reconstructed by `update` from the installed state, the way `--enable-oidc` is recovered by looking
+for an uncommented `id-token: write`. A new toggle of that kind needs the same treatment or an
+update silently reverts it.
+
+**config.yml survives an update.** `install.sh` renders it only when the file does not exist; a
+rerun keeps the consumer's copy and reports any value it resolved that the file contradicts. So a
+new key added to the template does *not* reach existing installations: give it a defined behaviour
+when absent, or expect `doctor` to be the thing that tells consumers to add it.
+
 **No dead configuration.** A key that `config.yml` documents must be read by code. A knob that
 validates but does nothing is worse than an absent knob, because it advertises a guarantee that
 does not exist. The same applies to instructions: a maintenance step the documentation tells a
@@ -150,10 +187,14 @@ installed rather than kept here (D12).
 
 **The installed maintenance CLI.** `templates/.github/octestra/octestra.sh` is the only
 executable Octestra installs, and it needs nothing but `gh` — no node, no `yq` — because it runs
-in repositories of any language. It owns config → variable mirroring; do not add a second
-implementation. Two things it must know are also known by `install.sh` — the seven status option
-names, and how a version tag is resolved — so a change to either belongs in both files, and
-`test/install.test.sh` fails when the status lists drift apart.
+in repositories of any language. It owns config → variable mirroring and it is the entry point for
+updates; do not add a second implementation of either. Two things it must know are also known by
+`install.sh` — the seven status option names, and how a version tag is resolved — so a change to
+either belongs in both files, and `test/install.test.sh` fails when the status lists drift apart.
+
+It also runs where `/bin/bash` is 3.2, which the tests cover by driving one install and one update
+through it. In particular `"${array[@]}"` on an empty array is a fatal error there under `set -u`;
+write `${array[@]+"${array[@]}"}`.
 
 **Trust boundary.** A job that executes an agent gets no privileged token, checks out with
 `persist-credentials: false`, and runs no lifecycle operation. Results cross into a trusted job as

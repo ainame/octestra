@@ -5,6 +5,22 @@
 # workflow then advances the task to Human Review or Blocked. The workflow is
 # triggered by an issue-field event, not a pull_request event, so it explicitly
 # checks out the resolved task branch before validation.
+#
+# UPDATING THIS FILE
+# `.github/octestra/octestra.sh update` replaces this file, except for the regions between
+#
+#     # octestra:custom:begin <name>
+#     # octestra:custom:end <name>
+#
+# whose contents are carried into the new version. Put repository-specific setup, agent
+# invocation, and agent credentials inside those regions; anything outside them belongs to
+# Octestra and is overwritten, so edits there are lost on the next install.
+#
+# The steps that must stay outside a custom region are prepare-validation, the checkouts it
+# feeds, and finalize-validation: Octestra changes them as the lifecycle changes, and an
+# installation that keeps an old copy will break. When an update cannot carry a region over —
+# the markers were removed, or the region no longer exists — it saves the previous file as
+# `octestra-lifecycle-validation.yml.octestra-bak` and says so.
 name: Octestra - Validation (Task Verification)
 
 on:
@@ -20,6 +36,16 @@ on:
       github_app_private_key:
         description: Private key for the task GitHub App
         required: true
+
+      # octestra:custom:begin agent-credentials
+      # Declare the secrets the agent steps below need, and pass each one explicitly from
+      # octestra-lifecycle.yml — `secrets: inherit` would hand every organization secret to
+      # a job that executes an agent, so it is not used anywhere in Octestra.
+      #
+      #   your_agent_api_key:
+      #     description: API key for the validation agent
+      #     required: true
+      # octestra:custom:end agent-credentials
 
 permissions:
   contents: read
@@ -77,7 +103,10 @@ jobs:
       - name: Hide trusted actions from validation
         run: echo '/.trusted/' >> .git/info/exclude
 
-      # Add repository-specific environment and dependency setup here.
+      # octestra:custom:begin agent-steps
+      # Everything between these markers is this repository's: environment and dependency
+      # setup, credentials, the agent invocation itself, and any artifact upload. An update
+      # carries it into the new version of this file.
 
       - name: Configure validation agent
         run: |
@@ -119,6 +148,7 @@ jobs:
       #       ${{ steps.epic.outputs.artifact_path }}
       #       ${{ steps.epic.outputs.result_path }}
       #     if-no-files-found: warn
+      # octestra:custom:end agent-steps
 
       # finalize-validation:
       # - Reads the consumer-generated proof result and posts the formatted proof comment.

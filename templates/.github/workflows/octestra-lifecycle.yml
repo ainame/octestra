@@ -1,3 +1,15 @@
+# Octestra lifecycle entry point: one Issue Field event, one task.
+#
+# UPDATING THIS FILE
+# `.github/octestra/octestra.sh update` replaces this file, except for the regions between
+#
+#     # octestra:custom:begin <name>
+#     # octestra:custom:end <name>
+#
+# whose contents are carried into the new version. Here those regions hold the secrets this
+# caller passes to each reusable workflow, and the status jobs this repository enables.
+# The guard job, the permissions ceiling, and the job wiring around them belong to Octestra
+# and are overwritten.
 name: Octestra Lifecycle
 on:
   issues:
@@ -63,6 +75,10 @@ jobs:
       trigger-actor-type: ${{ github.event.sender.type }}
     secrets:
       github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+      # octestra:custom:begin in-progress-secrets
+      # Pass every secret octestra-lifecycle-in-progress.yml declares, for example:
+      #   your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
+      # octestra:custom:end in-progress-secrets
 
   validation:
     # Consumer entrypoint for task validation.
@@ -73,8 +89,14 @@ jobs:
       issue-number: ${{ github.event.issue.number }}
     secrets:
       github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+      # octestra:custom:begin validation-secrets
+      # Pass every secret octestra-lifecycle-validation.yml declares, for example:
+      #   your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
+      # octestra:custom:end validation-secrets
 
-  # Add the matching reusable workflow, then uncomment a status job to enable it.
+  # octestra:custom:begin status-jobs
+  # Add the matching reusable workflow, then uncomment a status job to enable it. Jobs added
+  # here survive an update, so this is where a repository's own lifecycle jobs belong.
   #
   # todo:
   #   needs: guard
@@ -120,6 +142,7 @@ jobs:
   #     issue-number: ${{ github.event.issue.number }}
   #   secrets:
   #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+  # octestra:custom:end status-jobs
 
   # Finalize tasks closed because their linked pull request was merged.
   merged-task-finalization:

@@ -330,6 +330,11 @@ grep -q '^v1\.10\.0$' "$TEMP_DIR/tarball-ref"
 grep -q 'uses: ainame/octestra@v1\.10\.0' \
   "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 
+# config.yml is the consumer's control plane, so a rerun keeps the file they have: rendering
+# the template again would reset the runners, branch template and prompt paths they chose. The
+# installer says so, including for a value it was asked to write.
+rerun_output="$TEMP_DIR/rerun-output"
+printf 'runners:\n  orchestration: macos-15\n' >>"$TEMP_DIR/consumer/.github/octestra/config.yml"
 PATH="$TEMP_DIR/bin:$PATH" \
 OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
 OCTESTRA_TEST_REPO_VIEW_FAIL=true \
@@ -340,8 +345,15 @@ OCTESTRA_TEST_REPO_VIEW_FAIL=true \
     --source-dir "$ROOT" \
     --skill-target codex \
     --github-app-client-id replacement-client-id \
-    --yes >/dev/null
-grep -q 'client_id: "replacement-client-id"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+    --yes >"$rerun_output"
+grep -q 'orchestration: macos-15' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+grep -q 'kept the existing config.yml' "$rerun_output"
+grep -q 'config.yml keeps its own github_app.client_id' "$rerun_output"
+if grep -q 'client_id: "replacement-client-id"' \
+  "$TEMP_DIR/consumer/.github/octestra/config.yml"; then
+  echo "a rerun rewrote the consumer's config.yml" >&2
+  exit 1
+fi
 
 test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
 test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
@@ -513,3 +525,236 @@ fi
 grep -q "must be a git ref" "$malformed_ref_output"
 
 printf 'Maintenance script tests passed\n'
+
+# ---------------------------------------------------------------------------
+# Updating an installation: marked custom regions survive, everything else does not.
+# ---------------------------------------------------------------------------
+new_consumer() {
+  local target="$1"
+
+  mkdir -p "$target"
+  git -C "$target" init --quiet
+  git -C "$target" remote add origin "git@github.com:example-org/$(basename "$target").git"
+}
+
+install_into() {
+  local target="$1"
+  shift
+
+  PATH="$TEMP_DIR/bin:$PATH" \
+    OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
+    OCTESTRA_TEST_REPO_VIEW_FAIL=true \
+      bash "$ROOT/install.sh" \
+        --org example-org \
+        --status-field "AI Task Status" \
+        --target "$target" \
+        --source-dir "$ROOT" \
+        --skill-target codex \
+        --github-app-client-id update-client-id \
+        --yes "$@"
+}
+
+# Replaces the body of one custom region, the way a consumer editing the file would.
+customize_region() {
+  local file="$1"
+  local region="$2"
+  local content="$3"
+  local output="$file.customized"
+  local line=""
+  local inside=false
+
+  : > "$output"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == *"octestra:custom:begin $region" ]]; then
+      printf '%s\n%s\n' "$line" "$content" >> "$output"
+      inside=true
+      continue
+    fi
+    if [[ "$line" == *"octestra:custom:end $region" ]]; then
+      inside=false
+    fi
+    if [[ "$inside" == true ]]; then
+      continue
+    fi
+    printf '%s\n' "$line" >> "$output"
+  done < "$file"
+  mv "$output" "$file"
+}
+
+parses_as_yaml() {
+  node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$1"
+}
+
+update_dir="$TEMP_DIR/consumer-update"
+update_entry="$update_dir/.github/workflows/octestra-lifecycle.yml"
+update_in_progress="$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
+new_consumer "$update_dir"
+install_into "$update_dir" >/dev/null
+
+customize_region "$update_in_progress" agent-steps "      - name: Run the repository agent
+        run: ./scripts/agent.sh"
+customize_region "$update_in_progress" agent-credentials "      your_agent_api_key:
+        description: API key for the task agent
+        required: true"
+customize_region "$update_entry" in-progress-secrets \
+  '      your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}'
+customize_region "$update_entry" status-jobs "  todo:
+    needs: guard
+    if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'todo'
+    uses: ./.github/workflows/octestra-lifecycle-todo.yml"
+# A managed line the consumer also changed, to prove Octestra's own content is restored.
+sed 's/timeout-minutes: 60/timeout-minutes: 5/' "$update_in_progress" >"$update_in_progress.edit"
+mv "$update_in_progress.edit" "$update_in_progress"
+
+install_into "$update_dir" >/dev/null
+grep -q 'run: ./scripts/agent.sh' "$update_in_progress"
+grep -q 'description: API key for the task agent' "$update_in_progress"
+grep -q 'your_agent_api_key: \${{ secrets.YOUR_AGENT_API_KEY }}' "$update_entry"
+grep -q '^  todo:$' "$update_entry"
+grep -q 'timeout-minutes: 60' "$update_in_progress"
+if grep -q "Replace this step with the repository's task agent configuration" \
+  "$update_in_progress"; then
+  echo "the update restored the placeholder agent step over the consumer's own" >&2
+  exit 1
+fi
+if ls "$update_dir"/.github/workflows/*.octestra-bak >/dev/null 2>&1; then
+  echo "a mergeable update still left a backup" >&2
+  exit 1
+fi
+parses_as_yaml "$update_in_progress"
+parses_as_yaml "$update_entry"
+
+# Reinstalling over a merged file must be a no-op, or every update would churn the diff.
+before_rerun=$(cat "$update_in_progress" "$update_entry")
+install_into "$update_dir" >/dev/null
+if [[ "$before_rerun" != "$(cat "$update_in_progress" "$update_entry")" ]]; then
+  echo "a second identical install changed the merged workflows" >&2
+  exit 1
+fi
+
+# An installation from before custom regions existed cannot be merged. The file is replaced
+# and the previous one kept beside it, because dropping it would discard the agent wiring.
+legacy_dir="$TEMP_DIR/consumer-legacy"
+legacy_in_progress="$legacy_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
+new_consumer "$legacy_dir"
+install_into "$legacy_dir" >/dev/null
+customize_region "$legacy_in_progress" agent-steps "      - name: Run the repository agent
+        run: ./scripts/legacy-agent.sh"
+grep -v 'octestra:custom:' "$legacy_in_progress" >"$legacy_in_progress.edit"
+mv "$legacy_in_progress.edit" "$legacy_in_progress"
+legacy_output="$TEMP_DIR/legacy-install-output"
+install_into "$legacy_dir" >"$legacy_output"
+grep -q 'has no # octestra:custom: markers' "$legacy_output"
+test -f "$legacy_in_progress.octestra-bak"
+grep -q 'run: ./scripts/legacy-agent.sh' "$legacy_in_progress.octestra-bak"
+grep -q 'octestra:custom:begin agent-steps' "$legacy_in_progress"
+if grep -q 'run: ./scripts/legacy-agent.sh' "$legacy_in_progress"; then
+  echo "an unmergeable file was silently kept instead of replaced" >&2
+  exit 1
+fi
+
+# A region the new version no longer has: carry over what still matches, keep a copy of the
+# rest, and let the new region's own body through.
+orphan_dir="$TEMP_DIR/consumer-orphan"
+orphan_in_progress="$orphan_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
+new_consumer "$orphan_dir"
+install_into "$orphan_dir" >/dev/null
+customize_region "$orphan_in_progress" agent-steps "      - name: Run the repository agent
+        run: ./scripts/orphan-agent.sh"
+customize_region "$orphan_in_progress" agent-credentials "      kept_api_key:
+        required: true"
+sed 's/agent-steps/legacy-agent-steps/g' "$orphan_in_progress" >"$orphan_in_progress.edit"
+mv "$orphan_in_progress.edit" "$orphan_in_progress"
+orphan_output="$TEMP_DIR/orphan-install-output"
+install_into "$orphan_dir" >"$orphan_output"
+grep -q 'has no custom region named legacy-agent-steps' "$orphan_output"
+test -f "$orphan_in_progress.octestra-bak"
+grep -q 'kept_api_key:' "$orphan_in_progress"
+grep -q "Replace this step with the repository's task agent configuration" \
+  "$orphan_in_progress"
+grep -q 'run: ./scripts/orphan-agent.sh' "$orphan_in_progress.octestra-bak"
+parses_as_yaml "$orphan_in_progress"
+
+# doctor reports markers a hand edit broke, before the next install acts on them.
+broken_regions_output="$TEMP_DIR/doctor-broken-regions-output"
+grep -v 'octestra:custom:end agent-steps' "$update_in_progress" >"$update_in_progress.edit"
+mv "$update_in_progress.edit" "$update_in_progress"
+if PATH="$TEMP_DIR/bin:$PATH" \
+  OCTESTRA_TEST_VARS="OCTESTRA_GITHUB_APP_CLIENT_ID=update-client-id OCTESTRA_ORCHESTRATION_RUNNER=ubuntu-latest OCTESTRA_AGENT_RUNNER=ubuntu-latest OCTESTRA_STATUS_FIELD_ID=9001" \
+  OCTESTRA_TEST_SECRETS="OCTESTRA_GITHUB_APP_PRIVATE_KEY" \
+    bash "$update_dir/.github/octestra/octestra.sh" doctor >"$broken_regions_output" 2>&1; then
+  echo "doctor accepted unbalanced custom region markers" >&2
+  exit 1
+fi
+grep -q 'unbalanced custom region markers' "$broken_regions_output"
+
+# An install must refuse to guess at those markers rather than drop the region's contents.
+unbalanced_output="$TEMP_DIR/unbalanced-install-output"
+if install_into "$update_dir" >"$unbalanced_output" 2>&1; then
+  echo "the installer merged a file with unbalanced markers" >&2
+  exit 1
+fi
+grep -q 'never ends custom region' "$unbalanced_output"
+
+# ---------------------------------------------------------------------------
+# octestra.sh update: the same merge, driven from the consumer's own repository.
+# ---------------------------------------------------------------------------
+mkdir -p "$TEMP_DIR/update-archive/octestra-main"
+cp "$ROOT/install.sh" "$TEMP_DIR/update-archive/octestra-main/install.sh"
+cp -R "$ROOT/templates" "$TEMP_DIR/update-archive/octestra-main/templates"
+tar -czf "$TEMP_DIR/octestra-update.tar.gz" -C "$TEMP_DIR/update-archive" octestra-main
+
+run_update() {
+  local target="$1"
+  local shell_binary="$2"
+  shift 2
+
+  PATH="$TEMP_DIR/bin:$PATH" \
+    OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
+    OCTESTRA_TEST_ARCHIVE="$TEMP_DIR/octestra-update.tar.gz" \
+    OCTESTRA_TEST_TARBALL_REF="$TEMP_DIR/update-tarball-ref" \
+      "$shell_binary" "$target/.github/octestra/octestra.sh" update --yes "$@"
+}
+
+cli_dir="$TEMP_DIR/consumer-cli-update"
+cli_entry="$cli_dir/.github/workflows/octestra-lifecycle.yml"
+cli_in_progress="$cli_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
+cli_config="$cli_dir/.github/octestra/config.yml"
+new_consumer "$cli_dir"
+install_into "$cli_dir" --enable-oidc >/dev/null
+customize_region "$cli_in_progress" agent-steps "      - name: Run the repository agent
+        run: ./scripts/cli-agent.sh"
+printf 'runners:\n  agent: macos-15\n' >>"$cli_config"
+# Something Octestra owns, to prove the update really reinstalled it.
+rm "$cli_dir/.github/octestra/prompts/lifecycle-validation.md.hbs"
+
+cli_output="$TEMP_DIR/cli-update-output"
+run_update "$cli_dir" bash >"$cli_output"
+grep -q 'run: ./scripts/cli-agent.sh' "$cli_in_progress"
+grep -q 'agent: macos-15' "$cli_config"
+test -f "$cli_dir/.github/octestra/prompts/lifecycle-validation.md.hbs"
+grep -q "updated to ainame/octestra@main" "$cli_output"
+# OIDC lives on a line outside every custom region, so only an explicit flag preserves it.
+if grep -q '^  # id-token: write$' "$cli_entry"; then
+  echo "update reverted the OIDC permission" >&2
+  exit 1
+fi
+grep -q '^  id-token: write$' "$cli_entry"
+
+# A spec moves the installation to another ref, downloading that ref and rewriting every
+# reference to it, including the one the maintenance script records.
+run_update "$cli_dir" bash @v9.9.9 >/dev/null
+grep -q '^v9\.9\.9$' "$TEMP_DIR/update-tarball-ref"
+grep -q 'uses: ainame/octestra@v9\.9\.9' "$cli_entry"
+test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$cli_dir/.github/octestra/octestra.sh" ref)" = \
+  "ainame/octestra@v9.9.9"
+grep -q 'run: ./scripts/cli-agent.sh' "$cli_in_progress"
+
+# install.sh and octestra.sh run on consumer machines, where /bin/bash may be 3.2. An empty
+# array expanded under `set -u` is fatal there, so one update runs through it end to end.
+if [[ -x /bin/bash ]]; then
+  run_update "$cli_dir" /bin/bash >/dev/null
+  grep -q 'run: ./scripts/cli-agent.sh' "$cli_in_progress"
+fi
+
+printf 'Workflow update tests passed\n'

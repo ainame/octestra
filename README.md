@@ -46,7 +46,9 @@ The installer:
 - Installs `.github/octestra/octestra.sh` for diagnosing and maintaining the installation
   afterwards, and uses it for the initial variable sync
 - Installs the EPIC setup skill into the selected `.claude`, `.codex`, or `.agents` directory
-- Overwrites generated workflows, prompts, and the selected agent skill on every run
+- Overwrites the generated workflows, prompts, and the selected agent skill on every run, except
+  for the marked custom regions in the workflows — see
+  [Updating an installation](#updating-an-installation)
 
 Use `--org` or `--status-field` to override the inferred defaults:
 
@@ -75,8 +77,9 @@ release also updates, so the code a consumer runs cannot change until they rerun
 Noninteractive installs take option 1 unless `--fork` or `--repository OWNER/REPO` is passed, and
 `--ref REF` overrides the resolved ref for either choice. The installer downloads its templates from
 the same repository and ref it writes into the workflows, and reports the result as
-`Octestra: generated workflows will call OWNER/REPO@REF`. Rerun the installer to move an existing
-installation to a newer tag or to a different repository.
+`Octestra: generated workflows will call OWNER/REPO@REF`. To move an existing installation to a
+newer tag or a different repository, use `.github/octestra/octestra.sh update` rather than the
+installer; see [Updating an installation](#updating-an-installation).
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/example-org/octestra/refs/heads/main/install.sh |
@@ -125,11 +128,14 @@ policy in `config.yml` rather than in the script.
 drifted from `config.yml` or was never set (an unset variable routes nothing), a missing
 `OCTESTRA_GITHUB_APP_PRIVATE_KEY` (checked by name — no secret value is read), an Issue Field that
 was renamed or whose ID no longer matches, a missing status option, a status job whose reusable
-workflow is absent, a prompt path that points nowhere, and which Octestra the workflows call
-together with any newer tag available. It exits non-zero when it finds a problem.
+workflow is absent, a prompt path that points nowhere, custom region markers a hand edit left
+unbalanced, and which Octestra the workflows call together with any newer tag available. It exits
+non-zero when it finds a problem.
 
-The other two commands change things:
+The other commands change things:
 
+- `update` **replaces the installed files** from a newer Octestra and re-syncs the repository
+  variables; see [Updating an installation](#updating-an-installation).
 - `vars check` exits non-zero on drift; `vars sync` **writes this repository's Actions variables**
   from `config.yml`, printing each one it sets.
 - `ref` prints the Octestra repository and ref the workflows call. `ref OWNER/REPO@REF`, `ref @REF`,
@@ -137,6 +143,60 @@ The other two commands change things:
   reference recorded in the script itself, so the two cannot disagree). Review and commit the diff
   to put a switch into effect — this is how an installation moves to a newer tag or onto your
   organization's fork after the fact.
+
+### Updating an installation
+
+```sh
+.github/octestra/octestra.sh update            # reinstall from the ref the workflows call
+.github/octestra/octestra.sh update --latest   # take the newest version tag
+.github/octestra/octestra.sh update @v2        # or any OWNER/REPO@REF, @REF, OWNER/REPO
+```
+
+`update` downloads that reference and runs **its** `install.sh` against this repository, so the
+update logic always comes from the version being installed. It reuses the answers the current
+installation already records — the organization, the status field name, the skill directory, the
+GitHub App client ID, and whether OIDC is enabled — asks for confirmation, and re-syncs the four
+repository variables at the end. Review the result with `git diff` before committing.
+
+Updating rewrites the generated workflows, so the parts a repository is expected to change are
+marked, and their contents are carried into the new version:
+
+```yaml
+      # octestra:custom:begin agent-steps
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: ${{ steps.epic.outputs.prompt }}
+      # octestra:custom:end agent-steps
+```
+
+Everything **outside** those markers belongs to Octestra and is replaced, which is what lets an
+update fix the lifecycle steps around your agent. Put repository-specific setup, agent invocation,
+and agent credentials inside a region; edits made outside one are lost on the next install. Each
+file's header comment lists its regions. Today they are:
+
+| File | Region | Holds |
+|---|---|---|
+| `octestra-lifecycle.yml` | `in-progress-secrets`, `validation-secrets` | the secrets this caller passes to each reusable workflow |
+| `octestra-lifecycle.yml` | `status-jobs` | the status jobs this repository enables, and its own lifecycle jobs |
+| `octestra-lifecycle-in-progress.yml` | `agent-credentials`, `agent-steps` | the task agent's secret declarations, setup, and invocation |
+| `octestra-lifecycle-validation.yml` | `agent-credentials`, `agent-steps` | the validation agent's secret declarations, setup, invocation, and artifact upload |
+
+`.github/octestra/config.yml` is not regenerated: an installation that already has one keeps it,
+because it holds the runners, branch template and prompt paths the repository chose. The installer
+reports any value it resolved that the file contradicts — a status field ID that no longer matches,
+for example — and leaves fixing it to you. Everything else Octestra installed (prompts, the
+maintenance script, the agent skill) is replaced outright.
+
+Two cases cannot be merged, and neither is silent. If a file has no markers at all — it was
+installed before regions existed, or they were deleted — the installer replaces it and saves the
+previous version as `<workflow>.yml.octestra-bak`. If a region no longer exists in the new version,
+it carries over the regions that still match and saves a backup for the rest. In both cases it says
+what it did; move what you still need into the new file and delete the backup. The backup is not a
+`.yml` file, so GitHub Actions ignores it.
+
+Reinstalling with no local changes leaves the workflows byte-identical, so an update produces a
+diff only where Octestra actually changed.
 
 ## Operations
 

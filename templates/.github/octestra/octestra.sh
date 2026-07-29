@@ -3,14 +3,16 @@
 # Octestra maintenance CLI for this repository.
 #
 #   .github/octestra/octestra.sh doctor       diagnose this installation
+#   .github/octestra/octestra.sh update       reinstall from the Octestra the workflows call
 #   .github/octestra/octestra.sh vars check   compare config.yml with repository variables
 #   .github/octestra/octestra.sh vars sync    write config.yml values to repository variables
 #   .github/octestra/octestra.sh ref          show which Octestra the workflows call
 #   .github/octestra/octestra.sh ref SPEC     call OWNER/REPO@REF, @REF, OWNER/REPO, or --latest
 #
 # Requires the GitHub CLI, authenticated with 'gh auth login'. 'doctor' and 'vars check'
-# only read; 'vars sync' writes this repository's Actions variables, and 'ref' edits the
-# workflow files in this checkout. Neither reads or writes a secret value.
+# only read; 'vars sync' writes this repository's Actions variables, 'ref' edits the workflow
+# files in this checkout, and 'update' replaces the installed files and re-syncs those
+# variables. No command reads or writes a secret value.
 #
 # install.sh overwrites this file on every run, so keep repository policy in config.yml
 # beside it rather than here.
@@ -22,6 +24,10 @@ readonly CONFIG_PATH=".github/octestra/config.yml"
 readonly ENTRY_WORKFLOW=".github/workflows/octestra-lifecycle.yml"
 readonly PRIVATE_KEY_SECRET="OCTESTRA_GITHUB_APP_PRIVATE_KEY"
 readonly CLIENT_ID_PLACEHOLDER="YOUR-GITHUB-APP-CLIENT-ID"
+# The markers install.sh keys on when it updates a workflow: content between a begin and end
+# marker is carried into the new version, everything else is replaced.
+readonly CUSTOM_REGION_PREFIX="# octestra:custom:"
+readonly BACKUP_SUFFIX=".octestra-bak"
 # The values Octestra needs before a job starts, as variable|section|key. A workflow reads
 # these from repository variables because no file can be read that early, which is why they
 # can drift from config.yml at all.
@@ -52,6 +58,7 @@ FAILURES=0
 WARNINGS=0
 REPOSITORY=""
 ORGANIZATION=""
+TEMP_DIR=""
 
 usage() {
   cat <<'EOF'
@@ -62,11 +69,17 @@ Usage:
 
 Commands:
   doctor          Report every problem this installation has (default)
+  update [SPEC]   Reinstall the workflows, prompts and skill from the Octestra the
+                  workflows call, or from SPEC (OWNER/REPO@REF, @REF, OWNER/REPO, or
+                  --latest). Keeps config.yml and the marked custom regions
   vars check      Exit non-zero when a repository variable disagrees with config.yml
   vars sync       Write the config.yml values into this repository's variables
   ref             Show which Octestra repository and ref the workflows call
   ref SPEC        Change it. SPEC is OWNER/REPO@REF, @REF, OWNER/REPO, or --latest
   help            Show this help
+
+Options:
+  --yes           Do not ask before update replaces the installed files
 EOF
 }
 
@@ -81,6 +94,16 @@ die() {
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || die "'$1' is required"
+}
+
+cleanup() {
+  if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
+    rm -rf "$TEMP_DIR"
+  fi
+}
+
+has_interactive_tty() {
+  [[ ( -t 0 || -t 1 ) && -r /dev/tty && -w /dev/tty ]]
 }
 
 # Every path this script handles is repository-relative, so it can be run from anywhere.
@@ -384,9 +407,44 @@ check_workflows() {
         "$action_repository has a newer tag $tag; switch with 'octestra.sh ref --latest'"
     fi
   fi
+  check_custom_regions
   if (( FAILURES == before )); then
     report ok "every reusable workflow an enabled status job calls exists"
   fi
+}
+
+# install.sh replaces everything outside the marked custom regions in these workflows and
+# carries what is inside them across. A marker that was deleted or renamed by hand takes the
+# work in that region with it on the next install, so it is reported before that happens.
+check_custom_regions() {
+  local workflow=""
+  local begins=""
+  local ends=""
+
+  for workflow in .github/workflows/octestra-*.yml; do
+    begins=$(marked_region_names "$workflow" begin)
+    ends=$(marked_region_names "$workflow" end)
+    if [[ -z "$begins" && -z "$ends" ]]; then
+      report warn \
+        "$workflow has no $CUSTOM_REGION_PREFIX markers; the next install overwrites all of it and keeps a $BACKUP_SUFFIX copy"
+      continue
+    fi
+    if [[ "$begins" != "$ends" ]]; then
+      report fail \
+        "$workflow has unbalanced custom region markers; the next install would drop the work inside them"
+    fi
+  done
+}
+
+# Region names a file declares for one marker kind, in order. The marker must be the whole
+# comment, so the header block documenting the syntax is prose rather than a marker.
+marked_region_names() {
+  local file="$1"
+  local kind="$2"
+
+  sed -n -E "s|^[[:space:]]*$CUSTOM_REGION_PREFIX$kind ([^[:space:]]+)[[:space:]]*$|\\1|p" \
+    "$file" |
+    sort
 }
 
 check_prompts() {
@@ -474,6 +532,42 @@ latest_version_tag() {
     tail -n 1
 }
 
+# Resolves a reference spec against the installed one. Both 'ref' and 'update' accept the
+# same forms, so they cannot disagree about what `@v2` or `--latest` means.
+resolve_action_spec() {
+  local spec="$1"
+  local repository="${INSTALLED_ACTION%@*}"
+  local current_ref="${INSTALLED_ACTION##*@}"
+  local target=""
+  local tag=""
+
+  case "$spec" in
+    --latest)
+      tag=$(latest_version_tag "$repository") || true
+      [[ -n "$tag" ]] || die "$repository has no version tags"
+      target="$repository@$tag"
+      ;;
+    @*)
+      target="$repository$spec"
+      ;;
+    */*@*)
+      target="$spec"
+      ;;
+    */*)
+      target="$spec@$current_ref"
+      ;;
+    *)
+      die "expected OWNER/REPO@REF, @REF, OWNER/REPO, or --latest, not '$spec'"
+      ;;
+  esac
+
+  [[ "${target%@*}" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] ||
+    die "repository must be OWNER/REPO: ${target%@*}"
+  [[ "${target##*@}" =~ ^[A-Za-z0-9._/-]+$ ]] ||
+    die "ref must be a git ref: ${target##*@}"
+  printf '%s' "$target"
+}
+
 ref_command() {
   local spec="${1-}"
   local repository="${INSTALLED_ACTION%@*}"
@@ -490,31 +584,7 @@ ref_command() {
     return
   fi
 
-  case "$spec" in
-    --latest)
-      tag=$(latest_version_tag "$repository") || true
-      [[ -n "$tag" ]] || die "$repository has no version tags"
-      target="$repository@$tag"
-      ;;
-    @*)
-      target="$repository$spec"
-      ;;
-    */*@*)
-      target="$spec"
-      ;;
-    */*)
-      target="$spec@$current_ref"
-      info "keeping the current ref: $target"
-      ;;
-    *)
-      die "ref takes OWNER/REPO@REF, @REF, OWNER/REPO, or --latest, not '$spec'"
-      ;;
-  esac
-
-  [[ "${target%@*}" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] ||
-    die "repository must be OWNER/REPO: ${target%@*}"
-  [[ "${target##*@}" =~ ^[A-Za-z0-9._/-]+$ ]] ||
-    die "ref must be a git ref: ${target##*@}"
+  target=$(resolve_action_spec "$spec")
   if [[ "$target" == "$INSTALLED_ACTION" ]]; then
     info "already calling $target"
     return
@@ -523,6 +593,145 @@ ref_command() {
   rewrite_action_reference "$INSTALLED_ACTION" "$target"
   info "switched from $INSTALLED_ACTION to $target"
   info "review and commit .github to put the change into effect"
+  info "run 'octestra.sh update' to install the files that ref ships"
+}
+
+# The skill directory a previous install chose. Reading it back means an update cannot move
+# the skill to a directory the repository's agent does not read.
+installed_skill_target() {
+  local candidate=""
+
+  for candidate in claude codex agents; do
+    if [[ -d ".$candidate/skills/octestra-setup-migration-epic" ]]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Prints nothing but the unpacked directory: the caller captures it.
+download_source() {
+  local target="$1"
+  local archive=""
+  local root=""
+
+  TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octestra-update.XXXXXX")
+  archive="$TEMP_DIR/octestra.tar.gz"
+  gh api \
+    -H "Accept: application/vnd.github+json" \
+    "/repos/${target%@*}/tarball/${target##*@}" > "$archive" ||
+    die "could not download $target"
+  mkdir -p "$TEMP_DIR/source"
+  tar -xzf "$archive" -C "$TEMP_DIR/source"
+  root=$(find "$TEMP_DIR/source" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+  [[ -n "$root" ]] || die "the archive for $target contained no repository"
+  printf '%s' "$root"
+}
+
+confirm_update() {
+  local target="$1"
+  local assume_yes="$2"
+  local answer=""
+
+  if [[ "$assume_yes" == true ]] || ! has_interactive_tty; then
+    return
+  fi
+  cat > /dev/tty <<EOF
+Update $REPOSITORY from $target?
+  .github/workflows/octestra-*.yml  replaced, except the marked custom regions
+  .github/octestra/prompts/         replaced
+  .github/octestra/octestra.sh      replaced
+  the installed agent skill         replaced
+  .github/octestra/config.yml       kept as it is
+It also re-syncs the four Octestra repository variables from config.yml.
+Anything you changed outside a custom region is lost, so check 'git status' first.
+EOF
+  printf 'Continue? [y/N]: ' > /dev/tty
+  IFS= read -r answer < /dev/tty
+  case "$answer" in
+    y|Y|yes|YES) ;;
+    *) die "update cancelled" ;;
+  esac
+}
+
+update_command() {
+  local spec=""
+  local assume_yes=false
+  local target=""
+  local source_dir=""
+  local skill_target=""
+  local status_field=""
+  local client_id=""
+  local tag=""
+  local oidc=()
+
+  while (( $# > 0 )); do
+    case "$1" in
+      --yes)
+        assume_yes=true
+        shift
+        ;;
+      --latest|@*|*/*)
+        [[ -z "$spec" ]] || die "update takes one reference spec, not '$spec' and '$1'"
+        spec="$1"
+        shift
+        ;;
+      *)
+        die "update takes a reference spec and --yes, not '$1'"
+        ;;
+    esac
+  done
+
+  [[ -f "$CONFIG_PATH" ]] || die "$CONFIG_PATH not found; run install.sh first"
+  status_field=$(config_scalar status field_name) || die "$CONFIG_PATH has no status.field_name"
+  client_id=$(config_scalar github_app client_id) ||
+    die "$CONFIG_PATH has no github_app.client_id"
+  skill_target=$(installed_skill_target) ||
+    die "no Octestra skill directory found; run install.sh with --skill-target instead"
+
+  target="$INSTALLED_ACTION"
+  if [[ -n "$spec" ]]; then
+    target=$(resolve_action_spec "$spec")
+  else
+    tag=$(latest_version_tag "${target%@*}") || true
+    if [[ -n "$tag" && "$tag" != "${target##*@}" ]]; then
+      info "reinstalling from $target; 'update --latest' would take $tag instead"
+    fi
+  fi
+
+  # OIDC is a single commented line in the entry workflow, outside every custom region, so an
+  # update would revert it unless the installer is told to enable it again.
+  if grep -q '^[[:space:]]*id-token: write' "$ENTRY_WORKFLOW"; then
+    oidc=(--enable-oidc)
+  fi
+
+  confirm_update "$target" "$assume_yes"
+  trap cleanup EXIT
+  info "downloading $target"
+  source_dir=$(download_source "$target")
+  [[ -f "$source_dir/install.sh" ]] || die "$target ships no install.sh"
+
+  # The installer that just arrived does the work: it owns the custom-region merge, the
+  # action-reference rewrite and the variable sync, and this script must not hold a second
+  # copy of any of them. `${oidc[@]}` is expanded through `+` because an empty array under
+  # `set -u` is a fatal error in the bash that ships with macOS.
+  bash "$source_dir/install.sh" \
+    --target "$PWD" \
+    --source-dir "$source_dir" \
+    --org "$ORGANIZATION" \
+    --status-field "$status_field" \
+    --skill-target "$skill_target" \
+    --github-app-client-id "$client_id" \
+    --repository "${target%@*}" \
+    --ref "${target##*@}" \
+    --yes \
+    ${oidc[@]+"${oidc[@]}"}
+
+  info "updated to $target; review the result with 'git diff' before committing"
+  # This script is one of the files that was just replaced. Exiting here stops the shell from
+  # reading the rest of a file that changed underneath it.
+  exit 0
 }
 
 # Repoints every reference to the currently installed action, including the one recorded in
@@ -563,6 +772,10 @@ main() {
     doctor)
       resolve_repository
       doctor_command
+      ;;
+    update)
+      resolve_repository
+      update_command "$@"
       ;;
     vars)
       resolve_repository

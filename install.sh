@@ -27,6 +27,11 @@ readonly API_VERSION="2026-03-10"
 # variable mirroring for the consumer, and this installer uses it for the initial sync
 # rather than carrying a second implementation.
 readonly MAINTENANCE_SCRIPT=".github/octestra/octestra.sh"
+# Installed files a consumer is expected to edit mark their editable parts with these
+# comments. Everything outside a marked region is replaced on a rerun; the content inside
+# one is carried across. The suffix a backup gets when nothing could be carried.
+readonly CUSTOM_REGION_PREFIX="# octestra:custom:"
+readonly BACKUP_SUFFIX=".octestra-bak"
 
 TARGET_DIR="."
 SOURCE_DIR=""
@@ -41,6 +46,7 @@ GITHUB_APP_CLIENT_ID=""
 ASSUME_YES=false
 ENABLE_OIDC=false
 FORK_INSTALL=false
+CONFIG_PRESERVED=false
 TEMP_DIR=""
 
 usage() {
@@ -556,6 +562,10 @@ prepare_install_tree() {
   (cd "$TEMPLATE_DIR/skills" && tar -cf - .) |
     (cd "$INSTALL_TREE/.$SKILL_TARGET/skills" && tar -xf -)
 
+  # Carry the consumer's regions over first, so their content goes through the same OIDC and
+  # action-reference rewrites as the rest of the file.
+  merge_custom_regions
+
   if [[ "$ENABLE_OIDC" == true ]]; then
     local workflow=""
     while IFS= read -r workflow; do
@@ -603,16 +613,243 @@ rewrite_action_references() {
   fi
 }
 
+# Returns the region name when a line is a `begin` or `end` marker, and non-zero otherwise.
+# The match is anchored on the whole comment, so the header block that documents the syntax
+# (`#     # octestra:custom:begin <name>`) stays prose instead of becoming a marker.
+custom_region_marker() {
+  local line="$1"
+  local kind="$2"
+  local prefix="$CUSTOM_REGION_PREFIX$kind "
+  local trimmed=""
+
+  trimmed=${line#"${line%%[![:space:]]*}"}
+  if [[ "$trimmed" != "$prefix"* ]]; then
+    return 1
+  fi
+  trimmed=${trimmed#"$prefix"}
+  printf '%s' "${trimmed%"${trimmed##*[![:space:]]}"}"
+}
+
+# Region names a file declares, in the order they appear.
+custom_region_names() {
+  local file="$1"
+  local line=""
+  local name=""
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if name=$(custom_region_marker "$line" begin); then
+      printf '%s\n' "$name"
+    fi
+  done < "$file"
+}
+
+# The lines a file has inside one region, excluding the markers themselves.
+custom_region_body() {
+  local file="$1"
+  local wanted="$2"
+  local line=""
+  local name=""
+  local inside=false
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if name=$(custom_region_marker "$line" begin) && [[ "$name" == "$wanted" ]]; then
+      inside=true
+      continue
+    fi
+    if name=$(custom_region_marker "$line" end) && [[ "$name" == "$wanted" ]]; then
+      inside=false
+      continue
+    fi
+    if [[ "$inside" == true ]]; then
+      printf '%s\n' "$line"
+    fi
+  done < "$file"
+}
+
+# Membership is tested on a captured list rather than through `grep -q`, which would exit on
+# the first match and leave the producing loop writing to a closed pipe.
+declares_custom_region() {
+  local names=""
+
+  names=$(custom_region_names "$1")
+  [[ $'\n'"$names"$'\n' == *$'\n'"$2"$'\n'* ]]
+}
+
+# A malformed marker set would make the merge silently drop content, so both files are
+# checked before anything is spliced.
+assert_valid_custom_regions() {
+  local file="$1"
+  local line=""
+  local name=""
+  local open=""
+  local duplicates=""
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if name=$(custom_region_marker "$line" begin); then
+      [[ -z "$name" ]] && die "$file has a custom region marker with no name"
+      [[ -z "$open" ]] || die "$file nests custom region '$name' inside '$open'"
+      open="$name"
+      continue
+    fi
+    if name=$(custom_region_marker "$line" end); then
+      [[ "$open" == "$name" ]] ||
+        die "$file ends custom region '$name' but '${open:-nothing}' is open"
+      open=""
+    fi
+  done < "$file"
+  [[ -z "$open" ]] || die "$file never ends custom region '$open'"
+
+  duplicates=$(custom_region_names "$file" | sort | uniq -d)
+  [[ -z "$duplicates" ]] ||
+    die "$file declares a custom region more than once: $(printf '%s' "$duplicates" | tr '\n' ' ')"
+}
+
+# Rewrites the staged template so each region carries the content the installed file has.
+splice_custom_regions() {
+  local template="$1"
+  local installed="$2"
+  local output="$3"
+  local line=""
+  local name=""
+  local body=""
+  local skipping=""
+
+  : > "$output"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ -n "$skipping" ]]; then
+      if name=$(custom_region_marker "$line" end) && [[ "$name" == "$skipping" ]]; then
+        printf '%s\n' "$line" >> "$output"
+        skipping=""
+      fi
+      continue
+    fi
+    printf '%s\n' "$line" >> "$output"
+    if ! name=$(custom_region_marker "$line" begin); then
+      continue
+    fi
+    # A region the installed file does not have is new in this version: let the template
+    # body through untouched instead of emptying it.
+    if ! declares_custom_region "$installed" "$name"; then
+      continue
+    fi
+    skipping="$name"
+    body=$(custom_region_body "$installed" "$name")
+    if [[ -n "$body" ]]; then
+      printf '%s\n' "$body" >> "$output"
+    fi
+  done < "$template"
+}
+
+back_up_installed_file() {
+  local installed="$1"
+  local relative="$2"
+  local reason="$3"
+
+  cp "$installed" "$installed$BACKUP_SUFFIX"
+  info "saved the previous $relative as $relative$BACKUP_SUFFIX: $reason"
+  info "move anything still needed into the new file, then delete the backup"
+}
+
+merge_installed_file() {
+  local template="$1"
+  local installed="$2"
+  local relative="$3"
+  local merged="$template.octestra-merged"
+  local name=""
+  local carried=()
+  local orphans=()
+
+  assert_valid_custom_regions "$template"
+  if [[ -z "$(custom_region_names "$installed")" ]]; then
+    if ! diff -q "$template" "$installed" >/dev/null 2>&1; then
+      back_up_installed_file "$installed" "$relative" \
+        "it has no $CUSTOM_REGION_PREFIX markers, so no customization could be carried over"
+    fi
+    return
+  fi
+  assert_valid_custom_regions "$installed"
+
+  while IFS= read -r name; do
+    if declares_custom_region "$template" "$name"; then
+      carried+=("$name")
+    else
+      orphans+=("$name")
+    fi
+  done < <(custom_region_names "$installed")
+
+  if (( ${#orphans[@]} > 0 )); then
+    back_up_installed_file "$installed" "$relative" \
+      "the new version has no custom region named ${orphans[*]}"
+  fi
+
+  splice_custom_regions "$template" "$installed" "$merged"
+  mv "$merged" "$template"
+  if (( ${#carried[@]} > 0 )); then
+    info "carried custom regions into $relative: ${carried[*]}"
+  fi
+}
+
+# Consumers customize the workflows Octestra installs, and a rerun has to update Octestra's
+# own steps without discarding that work. Every staged file that marks custom regions is
+# merged with the copy already installed before anything is copied over it.
+merge_custom_regions() {
+  local template=""
+  local relative=""
+  local installed=""
+
+  while IFS= read -r template; do
+    if ! grep -q -- "$CUSTOM_REGION_PREFIX" "$template"; then
+      continue
+    fi
+    relative="${template#"$INSTALL_TREE"/}"
+    installed="$TARGET_DIR/$relative"
+    if [[ ! -f "$installed" ]]; then
+      continue
+    fi
+    merge_installed_file "$template" "$installed" "$relative"
+  done < <(find "$INSTALL_TREE" -type f -print)
+}
+
+# config.yml is the consumer's control plane, so a rerun must not reset the runners, branch
+# template or prompt paths they chose. Staging the file they already have makes the copy below
+# write it back unchanged; only a first installation renders the template.
+preserve_installed_config() {
+  local config="$TARGET_DIR/.github/octestra/config.yml"
+
+  CONFIG_PRESERVED=false
+  if [[ ! -f "$config" ]]; then
+    return
+  fi
+  cp "$config" "$INSTALL_TREE/.github/octestra/config.yml"
+  CONFIG_PRESERVED=true
+  info "kept the existing config.yml"
+  # Values this run resolved that the file contradicts. Rendering them would discard the rest
+  # of the file, so they are reported instead of applied.
+  if [[ -n "$GITHUB_APP_CLIENT_ID" ]] &&
+    ! grep -q "client_id: \"$GITHUB_APP_CLIENT_ID\"" "$config"; then
+    info "config.yml keeps its own github_app.client_id, not the --github-app-client-id passed to this run"
+  fi
+  if ! grep -q "field_name: \"$STATUS_FIELD_NAME\"" "$config"; then
+    info "config.yml does not record status.field_name: \"$STATUS_FIELD_NAME\"; operations look the field up by that name"
+  fi
+  if ! grep -q "field_id: \"$FIELD_ID\"" "$config"; then
+    info "config.yml does not record status.field_id: \"$FIELD_ID\"; routing compares that ID, so fix it there"
+  fi
+}
+
 copy_and_render_templates() {
   local config="$TARGET_DIR/.github/octestra/config.yml"
 
+  preserve_installed_config
   (cd "$INSTALL_TREE" && tar -cf - .) | (cd "$TARGET_DIR" && tar -xf -)
   [[ -f "$config" ]] || die "Octestra config template was not installed"
   [[ -x "$TARGET_DIR/$MAINTENANCE_SCRIPT" ]] ||
     die "the maintenance script was not installed as executable: $MAINTENANCE_SCRIPT"
-  if [[ -n "$GITHUB_APP_CLIENT_ID" ]]; then replace_token "$config" "YOUR-GITHUB-APP-CLIENT-ID" "$GITHUB_APP_CLIENT_ID"; fi
-  replace_token "$config" "__OCTESTRA_STATUS_FIELD_NAME__" "$STATUS_FIELD_NAME"
-  replace_token "$config" "__OCTESTRA_STATUS_FIELD_ID__" "$FIELD_ID"
+  if [[ "$CONFIG_PRESERVED" == false ]]; then
+    if [[ -n "$GITHUB_APP_CLIENT_ID" ]]; then replace_token "$config" "YOUR-GITHUB-APP-CLIENT-ID" "$GITHUB_APP_CLIENT_ID"; fi
+    replace_token "$config" "__OCTESTRA_STATUS_FIELD_NAME__" "$STATUS_FIELD_NAME"
+    replace_token "$config" "__OCTESTRA_STATUS_FIELD_ID__" "$FIELD_ID"
+  fi
   if grep -q "__OCTESTRA_" "$config"; then die "installation left unresolved Octestra placeholders"; fi
   # Mirroring runs through the script that was just installed, so the tool a consumer will
   # use for every later sync is the one exercised at install time.
@@ -690,6 +927,8 @@ require_command sed
 require_command find
 require_command grep
 require_command sort
+require_command uniq
+require_command diff
 
 [[ -d "$TARGET_DIR" ]] || die "target directory does not exist: $TARGET_DIR"
 TARGET_DIR=$(cd "$TARGET_DIR" && pwd)
