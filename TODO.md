@@ -3,32 +3,49 @@
 Open work, ordered by what unblocks what. Design rationale lives in `docs/design.md`; the rules this
 work must respect live in `AGENTS.md`.
 
-The Loop and configuration restructuring has shipped: the config control plane, the two-layer
-lifecycle topology, operation namespacing, and both loop shapes (per-issue fan-out and aggregate).
-Everything below is what remains.
+The configuration restructuring has shipped: the config control plane, the two-layer lifecycle
+topology, and operation namespacing. Both loop shapes (per-issue fan-out and aggregate) were built
+but never run, and have been removed — see §1. Everything below is what remains.
 
-## 1. `loop/create-task`
+## 1. Bring loops back
 
-A loop can comment on and promote existing tasks, but cannot create them. Closing that gap — letting
-a loop open sub-issues under an EPIC from its own analysis — is what turns Octestra from a task
-executor into a feedback cycle.
+Loops are intended to return. Scheduled automation sweeping many tasks at once is what turns
+Octestra from a task executor into a feedback cycle, and the seams it needs are still in place: the
+`lifecycle/<verb>` namespace, the `src/shared/` ⁄ `src/lifecycle/` split, and the
+`octestra-lifecycle-*.yml` naming all leave room for a `src/loop/` and `octestra-loop-<id>.yml` to
+slot back in.
 
-Design questions to settle first: what bounds creation (a per-run cap belongs in `apply`), how
-duplicates are suppressed across runs given P5, and whether created tasks start in `Todo` for a
-human or enter the lifecycle directly.
+The previous implementation was removed because it had never been exercised, not because it was
+wrong. `git log` has all of it — operations, both reference workflows, their prompts and their
+config block — so start by reading it rather than from scratch. The four platform invariants that
+described loop machinery only (**P4** schedules run only on the default branch, **P5** schedules are
+best-effort, **P6** an empty `strategy.matrix` fails the job, **P9** REST pagination offset) were
+deleted from `AGENTS.md` and are quoted verbatim in the removal commit message. They are verified
+platform properties that each cost real debugging; recover them from that commit before rebuilding,
+and restore the ones the new shape actually relies on.
 
-## 2. Migrate the lifecycle to the loop trust boundary
+The design questions are unsettled and need a human, not an agent:
 
-Loop workflows already separate agent execution from privileged finalization (`docs/design.md` §4).
-The lifecycle workflows do not: `finalize-task` still runs in the same job as the agent. This is the
-largest security gap in the repository.
+- The missing capability is creation. A loop could comment on and promote existing tasks, but never
+  open them. What bounds `loop/create-task` — a per-run cap, and where does it live?
+- How are duplicates suppressed across runs, given a best-effort scheduler that may delay, skip or
+  repeat a run?
+- Do created tasks start in `Todo` for a human to release, or enter the lifecycle directly?
+
+## 2. Put agent execution behind a trust boundary
+
+No workflow separates agent execution from privileged finalization: `finalize-task` still runs in
+the same job as the agent. The rule Octestra intends is that a job executing an agent gets no
+privileged token, checks out with `persist-credentials: false`, and runs no lifecycle operation —
+its results cross into a trusted job as a bounded, strictly validated artifact, and that job mints a
+fresh App token. Nothing implements that yet. This is the largest security gap in the repository.
 
 Octestra workflows execute a repository-configured coding agent with access to repository content,
 issue instructions, dependency output, and potentially GitHub or cloud credentials. Private
 repositories reduce who can supply malicious input but do not reduce the impact once an agent or a
 command is compromised.
 
-The target, mirroring what loops already do:
+The target:
 
 - Separate agent-controlled execution from trusted lifecycle finalization.
 - Read-only checkout tokens with `persist-credentials: false`.
@@ -69,8 +86,9 @@ Checked against the REST docs for `2026-03-10` and a live organization field:
 
 So a write must know the live name either way. ID-addressing the reads while writes resolve a name
 was implemented and reverted: it adds a second vocabulary (`config.yml` keys alongside names) across
-the lifecycle, both loop policy fields, and the agent-authored `next_status`, and still cannot make
-a rename safe without a field-definition lookup on the write path. Not worth the split contract.
+the lifecycle, across the loop policy fields that existed at the time, and across an agent-authored
+`next_status`, and still cannot make a rename safe without a field-definition lookup on the write
+path. Not worth the split contract.
 
 `config.yml` therefore records no option IDs at all — only `field_name` and `field_id`. If
 rename-safety is ever wanted for *routing* alone, `status_key` could be derived by looking the

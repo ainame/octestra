@@ -3,7 +3,7 @@ description: Portable GitHub issue task lifecycle operations
 
 inputs:
   operation:
-    description: Operation to run. Lifecycle operations use lifecycle/<verb>; loop operations use loop/select-tasks, loop/prepare-run, loop/finalize-run, or loop/report-failure. Legacy lifecycle names are deprecated aliases.
+    description: Operation to run, as lifecycle/<verb>. The bare <verb> forms are deprecated aliases kept for existing installations.
     required: true
   github-token:
     description: GitHub App token used for API requests
@@ -25,12 +25,6 @@ inputs:
     required: false
   config-ref:
     description: Optional config branch/ref; default is the repository default branch
-    required: false
-  loop-context:
-    description: Loop run identity JSON
-    required: false
-  loop-issues:
-    description: Selection JSON emitted by loop/select-tasks; used by an aggregate loop/prepare-run
     required: false
   branch-name:
     description: Explicit branch name for the individual resolve-task-pr operation
@@ -84,20 +78,6 @@ outputs:
     description: Outcome read from a proof JSON file
   summary:
     description: Summary read from a proof JSON file
-  issues:
-    description: Tasks selected by a loop, as a JSON array suitable for strategy.matrix
-  count:
-    description: Number of tasks selected by a loop
-  digest:
-    description: Markdown table describing the tasks a loop selected
-  loop_ready:
-    description: Whether a loop selected any task; guards matrix expansion
-  partial:
-    description: Whether a loop stopped at its scan budget before examining every candidate
-  patch_path:
-    description: Path where a loop agent must write the patch it wants opened as a pull request
-  applied:
-    description: Whether loop finalization applied the requested status change
 
 runs:
   using: node24

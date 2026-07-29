@@ -1,15 +1,5 @@
 import * as core from "@actions/core";
-import {
-  finalizeRun,
-  loopDefinition,
-  parseLoopContext,
-  parseLoopSelection,
-  prepareRun,
-  reportFailure as reportLoopFailure,
-  selectTasks,
-  type LoopContext,
-} from "./loop/operations";
-import { loadOctestraConfig, type LoopConfig } from "./shared/config";
+import { loadOctestraConfig } from "./shared/config";
 import { GitHubClient } from "./shared/github-client";
 import { positiveInteger } from "./shared/validate";
 import {
@@ -79,45 +69,8 @@ export async function run(): Promise<void> {
       statusFieldName: core.getInput("status-field-name") || config.status.field_name,
     };
   }
-  function loopOperationContext(): [LoopContext, LoopConfig] {
-    const loop = parseLoopContext(core.getInput("loop-context", { required: true }));
-    return [loop, loopDefinition(config, loop)];
-  }
 
   switch (operation) {
-    case "loop/select-tasks": {
-      const [, definition] = loopOperationContext();
-      await selectTasks(client, definition, config.status.field_name);
-      break;
-    }
-    case "loop/prepare-run": {
-      const [loop, definition] = loopOperationContext();
-      const issuesInput = core.getInput("loop-issues");
-      await prepareRun(loop, definition, {
-        issueNumber: optionalNumber("issue-number"),
-        issues: issuesInput ? parseLoopSelection(issuesInput) : undefined,
-        runNumber: process.env.GITHUB_RUN_NUMBER ?? "",
-        branchTemplate: config.branch.loop,
-      });
-      break;
-    }
-    case "loop/finalize-run": {
-      const [loop, definition] = loopOperationContext();
-      await finalizeRun(
-        client,
-        definition,
-        config.status.field_name,
-        core.getInput("proof-path", { required: true }),
-        loop.dry_run,
-        optionalNumber("issue-number"),
-      );
-      break;
-    }
-    case "loop/report-failure": {
-      const [loop, definition] = loopOperationContext();
-      await reportLoopFailure(client, loop, definition);
-      break;
-    }
     case "lifecycle/validate-transition":
       await validateTransition(
         lifecycleOperationContext(),

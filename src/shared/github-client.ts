@@ -37,18 +37,6 @@ interface TimelineEvent {
   };
 }
 
-export interface ListedIssue {
-  number: number;
-  title: string;
-  updated_at: string;
-  pull_request?: unknown;
-}
-
-export interface ListedIssues {
-  issues: ListedIssue[];
-  partial: boolean;
-}
-
 const mergeClosureWindowMilliseconds = 60_000;
 
 const perPage = 100;
@@ -85,55 +73,6 @@ export class GitHubClient {
       throw new Error(`Config path is not a file: ${path}`);
     }
     return Buffer.from(response.data.content, "base64").toString("utf8");
-  }
-
-  // P9: per_page stays constant across pages of one sweep and the result is
-  // truncated afterwards, so no record is re-fetched or skipped. `partial`
-  // reports that the scan budget ran out before the listing did.
-  private async scanIssues(
-    fetchPage: (page: number) => Promise<ListedIssue[]>,
-    scanBudget: number,
-  ): Promise<ListedIssues> {
-    const issues: ListedIssue[] = [];
-    let examined = 0;
-    for (let page = 1; examined < scanBudget; page += 1) {
-      const entries = await fetchPage(page);
-      examined += entries.length;
-      issues.push(...entries.filter((issue) => !issue.pull_request));
-      if (entries.length < perPage) {
-        return { issues: issues.slice(0, scanBudget), partial: false };
-      }
-    }
-    return { issues: issues.slice(0, scanBudget), partial: true };
-  }
-
-  async listIssues(labels: string[], scanBudget: number): Promise<ListedIssues> {
-    return this.scanIssues(async (page) => {
-      const response = await this.octokit.rest.issues.listForRepo({
-        owner: this.owner,
-        repo: this.repo,
-        state: "open",
-        labels: labels.join(","),
-        page,
-        per_page: perPage,
-      });
-      return response.data.map((issue) => ({
-        number: issue.number,
-        title: issue.title,
-        updated_at: issue.updated_at,
-        pull_request: issue.pull_request,
-      }));
-    }, scanBudget);
-  }
-
-  async listSubIssues(epic: number, scanBudget: number): Promise<ListedIssues> {
-    return this.scanIssues(async (page) => {
-      const response = await this.octokit.request(
-        "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
-        { owner: this.owner, repo: this.repo, issue_number: epic, page, per_page: perPage },
-      );
-      return response.data as ListedIssue[];
-    }, scanBudget);
   }
 
   async getIssue(issueNumber: number): Promise<{ title: string; body: string }> {

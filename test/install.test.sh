@@ -187,27 +187,12 @@ grep -q 'client_id: "replacement-client-id"' "$TEMP_DIR/consumer/.github/octestr
 
 test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
 test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
-test -f "$TEMP_DIR/consumer/.github/workflows/octestra-loop-triage-todo.yml"
 grep -q 'operation: lifecycle/prepare-task' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
 grep -q 'operation: lifecycle/prepare-validation' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
 grep -q 'owner: \${{ github.repository_owner }}' "$orchestrator"
 grep -q 'repositories: \${{ github.repository }}' "$orchestrator"
-grep -q 'LOOP_CONTEXT: |' "$TEMP_DIR/consumer/.github/workflows/octestra-loop-triage-todo.yml"
-grep -q 'config-ref: ${{ inputs.config-ref }}' "$TEMP_DIR/consumer/.github/workflows/octestra-loop-triage-todo.yml"
 for variable in OCTESTRA_GITHUB_APP_CLIENT_ID OCTESTRA_ORCHESTRATION_RUNNER OCTESTRA_AGENT_RUNNER OCTESTRA_STATUS_FIELD_ID; do
   grep -q "$variable" "$ROOT/scripts/octestra-vars.mjs"
-done
-
-retrospective="$TEMP_DIR/consumer/.github/workflows/octestra-loop-retrospective.yml"
-test -f "$retrospective"
-test -f "$TEMP_DIR/consumer/.github/octestra/prompts/loop-retrospective.md.hbs"
-grep -q 'LOOP_CONTEXT: |' "$retrospective"
-grep -q 'loop-issues: \${{ needs.select.outputs.issues }}' "$retrospective"
-grep -q 'persist-credentials: false' "$retrospective"
-# The aggregate agent job must stay unprivileged: it hands over a patch instead of pushing.
-! grep -q 'app-token' <(sed -n '/^  agent:/,/^  finalize:/p' "$retrospective")
-for loop_id in triage-todo retrospective; do
-  grep -q "^#   $loop_id:" "$TEMP_DIR/consumer/.github/octestra/config.yml"
 done
 
 printf 'Installer tests passed\n'

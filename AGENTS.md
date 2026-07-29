@@ -7,27 +7,24 @@ system is shaped the way it is; read it before changing structure rather than be
 ## What this repository is
 
 Octestra is a **framework**: Octestra owns the mechanism, the consumer owns the policy. Anything a
-consumer might reasonably want to change — which loops exist, when they run, which agent runs,
-what it is allowed to do — must be reachable by editing an installed file, not by forking Octestra.
+consumer might reasonably want to change — which agent runs, what it is allowed to do — must be
+reachable by editing an installed file, not by forking Octestra.
 
-Two systems sit on top of one shared control plane:
+One system sits on the shared control plane:
 
 | System | Trigger | Entry point | Unit of work |
 |---|---|---|---|
 | Lifecycle | `issues: [field_added, closed]` | `octestra-lifecycle.yml` | one task issue moving through the state graph |
-| Loop | `schedule` + `workflow_dispatch` | `octestra-loop-<id>.yml` | one scheduled sweep over many issues |
 
 ```
 issues:field_added ─▶ octestra-lifecycle.yml ─┬─▶ octestra-lifecycle-in-progress.yml
                        (guard emits status_key)└─▶ octestra-lifecycle-validation.yml
-
-schedule / dispatch ─▶ octestra-loop-<id>.yml   (select ─▶ agent ─▶ trusted finalize)
-                              │
-                              └── guarded status update ─▶ issues:field_added ─▶ lifecycle
 ```
 
-Loops never bypass the state machine: a loop that changes status emits a real Issue Field event and
-the lifecycle observes it normally.
+A second system — scheduled loops sweeping many issues — is planned, not present, which is why
+the `lifecycle/<verb>` operation namespace, the `src/lifecycle/` ⁄ `src/shared/` split and the
+`lifecycle` infix in the workflow filenames are seams held open for it rather than leftovers to tidy
+away (see `TODO.md` §1).
 
 ## Layout
 
@@ -37,7 +34,6 @@ src/
   index.ts                     operation dispatch; builds context per namespace
   shared/                      config.ts, github-client.ts, prompt.ts, proof.ts
   lifecycle/operations.ts      lifecycle/<verb> implementations
-  loop/operations.ts           loop/<verb> implementations
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
 proof/                         separate action for rendering consumer proof JSON
 templates/.github/
@@ -58,7 +54,7 @@ make all          # typecheck + vitest + ruby tests + install tests + rebuild bu
 `make all` must be green before any commit. It rebuilds `dist/index.js` and `proof/dist/index.js`,
 so commit those alongside source changes or the action ships stale code.
 
-Targeted loops while iterating: `npx vitest run src/loop`, `bash test/install.test.sh`.
+Targeted loops while iterating: `npx vitest run src/lifecycle`, `bash test/install.test.sh`.
 
 `make octestra-check-vars` / `make octestra-sync-vars` compare and push the four mirrored
 repository variables. These act on a *consumer* repository, not on this one.
@@ -67,16 +63,18 @@ repository variables. These act on a *consumer* repository, not on this one.
 
 Each of these was verified against GitHub documentation and cost real debugging. Violating one
 produces silent misbehaviour rather than an error, which is why they are listed rather than left to
-be rediscovered.
+be rediscovered. The numbering is stable, so the list has gaps where invariants about loop machinery
+were removed with it — the removal commit quotes those verbatim and they return with loops. Never
+renumber: `docs/design.md` cites these numbers.
 
 - **P1. Status option *names* are part of the contract, because the write API gives no
   alternative.** `POST .../issue-field-values` takes `{field_id, value}` and accepts a single_select
   value only as the option's *display name* — there is no `single_select_option_id`. So
-  `allowedTransitions`, `updateStatus`, `getStatus`, `status_key`, and loop `select.status` /
-  `apply.allowed_status` all key on the display name. Reads *could* be ID-addressed (`GET` returns
-  `issue_field_id` and `single_select_option.id`), but a half-ID design buys nothing while writes
-  still need the name, so names are the single vocabulary and `config.yml` carries no option IDs —
-  only `field_name` and `field_id`. Do not introduce a second vocabulary.
+  `allowedTransitions`, `updateStatus`, `getStatus` and `status_key` all key on the display name.
+  Reads *could* be ID-addressed (`GET` returns `issue_field_id` and `single_select_option.id`), but a
+  half-ID design buys nothing while writes still need the name, so names are the single vocabulary
+  and `config.yml` carries no option IDs — only `field_name` and `field_id`. Do not introduce a
+  second vocabulary.
   Renaming an option in the organization therefore breaks the installation: the event's new name is
   absent from `allowedTransitions`, so the guard reports an invalid transition instead of routing,
   and `install.sh` reports the option as missing on its next run. That is loud rather than silent,
@@ -89,24 +87,14 @@ be rediscovered.
   a silent no-match. Routing comparisons must be string comparisons
   (`format('{0}', x) == vars.Y`); runner labels must carry a literal fallback
   (`${{ vars.X || 'ubuntu-latest' }}`); drift must fail loudly.
-- **P4. `schedule` only runs on the default branch**, against its latest commit, and only if the
-  workflow file exists there. A loop cannot be exercised from a pull request, so every loop must
-  also offer `workflow_dispatch` with `dry-run` defaulting to `true`.
-- **P5. `schedule` is best-effort** — delayed or skipped under load, and disabled after 60 days of
-  repository inactivity. Every loop must be idempotent; correctness must never depend on a run
-  happening exactly once per period.
-- **P6. An empty `strategy.matrix` fails the job**, it does not skip it. A matrix built from
-  `fromJSON(needs.<job>.outputs.<x>)` needs a job-level `if` guard (job `if` is evaluated before
-  matrix expansion, so this is safe), and the guard output and the array must derive from the same
-  validated value. The matrix limit is 256 jobs.
 - **P7. `secrets: inherit` is all-or-nothing.** A reusable workflow that executes an agent must not
   inherit; it declares agent credentials under `on.workflow_call.secrets` and the caller passes them
   explicitly.
 - **P8. Concurrency groups are repository-scoped.** Identical group strings in different workflow
-  files share a group. Loops rely on this: `octestra-<issue_number>` interlocks a loop's per-issue
-  job with lifecycle task execution.
-- **P9. REST pagination offset is `(page - 1) * per_page`.** Varying `per_page` between pages of the
-  same sweep re-fetches or skips records. Keep it constant and truncate afterwards.
+  files share a group. `octestra-lifecycle-in-progress.yml` relies on this: its
+  `octestra-<issue_number>` group with `cancel-in-progress: false` serialises work on one task issue,
+  so a repeated transition queues instead of putting a second agent on the same branch. Any workflow
+  added later that touches a task issue must reuse that group string rather than invent its own.
 - **P10. Reusable workflow nesting allows ten levels** (caller plus nine). Recorded because an
   earlier draft claimed four and constrained the design for no reason.
 - **P11. A reusable workflow's `permissions:` block is a request, and the caller's workflow-level
@@ -151,8 +139,10 @@ does not exist.
 
 **Trust boundary.** A job that executes an agent gets no privileged token, checks out with
 `persist-credentials: false`, and runs no lifecycle operation. Results cross into a trusted job as
-a bounded, strictly validated artifact, and that job mints a fresh App token. Loop workflows already
-follow this; the lifecycle workflows do not yet (see `TODO.md`). Do not widen the gap.
+a bounded, strictly validated artifact, and that job mints a fresh App token. **No workflow
+implements this yet** — the lifecycle workflows hand the agent job an App token and run
+`finalize-task` beside the agent, which is the largest security gap in the repository (see
+`TODO.md` §2). Treat the rule as binding on anything new, and do not widen the gap while it is open.
 
 **Style.** Conventional multi-line TypeScript: one statement per line, named `function`
 declarations, no chained statements on a single line. Match `src/lifecycle/operations.ts`. The same

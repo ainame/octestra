@@ -5,10 +5,9 @@ It combines three components:
 
 1. **GitHub Project task structure**
    Large initiatives are represented by an EPIC issue with task-specific sub-issues.
-2. **Generic lifecycle and loop workflows**
+2. **Generic lifecycle workflows**
    `octestra-lifecycle.yml` receives Issue Field events, validates each transition, and dispatches
-   it across the task state graph. `octestra-loop-<id>.yml` files add opt-in scheduled automation
-   over many tasks at once.
+   it across the task state graph.
 3. **Reusable GitHub Action operations**
    `ainame/octestra@main` provides the shared operations needed to build repository-specific
    workflows, including state updates, prompt preparation, ownership, review requests, and failure
@@ -160,44 +159,18 @@ default policy:
 report proof and move it to Blocked. A consumer can replace that aggregate with the individual
 operations above without reimplementing the underlying GitHub behavior.
 
-## Loops
+## Configuration control plane
 
-Loops are opt-in scheduled automation over many tasks at once. Add a `loops.<id>` entry to
-`.github/octestra/config.yml` and copy the matching `octestra-loop-<id>.yml` workflow. Schedules run
-only from the default branch, are best-effort, and may be disabled after repository inactivity, so
-every loop must be idempotent — use `select.updated_before` to skip recently touched issues. Each
-loop also exposes `workflow_dispatch`, which defaults to a dry run.
-
-A loop selects issues, runs the consumer's agent once per issue (or once for the whole set), and
-then applies the result from a separate trusted job. What it may do is bounded by
-`apply.allowed_status`, `select.limit`, and `select.scan_budget`. A loop that changes a task's
-status emits a normal Issue Field event, so the lifecycle observes it and nothing bypasses the state
-machine.
-
-Two reference templates ship, and between them cover both shapes:
-
-- `octestra-loop-triage-todo.yml` **fans out** — one agent job per selected issue, via a matrix. The
-  agent comments on its issue and may request a status from `apply.allowed_status`.
-- `octestra-loop-retrospective.yml` **aggregates** — one agent job reads the whole selected set and
-  changes no task state. Because it produces code, the untrusted agent job only writes a patch; the
-  trusted finalize job applies it, pushes the branch from `branch.loop`, and opens a pull request.
-
-Copy whichever is closer to what you want and edit it. The operations are the same either way; the
-shape follows from whether the workflow passes an issue number to `loop/prepare-run`.
-
-### Configuration control plane
-
-Installation creates `.github/octestra/config.yml`, the source of truth for platform values,
-branch templates, prompt paths, and loop policy. Four values are mirrored into
+Installation creates `.github/octestra/config.yml`, the source of truth for platform values, branch
+templates, and prompt paths. Four values are mirrored into
 repository variables: `OCTESTRA_GITHUB_APP_CLIENT_ID`, `OCTESTRA_ORCHESTRATION_RUNNER`,
 `OCTESTRA_AGENT_RUNNER`, and `OCTESTRA_STATUS_FIELD_ID`. Run `make octestra-check-vars` to detect
 drift and `make octestra-sync-vars` to apply them. Prompts are read from the checkout under
 `.github/octestra/prompts`, at the paths `config.yml` names.
 
-Installed workflows are `octestra-lifecycle.yml`, lifecycle in-progress/validation reusable
-workflows, and opt-in `octestra-loop-<id>.yml` files. Lifecycle operations use the
-`lifecycle/<verb>` namespace and loop operations use `loop/<verb>`; old lifecycle names are
-deprecated aliases.
+Installed workflows are `octestra-lifecycle.yml` and the lifecycle in-progress and validation
+reusable workflows. Lifecycle operations use the `lifecycle/<verb>` namespace; old lifecycle names
+are deprecated aliases.
 
 ## Development
 
