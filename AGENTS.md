@@ -39,9 +39,9 @@ proof/                         separate action for rendering consumer proof JSON
 templates/.github/
   workflows/                   no placeholders; install.sh rewrites only the action ref and OIDC
   octestra/config.yml          the ONLY file install.sh generates
+  octestra/octestra.sh         installed maintenance CLI: doctor, vars check|sync, ref
   octestra/prompts/            handlebars prompts, read from the consumer's checkout
 install.sh, test/install.test.sh
-scripts/octestra-vars.{mjs,sh} config.yml -> repository variables
 docs/design.md                 decisions and rationale
 ```
 
@@ -56,8 +56,10 @@ so commit those alongside source changes or the action ships stale code.
 
 Targeted loops while iterating: `npx vitest run src/lifecycle`, `bash test/install.test.sh`.
 
-`make octestra-check-vars` / `make octestra-sync-vars` compare and push the four mirrored
-repository variables. These act on a *consumer* repository, not on this one.
+There is no make target for the mirrored repository variables: that job belongs to a *consumer*
+repository, and `templates/.github/octestra/octestra.sh` is installed there to do it
+(`octestra.sh vars check|sync`). `install.sh` runs the copy it just installed for the initial
+sync, so every install exercises the tool consumers rely on afterwards.
 
 ## Platform invariants
 
@@ -143,7 +145,16 @@ unrewritten.
 
 **No dead configuration.** A key that `config.yml` documents must be read by code. A knob that
 validates but does nothing is worse than an absent knob, because it advertises a guarantee that
-does not exist.
+does not exist. The same applies to instructions: a maintenance step the documentation tells a
+consumer to run must be reachable *from their repository*, which is why the mirroring tool is
+installed rather than kept here (D12).
+
+**The installed maintenance CLI.** `templates/.github/octestra/octestra.sh` is the only
+executable Octestra installs, and it needs nothing but `gh` — no node, no `yq` — because it runs
+in repositories of any language. It owns config → variable mirroring; do not add a second
+implementation. Two things it must know are also known by `install.sh` — the seven status option
+names, and how a version tag is resolved — so a change to either belongs in both files, and
+`test/install.test.sh` fails when the status lists drift apart.
 
 **Trust boundary.** A job that executes an agent gets no privileged token, checks out with
 `persist-credentials: false`, and runs no lifecycle operation. Results cross into a trusted job as

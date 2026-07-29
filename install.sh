@@ -23,6 +23,10 @@ readonly TEMPLATE_ACTION_REF="main"
 readonly DEFAULT_SOURCE_REPOSITORY="$TEMPLATE_ACTION_REPOSITORY"
 readonly DEFAULT_SOURCE_REF="main"
 readonly API_VERSION="2026-03-10"
+# The maintenance CLI installed beside config.yml. It owns config.yml -> repository
+# variable mirroring for the consumer, and this installer uses it for the initial sync
+# rather than carrying a second implementation.
+readonly MAINTENANCE_SCRIPT=".github/octestra/octestra.sh"
 
 TARGET_DIR="."
 SOURCE_DIR=""
@@ -519,14 +523,12 @@ resolve_template_directory() {
 
   if [[ -n "$SOURCE_DIR" ]]; then
     TEMPLATE_DIR="${SOURCE_DIR%/}/templates"
-    SCRIPT_DIR="${SOURCE_DIR%/}/scripts"
   else
     if [[ -n "$script_path" ]]; then
       script_dir=$(cd "$(dirname "$script_path")" 2>/dev/null && pwd || true)
     fi
     if [[ -n "$script_dir" && -d "$script_dir/templates" ]]; then
       TEMPLATE_DIR="$script_dir/templates"
-      SCRIPT_DIR="$script_dir/scripts"
     else
       archive="$TEMP_DIR/octestra.tar.gz"
       info "downloading $SOURCE_REPOSITORY@$SOURCE_REF"
@@ -538,7 +540,6 @@ resolve_template_directory() {
       extracted_root=$(find "$TEMP_DIR/source" -mindepth 1 -maxdepth 1 -type d | head -n 1)
       [[ -n "$extracted_root" ]] || die "downloaded archive did not contain a repository"
       TEMPLATE_DIR="$extracted_root/templates"
-      SCRIPT_DIR="$extracted_root/scripts"
     fi
   fi
 
@@ -587,6 +588,11 @@ rewrite_action_references() {
   while IFS= read -r file; do
     output="$file.octestra-tmp"
     sed -E "s|$pattern|$replacement|g" "$file" > "$output"
+    # The install tree carries an executable maintenance script, and a fresh temporary
+    # file does not inherit its mode.
+    if [[ -x "$file" ]]; then
+      chmod +x "$output"
+    fi
     mv "$output" "$file"
   done < <(find "$INSTALL_TREE" -type f -print)
 
@@ -600,11 +606,15 @@ copy_and_render_templates() {
 
   (cd "$INSTALL_TREE" && tar -cf - .) | (cd "$TARGET_DIR" && tar -xf -)
   [[ -f "$config" ]] || die "Octestra config template was not installed"
+  [[ -x "$TARGET_DIR/$MAINTENANCE_SCRIPT" ]] ||
+    die "the maintenance script was not installed as executable: $MAINTENANCE_SCRIPT"
   if [[ -n "$GITHUB_APP_CLIENT_ID" ]]; then replace_token "$config" "YOUR-GITHUB-APP-CLIENT-ID" "$GITHUB_APP_CLIENT_ID"; fi
   replace_token "$config" "__OCTESTRA_STATUS_FIELD_NAME__" "$STATUS_FIELD_NAME"
   replace_token "$config" "__OCTESTRA_STATUS_FIELD_ID__" "$FIELD_ID"
   if grep -q "__OCTESTRA_" "$config"; then die "installation left unresolved Octestra placeholders"; fi
-  (cd "$TARGET_DIR" && bash "$SCRIPT_DIR/octestra-vars.sh" sync .github/octestra/config.yml)
+  # Mirroring runs through the script that was just installed, so the tool a consumer will
+  # use for every later sync is the one exercised at install time.
+  (cd "$TARGET_DIR" && bash "$MAINTENANCE_SCRIPT" vars sync)
 }
 
 while (( $# > 0 )); do
@@ -723,3 +733,4 @@ copy_and_render_templates
 info "installed boilerplate in $TARGET_DIR"
 info "installed octestra-setup-migration-epic in .$SKILL_TARGET/skills"
 info "customize runners, agent integration, secrets, and prompts before enabling the workflow"
+info "check the result with '$MAINTENANCE_SCRIPT doctor'"

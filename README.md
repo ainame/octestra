@@ -44,6 +44,8 @@ The installer:
   any that are missing
 - Installs and renders the workflows and prompts, pointing them at upstream's newest version tag or
   at your organization's own fork
+- Installs `.github/octestra/octestra.sh` for diagnosing and maintaining the installation
+  afterwards, and uses it for the initial variable sync
 - Installs the EPIC setup skill into the selected `.claude`, `.codex`, or `.agents` directory
 - Overwrites generated workflows, prompts, and the selected agent skill on every run
 
@@ -66,6 +68,10 @@ code runs in the consumer repository. The installer asks which repository that s
 Choose the fork to run only code your organization controls. In exchange, merging upstream changes
 into the fork becomes your job, and the reference follows that fork's default branch rather than a
 release.
+
+Option 1 resolves to the exact version (`v1.2.3`), not the moving major tag (`v1`) that each
+release also updates, so the code a consumer runs cannot change until they rerun the installer or
+`octestra.sh ref`. Pass `--ref v1` if you would rather pick up patches automatically.
 
 Noninteractive installs take option 1 unless `--fork` or `--repository OWNER/REPO` is passed, and
 `--ref REF` overrides the resolved ref for either choice. The installer downloads its templates from
@@ -100,11 +106,38 @@ setup, and prompts for the consumer repository.
 
 `.github/octestra/config.yml` keeps non-secret consumer settings together, including the GitHub App
 client ID, the runner for lightweight orchestration work, and the runner for work that invokes an
-agent. Edit that file and run `make octestra-sync-vars` to mirror the platform values into
-repository variables. Keep `OCTESTRA_GITHUB_APP_PRIVATE_KEY` in GitHub Actions Secrets; add agent
-credentials only when the chosen agent integration needs them. The workflows use an App token
+agent. Edit that file and run `.github/octestra/octestra.sh vars sync` to mirror the platform values
+into repository variables. Keep `OCTESTRA_GITHUB_APP_PRIVATE_KEY` in GitHub Actions Secrets; add
+agent credentials only when the chosen agent integration needs them. The workflows use an App token
 instead of `GITHUB_TOKEN` so lifecycle field updates and agent pushes can trigger follow-up
 workflows.
+
+### Maintaining an installation
+
+The installer leaves `.github/octestra/octestra.sh` beside `config.yml`. It needs only an
+authenticated GitHub CLI, and it is reinstalled on every `install.sh` run, so keep repository
+policy in `config.yml` rather than in the script.
+
+```sh
+.github/octestra/octestra.sh doctor
+```
+
+`doctor` reads only, and reports each way an installation breaks: a repository variable that
+drifted from `config.yml` or was never set (an unset variable routes nothing), a missing
+`OCTESTRA_GITHUB_APP_PRIVATE_KEY` (checked by name — no secret value is read), an Issue Field that
+was renamed or whose ID no longer matches, a missing status option, a status job whose reusable
+workflow is absent, a prompt path that points nowhere, and which Octestra the workflows call
+together with any newer tag available. It exits non-zero when it finds a problem.
+
+The other two commands change things:
+
+- `vars check` exits non-zero on drift; `vars sync` **writes this repository's Actions variables**
+  from `config.yml`, printing each one it sets.
+- `ref` prints the Octestra repository and ref the workflows call. `ref OWNER/REPO@REF`, `ref @REF`,
+  `ref OWNER/REPO`, and `ref --latest` **edit the workflow files in your checkout** (and the
+  reference recorded in the script itself, so the two cannot disagree). Review and commit the diff
+  to put a switch into effect — this is how an installation moves to a newer tag or onto your
+  organization's fork after the fact.
 
 ## Operations
 
@@ -191,8 +224,9 @@ operations above without reimplementing the underlying GitHub behavior.
 Installation creates `.github/octestra/config.yml`, the source of truth for platform values, branch
 templates, and prompt paths. Four values are mirrored into
 repository variables: `OCTESTRA_GITHUB_APP_CLIENT_ID`, `OCTESTRA_ORCHESTRATION_RUNNER`,
-`OCTESTRA_AGENT_RUNNER`, and `OCTESTRA_STATUS_FIELD_ID`. Run `make octestra-check-vars` to detect
-drift and `make octestra-sync-vars` to apply them. Prompts are read from the checkout under
+`OCTESTRA_AGENT_RUNNER`, and `OCTESTRA_STATUS_FIELD_ID`. Run
+`.github/octestra/octestra.sh vars check` to detect drift and `vars sync` to apply, or `doctor` to
+see drift alongside every other problem. Prompts are read from the checkout under
 `.github/octestra/prompts`, at the paths `config.yml` names.
 
 Installed workflows are `octestra-lifecycle.yml` and the lifecycle in-progress and validation

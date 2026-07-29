@@ -22,6 +22,7 @@ graph — one event, one task.
 | D9 | Operations are namespaced `lifecycle/<verb>`, `loop/<verb>`, bare for scope-neutral | Paired operations get identical names (`lifecycle/report-failure` ↔ `loop/report-failure`), verb-first naming survives inside each namespace, and `src/lifecycle/`, `src/loop/`, `src/shared/` map 1:1. The `loop/` namespace and `src/loop/` are kept unused: they return when loops do (`TODO.md` §1). |
 | D10 | Never `secrets: inherit` | It hands every repository and organization secret to a workflow that executes an agent, contradicting the trust boundary. See P7. |
 | D11 | `install.sh` rewrites the `uses:` reference in the workflows it installs: a fork tracks its own default branch, upstream is pinned to its newest version tag | A consumer who forks Octestra does so to execute only code their own organization controls, and their fork's default branch is the thing they update deliberately — pinning it to a tag would add a second step to every upgrade without adding a guarantee. An upstream install gets a tag instead, so the code a consumer runs cannot change between two installs. Templates still ship `@main` because a template must be runnable as committed, which makes this a rewrite of a valid value rather than placeholder substitution. |
+| D12 | Maintenance lives in `.github/octestra/octestra.sh`, installed into the consumer repository, and `install.sh` uses that copy for the initial variable sync | Mirroring, drift detection and ref switching are things a consumer does *after* installation, from their own checkout — a `make` target in this repository was documented but unreachable there. Installing the tool also removes the second implementation: one script owns config → variables, and every install exercises it. It needs only `gh`, because a consumer repository is not required to have node. |
 
 ### Rejected alternatives
 
@@ -69,8 +70,9 @@ Mirroring creates a window where `vars` and `config.yml` disagree. It is contain
 1. **A small surface.** Four values, three of which change approximately never.
 2. **No chicken-and-egg.** Runner labels have literal fallbacks (P3), so the guard can start even
    when its own variable is unset.
-3. **A local check.** `make octestra-check-vars` exits non-zero on drift; `make octestra-sync-vars`
-   applies; `install.sh` syncs at the end of installation.
+3. **A local check.** `.github/octestra/octestra.sh vars check` exits non-zero on drift,
+   `vars sync` applies, and `doctor` reports both drift and an unset variable in context;
+   `install.sh` runs that same installed script to sync at the end of installation (D12).
 
 A runtime drift check inside `lifecycle/validate-transition` was scoped but never implemented — the
 `platform-vars` input that would have carried the four values does not exist, and the local check
