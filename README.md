@@ -9,9 +9,11 @@ It combines three components:
    `octestra-lifecycle.yml` receives Issue Field events, validates each transition, and dispatches
    it across the task state graph.
 3. **Reusable GitHub Action operations**
-   `ainame/octestra@main` provides the shared operations needed to build repository-specific
+   `ainame/octestra` provides the shared operations needed to build repository-specific
    workflows, including state updates, prompt preparation, ownership, review requests, and failure
-   reporting. `ainame/octestra/proof@main` is an optional renderer for consumer-owned proof JSON.
+   reporting. `ainame/octestra/proof` is an optional renderer for consumer-owned proof JSON. The
+   installer decides which repository and ref the generated workflows call; see
+   [Which Octestra the workflows call](#which-octestra-the-workflows-call).
 
 ## Requirements
 
@@ -40,7 +42,8 @@ The installer:
 - Finds or creates the `AI Task Status` Issue Field
 - Verifies the field has the seven status options Octestra requires, and prints the command to add
   any that are missing
-- Installs and renders the workflows and prompts
+- Installs and renders the workflows and prompts, pointing them at upstream's newest version tag or
+  at your organization's own fork
 - Installs the EPIC setup skill into the selected `.claude`, `.codex`, or `.agents` directory
 - Overwrites generated workflows, prompts, and the selected agent skill on every run
 
@@ -49,6 +52,30 @@ Use `--org` or `--status-field` to override the inferred defaults:
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/install.sh |
   bash -s -- --org example-org --status-field "AI Task Status" --skill-target codex
+```
+
+### Which Octestra the workflows call
+
+The generated workflows call Octestra as a GitHub Action, so their `uses:` reference decides whose
+code runs in the consumer repository. The installer asks which repository that should be:
+
+1. `ainame/octestra`, pinned to its newest version tag — or `main` while it has no tags.
+2. `ORGANIZATION/octestra`, a fork owned by the consumer's own organization, tracking that fork's
+   default branch. Fork the repository into the organization before choosing this.
+
+Choose the fork to run only code your organization controls. In exchange, merging upstream changes
+into the fork becomes your job, and the reference follows that fork's default branch rather than a
+release.
+
+Noninteractive installs take option 1 unless `--fork` or `--repository OWNER/REPO` is passed, and
+`--ref REF` overrides the resolved ref for either choice. The installer downloads its templates from
+the same repository and ref it writes into the workflows, and reports the result as
+`Octestra: generated workflows will call OWNER/REPO@REF`. Rerun the installer to move an existing
+installation to a newer tag or to a different repository.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/example-org/octestra/refs/heads/main/install.sh |
+  bash -s -- --fork
 ```
 
 The installer asks whether the generated workflows should use GitHub OIDC federation. Answer yes

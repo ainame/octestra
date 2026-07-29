@@ -37,7 +37,7 @@ src/
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
 proof/                         separate action for rendering consumer proof JSON
 templates/.github/
-  workflows/                   installed byte-identically; no placeholder substitution
+  workflows/                   no placeholders; install.sh rewrites only the action ref and OIDC
   octestra/config.yml          the ONLY file install.sh generates
   octestra/prompts/            handlebars prompts, read from the consumer's checkout
 install.sh, test/install.test.sh
@@ -129,9 +129,17 @@ reviewable in a pull request, so they are read from the checkout.
 
 **Templates are consumer-facing source code.** Files under `templates/` are read and edited by
 people who did not write Octestra. Use block style, not YAML flow mappings. Comment the parts a
-consumer is expected to change. `config.yml` is the only generated file — everything in
-`templates/.github/workflows/` installs byte-identically, so nothing there may contain a
-placeholder.
+consumer is expected to change. `config.yml` is the only *generated* file: nothing under
+`templates/.github/workflows/` may contain a placeholder, because every template must also be
+runnable as committed.
+
+`install.sh` does rewrite installed workflows, but only from one valid value to another — it
+uncomments `id-token: write` for `--enable-oidc`, and `rewrite_action_references` repoints
+`uses: ainame/octestra@main` at the repository and ref that installation tracks (D11). A rewrite
+whose *input* is not valid on its own is a placeholder by another name; that value belongs in
+`config.yml`. Write the shipped literal `ainame/octestra@main` in any new template — the rewrite
+finds it with or without a `/subpath`, and fails the install loudly if a reference survives
+unrewritten.
 
 **No dead configuration.** A key that `config.yml` documents must be read by code. A knob that
 validates but does nothing is worse than an absent knob, because it advertises a guarantee that

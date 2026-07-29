@@ -21,6 +21,7 @@ graph — one event, one task.
 | D8 | Prompts live in `.github/octestra/prompts/` | Everything Octestra owns in a consumer repository sits under one directory. |
 | D9 | Operations are namespaced `lifecycle/<verb>`, `loop/<verb>`, bare for scope-neutral | Paired operations get identical names (`lifecycle/report-failure` ↔ `loop/report-failure`), verb-first naming survives inside each namespace, and `src/lifecycle/`, `src/loop/`, `src/shared/` map 1:1. The `loop/` namespace and `src/loop/` are kept unused: they return when loops do (`TODO.md` §1). |
 | D10 | Never `secrets: inherit` | It hands every repository and organization secret to a workflow that executes an agent, contradicting the trust boundary. See P7. |
+| D11 | `install.sh` rewrites the `uses:` reference in the workflows it installs: a fork tracks its own default branch, upstream is pinned to its newest version tag | A consumer who forks Octestra does so to execute only code their own organization controls, and their fork's default branch is the thing they update deliberately — pinning it to a tag would add a second step to every upgrade without adding a guarantee. An upstream install gets a tag instead, so the code a consumer runs cannot change between two installs. Templates still ship `@main` because a template must be runnable as committed, which makes this a rewrite of a valid value rather than placeholder substitution. |
 
 ### Rejected alternatives
 
@@ -53,8 +54,9 @@ Split by *when* a value is needed, not by what it is.
 
 The `field_added` payload does expose `github.event.issue_field.name`, so the entry point could
 filter on the field name instead. It does not: the name would still have to come from a variable
-because workflow templates install byte-identically, so the variable count is unchanged, and the ID
-survives a field rename while the name does not (D7).
+because workflow templates carry no placeholders — a per-consumer field name written into workflow
+YAML would be one (D11 rewrites a valid value, which is a different thing) — so the variable count
+is unchanged, and the ID survives a field rename while the name does not (D7).
 
 Status option IDs are not carried at all (D7): every operation names a status by its display name,
 so `config.yml` records only `field_name` and `field_id`. `install.sh` verifies at setup that the

@@ -15,20 +15,28 @@ readonly REQUIRED_OPTIONS=(
   "Blocked|red|6"
   "Done|green|7"
 )
-readonly DEFAULT_SOURCE_REPOSITORY="ainame/octestra"
+# The action reference every workflow template ships with. Templates must run unmodified
+# from a checkout, so this is a working upstream reference rather than a placeholder; the
+# installer rewrites it to the repository and ref an installation should track.
+readonly TEMPLATE_ACTION_REPOSITORY="ainame/octestra"
+readonly TEMPLATE_ACTION_REF="main"
+readonly DEFAULT_SOURCE_REPOSITORY="$TEMPLATE_ACTION_REPOSITORY"
 readonly DEFAULT_SOURCE_REF="main"
 readonly API_VERSION="2026-03-10"
 
 TARGET_DIR="."
 SOURCE_DIR=""
 SOURCE_REPOSITORY="${OCTESTRA_REPOSITORY:-$DEFAULT_SOURCE_REPOSITORY}"
-SOURCE_REF="${OCTESTRA_REF:-$DEFAULT_SOURCE_REF}"
+# Empty means "resolve": a fork tracks its default branch, upstream pins its newest
+# version tag. Set explicitly by --ref or OCTESTRA_REF, which skips resolution.
+SOURCE_REF="${OCTESTRA_REF:-}"
 ORGANIZATION=""
 STATUS_FIELD_NAME=""
 SKILL_TARGET=""
 GITHUB_APP_CLIENT_ID=""
 ASSUME_YES=false
 ENABLE_OIDC=false
+FORK_INSTALL=false
 TEMP_DIR=""
 
 usage() {
@@ -47,8 +55,12 @@ Options:
   --target DIRECTORY     Consumer repository directory (default: current directory)
   --source-dir DIRECTORY Use a local Octestra checkout instead of downloading a release
   --repository OWNER/REPO
-                         Octestra source repository (default: ainame/octestra)
-  --ref REF              Octestra source ref (default: main)
+                         Octestra repository the generated workflows call
+                         (default: ainame/octestra)
+  --fork                 Shorthand for --repository ORGANIZATION/octestra
+  --ref REF              Octestra ref the generated workflows call. Defaults to the
+                         newest version tag for ainame/octestra and to main for any
+                         other repository, falling back to main when untagged
   --yes                  Create a missing Issue Field without confirmation
   --enable-oidc          Enable GitHub OIDC permissions in generated workflows
   -h, --help             Show this help
@@ -255,6 +267,82 @@ EOF
   printf 'Client ID: ' > /dev/tty
   IFS= read -r client_id < /dev/tty
   GITHUB_APP_CLIENT_ID="$client_id"
+}
+
+# The workflows a consumer runs reference Octestra as `owner/repo@ref`. Installing from a
+# fork points that reference at the fork's default branch, so the consumer executes only
+# code their own organization controls, at the cost of merging upstream changes
+# themselves. Installing from upstream pins the newest version tag instead, so the
+# reference cannot move under them between runs.
+configure_action_source() {
+  local fork_repository=""
+  local choice=""
+
+  fork_repository="$ORGANIZATION/${TEMPLATE_ACTION_REPOSITORY##*/}"
+
+  if [[ "$FORK_INSTALL" == true ]]; then
+    [[ "$SOURCE_REPOSITORY" == "$DEFAULT_SOURCE_REPOSITORY" ]] ||
+      die "--fork and --repository name different Octestra repositories"
+    SOURCE_REPOSITORY="$fork_repository"
+    return
+  fi
+  if [[ "$SOURCE_REPOSITORY" != "$DEFAULT_SOURCE_REPOSITORY" || "$ASSUME_YES" == true ]] ||
+    ! has_interactive_tty; then
+    return
+  fi
+
+  cat > /dev/tty <<EOF
+Which Octestra repository should the generated workflows call?
+  1) $DEFAULT_SOURCE_REPOSITORY (upstream, pinned to its newest version tag)
+  2) $fork_repository (your fork, tracking its default branch)
+  Choose 2 to run only code your organization controls. Fork
+  https://github.com/$DEFAULT_SOURCE_REPOSITORY into '$ORGANIZATION' first, and expect to
+  merge upstream changes into that fork yourself.
+EOF
+  printf 'Choice [1]: ' > /dev/tty
+  IFS= read -r choice < /dev/tty
+  case "${choice:-1}" in
+    1) ;;
+    2) SOURCE_REPOSITORY="$fork_repository" ;;
+    *) die "invalid Octestra repository selection: $choice" ;;
+  esac
+}
+
+resolve_source_reference() {
+  local tag=""
+
+  if [[ -n "$SOURCE_REF" ]]; then
+    return
+  fi
+  if [[ "$SOURCE_REPOSITORY" == "$DEFAULT_SOURCE_REPOSITORY" ]]; then
+    tag=$(latest_version_tag) || true
+  fi
+  SOURCE_REF="${tag:-$DEFAULT_SOURCE_REF}"
+}
+
+# Both values are substituted into installed workflow files, so anything that is not a
+# plain repository or ref is rejected before it reaches sed.
+validate_source_reference() {
+  [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] ||
+    die "Octestra repository must be OWNER/REPO: $SOURCE_REPOSITORY"
+  [[ "$SOURCE_REF" =~ ^[A-Za-z0-9._/-]+$ ]] ||
+    die "Octestra ref must be a git ref: $SOURCE_REF"
+}
+
+# Newest version tag in the source repository, by version sort. Tags that are not plain
+# versions are ignored, so a release candidate never becomes the default. An unreachable,
+# private, or untagged repository yields an empty string and the caller falls back to the
+# default branch.
+latest_version_tag() {
+  gh api \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: $API_VERSION" \
+    "/repos/$SOURCE_REPOSITORY/tags" \
+    --paginate \
+    --jq '.[].name' 2>/dev/null |
+    grep -E '^v?[0-9]+(\.[0-9]+)*$' |
+    sort -V |
+    tail -n 1
 }
 
 json_quote() {
@@ -473,6 +561,38 @@ prepare_install_tree() {
       replace_token "$workflow" "  # id-token: write" "  id-token: write"
     done < <(find "$INSTALL_TREE/.github/workflows" -type f -name '*.yml' -print)
   fi
+
+  rewrite_action_references
+}
+
+# Repoints every `TEMPLATE_ACTION_REPOSITORY[/subpath]@TEMPLATE_ACTION_REF` reference at
+# the repository and ref this installation tracks. This replaces a value that is already
+# valid rather than filling in a placeholder, so a template still runs unmodified from a
+# checkout of Octestra itself.
+rewrite_action_references() {
+  # The optional group carries a subpath, so `<repo>/proof@<ref>` moves with the root
+  # action. BSD sed rejects an alternation with an anchor inside a group, so the pattern
+  # carries no left boundary; it does not need one, because the literal it matches is one
+  # Octestra ships rather than anything a consumer could write.
+  local pattern="$TEMPLATE_ACTION_REPOSITORY(/[^@[:space:]]+)?@$TEMPLATE_ACTION_REF"
+  local replacement="$SOURCE_REPOSITORY\\1@$SOURCE_REF"
+  local file=""
+  local output=""
+
+  if [[ "$SOURCE_REPOSITORY" == "$TEMPLATE_ACTION_REPOSITORY" &&
+    "$SOURCE_REF" == "$TEMPLATE_ACTION_REF" ]]; then
+    return
+  fi
+
+  while IFS= read -r file; do
+    output="$file.octestra-tmp"
+    sed -E "s|$pattern|$replacement|g" "$file" > "$output"
+    mv "$output" "$file"
+  done < <(find "$INSTALL_TREE" -type f -print)
+
+  if grep -R -E -q "$pattern" "$INSTALL_TREE"; then
+    die "installation left a $TEMPLATE_ACTION_REPOSITORY@$TEMPLATE_ACTION_REF reference"
+  fi
 }
 
 copy_and_render_templates() {
@@ -524,6 +644,10 @@ while (( $# > 0 )); do
       SOURCE_REPOSITORY="$2"
       shift 2
       ;;
+    --fork)
+      FORK_INSTALL=true
+      shift
+      ;;
     --ref)
       [[ $# -ge 2 ]] || die "--ref requires a value"
       SOURCE_REF="$2"
@@ -553,6 +677,7 @@ require_command tar
 require_command sed
 require_command find
 require_command grep
+require_command sort
 
 [[ -d "$TARGET_DIR" ]] || die "target directory does not exist: $TARGET_DIR"
 TARGET_DIR=$(cd "$TARGET_DIR" && pwd)
@@ -575,6 +700,10 @@ fi
 select_skill_target
 configure_oidc
 configure_github_app_client_id
+configure_action_source
+resolve_source_reference
+validate_source_reference
+info "generated workflows will call $SOURCE_REPOSITORY@$SOURCE_REF"
 
 find_issue_field
 if [[ -z "$FIELD_ID" ]]; then
