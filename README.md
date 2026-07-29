@@ -162,6 +162,17 @@ resolve the same branch. For Claude Code Action, pass `branch_name` as `branch_p
 `branch_name_template: "{{prefix}}"`. `epic-config.skill` is optional and is reserved for
 agent-specific capability selection.
 
+Two optional `epic-config` booleans decide how a finished task PR is handed over, and both default
+to `false`. `draft_pr: true` makes the agent open a draft; otherwise the pull request is created
+ready for review. `skip_validation: true` sends a finished task straight to `Human Review`;
+otherwise it goes through `Validation` first. Because that is the default, set
+`skip_validation: true` in an EPIC's configuration until the generated validation workflow has a
+real validation agent — its placeholder step fails, which moves the task to `Blocked`. Whenever Octestra requests review — after task
+execution with `skip_validation: true`, or after validation passes — it takes the pull request out
+of draft first, so a review request never points at a PR GitHub still marks unfinished. Octestra
+does not assign anyone to the pull request; the task owner is the assignee of the *issue*, and
+review is requested from them.
+
 Before task execution, `prepare-task` checks the expected branch and every linked open pull
 request. If either exists, it moves the task to `Blocked`, posts an activity comment mentioning
 the task owner, and sets `task_ready` to `false`; the generated workflow skips the agent and
@@ -177,17 +188,16 @@ issues and closures unrelated to a merged pull request.
 |---|---|---|
 | Guard | `validate-transition` | Validates the observed state transition against the live issue state; an invalid human transition assigns and warns its triggering user without changing status. |
 | Aggregate | `prepare-task` | Assigns the task owner, blocks existing task branch or linked PR work, otherwise builds task context, renders the task prompt, and configures the Git co-author trailer. |
-| Aggregate | `finalize-task` | Resolves the task branch and pull request, assigns the task owner to the pull request, optionally requests review, updates status, and records task activity. |
+| Aggregate | `finalize-task` | Resolves the task branch and pull request, optionally marks it ready for review and requests review, updates status, and records task activity. |
 | Aggregate | `prepare-validation` | Builds validation context, resolves the linked pull request, renders the validation prompt, and provides the result path. |
-| Aggregate | `finalize-validation` | Reports proof and, for a passed result, assigns the task owner to the pull request, requests review, and moves the task to the configured success status; other outcomes move to the failure status. |
+| Aggregate | `finalize-validation` | Reports proof and, for a passed result, marks the pull request ready for review, requests review from the task owner, and moves the task to the configured success status; other outcomes move to the failure status. |
 | Aggregate | `finalize-merged-task` | Moves a `Human Review` task to `Done` when GitHub closes it as part of a linked pull request merge. |
 | Individual | `assign-owner` | Assigns the user who triggered the task transition while preserving the existing owner for bot transitions. |
-| Individual | `assign-pr-owner` | Assigns the latest human Issue task owner to the task pull request. |
 | Individual | `build-task-context` | Loads task and EPIC configuration, renders the task prompt, configures co-authorship, and publishes task outputs. |
 | Individual | `build-validation-context` | Loads task and EPIC configuration, resolves the linked pull request, renders the validation prompt, and publishes validation outputs. |
 | Individual | `resolve-task-pr` | Resolves the open pull request for a task branch and publishes its number. |
 | Individual | `report-proof` | Renders consumer-owned proof JSON as a reviewer-focused issue comment without changing lifecycle status. |
-| Individual | `request-review` | Ensures the latest human Issue task owner is assigned to the pull request, then requests review from that owner. |
+| Individual | `request-review` | Takes the pull request out of draft, then requests review from the latest human Issue task owner. |
 | Individual | `update-status` | Updates the configured organization Issue Field to the requested status. |
 | Failure | `report-failure` | Records workflow failure details and moves the task to the configured failure status. |
 

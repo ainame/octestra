@@ -4,7 +4,7 @@ export interface EpicConfig {
   id: string;
   skillName?: string;
   draftPr: boolean;
-  validationRequired: boolean;
+  skipValidation: boolean;
   epicPrompt: string;
   validationPrompt: string;
 }
@@ -47,21 +47,24 @@ export function parseEpicConfig(body: string): EpicConfig {
   }
   const skillName = skillValue?.trim() || undefined;
 
-  const draftPr = config.draft_pr ?? true;
+  // A task PR is opened ready for review, so an EPIC has to opt in to drafts. Marking a
+  // finished PR ready by hand is friction on every task, and a repository that validates
+  // has already reviewed the work by the time a human is asked to look.
+  const draftPr = config.draft_pr ?? false;
   if (typeof draftPr !== "boolean") {
     throw new Error("epic-config draft_pr must be true or false");
   }
 
-  const validationRequired = config.validation_required ?? false;
-  if (typeof validationRequired !== "boolean") {
-    throw new Error("epic-config validation_required must be true or false");
+  const skipValidation = config.skip_validation ?? false;
+  if (typeof skipValidation !== "boolean") {
+    throw new Error("epic-config skip_validation must be true or false");
   }
 
   return {
     id,
     skillName,
     draftPr,
-    validationRequired,
+    skipValidation,
     epicPrompt: extractBlock(body, "epic-prompt", false),
     validationPrompt: extractBlock(body, "validation-prompt", false),
   };

@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as core from "@actions/core";
 import {
   assignOwner,
-  assignPullRequestOwner,
   finalizeMergedTask,
   finalizeTask,
   finalizeValidation,
@@ -56,7 +55,6 @@ function createClient(overrides: Partial<OperationsClient> = {}): OperationsClie
         "```epic-config",
         "id: example",
         "skill: example",
-        "validation_required: true",
         "```",
       ].join("\n"),
     }),
@@ -66,9 +64,9 @@ function createClient(overrides: Partial<OperationsClient> = {}): OperationsClie
     branchExists: vi.fn().mockResolvedValue(true),
     findOpenPullRequest: vi.fn().mockResolvedValue(42),
     assignIssue: vi.fn(),
-    assignPullRequest: vi.fn(),
     getLatestAssignedUser: vi.fn().mockResolvedValue("reviewer"),
     findLinkedOpenPullRequest: vi.fn().mockResolvedValue(42),
+    markPullRequestReadyForReview: vi.fn(),
     requestReviewer: vi.fn(),
     comment: vi.fn(),
     getStatus: vi.fn(),
@@ -250,7 +248,6 @@ describe("prepareValidation", () => {
               "```epic-config",
               "id: example",
               "skill: example",
-              "validation_required: true",
               "```",
               "",
               "```epic-prompt",
@@ -450,7 +447,7 @@ describe("finalizeMergedTask", () => {
 });
 
 describe("finalizeTask", () => {
-  it("updates a completed task to its next state", async () => {
+  it("queues validation and leaves the pull request as the agent opened it", async () => {
     const client = createClient();
 
     await finalizeTask(createContext(client));
@@ -459,7 +456,8 @@ describe("finalizeTask", () => {
       123,
       expect.stringContaining("Created task PR #42"),
     );
-    expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
+    expect(client.markPullRequestReadyForReview).not.toHaveBeenCalled();
+    expect(client.requestReviewer).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
       "AI Task Status",
@@ -475,7 +473,7 @@ describe("finalizeTask", () => {
           "```epic-config",
           "id: example",
           "skill: example",
-          "validation_required: false",
+          "skip_validation: true",
           "```",
         ].join("\n"),
       }),
@@ -483,7 +481,7 @@ describe("finalizeTask", () => {
 
     await finalizeTask(createContext(client));
 
-    expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
+    expect(client.markPullRequestReadyForReview).toHaveBeenCalledWith(42);
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
@@ -526,27 +524,19 @@ describe("assignOwner", () => {
   });
 });
 
-describe("assignPullRequestOwner", () => {
-  it("assigns the issue task owner to the pull request", async () => {
-    const client = createClient();
-
-    await expect(
-      assignPullRequestOwner(createContext(client), 42),
-    ).resolves.toBe("reviewer");
-
-    expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
-    expect(core.setOutput).toHaveBeenCalledWith("task_owner", "reviewer");
-  });
-});
-
 describe("requestReview", () => {
-  it("requests review from the latest issue assignee", async () => {
+  it("marks the pull request ready before requesting review from the latest issue assignee", async () => {
     const client = createClient();
 
     await expect(requestReview(createContext(client), 42)).resolves.toBe("reviewer");
 
-    expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
+    expect(client.markPullRequestReadyForReview).toHaveBeenCalledWith(42);
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
+    expect(
+      vi.mocked(client.markPullRequestReadyForReview).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(client.requestReviewer).mock.invocationCallOrder[0],
+    );
     expect(core.setOutput).toHaveBeenCalledWith("reviewer", "reviewer");
   });
 
@@ -558,6 +548,7 @@ describe("requestReview", () => {
     await expect(
       requestReview(createContext(client), 42),
     ).rejects.toThrow("No assigned task owner");
+    expect(client.markPullRequestReadyForReview).not.toHaveBeenCalled();
     expect(client.requestReviewer).not.toHaveBeenCalled();
   });
 });
@@ -674,7 +665,7 @@ describe("finalizeValidation", () => {
       123,
       expect.stringContaining("## ✅ Passed validation proof"),
     );
-    expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
+    expect(client.markPullRequestReadyForReview).toHaveBeenCalledWith(42);
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
@@ -694,6 +685,7 @@ describe("finalizeValidation", () => {
     );
 
     expect(client.comment).toHaveBeenCalled();
+    expect(client.markPullRequestReadyForReview).not.toHaveBeenCalled();
     expect(client.requestReviewer).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,

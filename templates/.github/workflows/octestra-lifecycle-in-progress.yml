@@ -68,7 +68,7 @@ jobs:
       #   - branch_name: exact task branch used by finalize-task and validation.
       #   - task_ready: false when existing branch or linked PR work blocked execution.
       #   - draft_flag: `--draft` when the PR should be a draft.
-      #   - validation_required: whether validation follows task execution.
+      #   - skip_validation: whether the task goes to Human Review without validation.
       #   - prompt: rendered task instructions.
       #   - target_file: configured target, if any.
       #   - task_owner: assigned human task owner.
@@ -125,8 +125,8 @@ jobs:
       # finalize-task:
       # - Confirms that the agent created the expected branch.
       # - Resolves the open pull request created from that branch.
-      # - Assigns the Issue task owner to the pull request.
-      # - Requests review from the task owner when the next status is Human Review.
+      # - When the next status is Human Review, takes the pull request out of draft and
+      #   requests review from the Issue task owner.
       # - Updates the lifecycle status and records the resulting Octestra activity.
       # Use lower-level operations when the repository needs a different completion policy.
       #

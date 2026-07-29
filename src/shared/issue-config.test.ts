@@ -7,8 +7,8 @@ describe("parseEpicConfig", () => {
 \`\`\`epic-config
 id: objc-to-swift
 skill: objc-to-swift
-draft_pr: false
-validation_required: false
+draft_pr: true
+skip_validation: true
 \`\`\`
 
 \`\`\`epic-prompt
@@ -23,14 +23,14 @@ Verify that the target implementation has been migrated from Objective-C to Swif
     expect(result).toEqual({
       id: "objc-to-swift",
       skillName: "objc-to-swift",
-      draftPr: false,
-      validationRequired: false,
+      draftPr: true,
+      skipValidation: true,
       epicPrompt: "Keep the public API unchanged.",
       validationPrompt: "Verify that the target implementation has been migrated from Objective-C to Swift.",
     });
   });
 
-  it("defaults draft PR to true", () => {
+  it("opens a pull request ready for review and validates it by default", () => {
     const result = parseEpicConfig(`
 \`\`\`epic-config
 id: migrate-storyboard-uikit
@@ -38,8 +38,8 @@ skill: migrate-storyboard-uikit
 \`\`\`
 `);
 
-    expect(result.draftPr).toBe(true);
-    expect(result.validationRequired).toBe(false);
+    expect(result.draftPr).toBe(false);
+    expect(result.skipValidation).toBe(false);
     expect(result.epicPrompt).toBe("");
     expect(result.validationPrompt).toBe("");
   });
@@ -63,16 +63,16 @@ draft_pr: true
     ).toThrow("non-empty lowercase slug");
   });
 
-  it("rejects a non-boolean validation_required value", () => {
+  it("rejects a non-boolean skip_validation value", () => {
     expect(() =>
       parseEpicConfig(`
 \`\`\`epic-config
 id: migrate-storyboard-uikit
 skill: migrate-storyboard-uikit
-validation_required: "false"
+skip_validation: "false"
 \`\`\`
 `),
-    ).toThrow("validation_required must be true or false");
+    ).toThrow("skip_validation must be true or false");
   });
 });
 

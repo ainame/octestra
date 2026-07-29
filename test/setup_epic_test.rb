@@ -85,7 +85,7 @@ class EpicSetupTest < Minitest::Test
         'title' => 'Convert Objective-C to Swift',
         'skill' => 'objc-to-swift',
         'draftPr' => true,
-        'validationRequired' => false,
+        'skipValidation' => false,
         'prompt' => 'Preserve behavior.',
         'validationPrompt' => ''
       },
@@ -160,7 +160,9 @@ class EpicSetupTest < Minitest::Test
       JSON.parse(call[:input])
     end.find { |payload| payload['labels'] == ['octestra-epic'] }
 
-    assert_includes epic.fetch('body'), "```epic-config\nid: objc-to-swift\nskill: objc-to-swift"
+    assert_includes epic.fetch('body'),
+                    "```epic-config\nid: objc-to-swift\nskill: objc-to-swift\n" \
+                    "draft_pr: true\nskip_validation: false\n```"
   end
 
   def test_rejects_an_empty_task_list

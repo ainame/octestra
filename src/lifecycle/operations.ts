@@ -37,12 +37,12 @@ export interface OperationsClient {
   branchExists(branchName: string): Promise<boolean>;
   findOpenPullRequest(branchName: string): Promise<number | undefined>;
   assignIssue(issueNumber: number, assignee: string): Promise<void>;
-  assignPullRequest(pullNumber: number, assignee: string): Promise<void>;
   getLatestAssignedUser(issueNumber: number): Promise<string | undefined>;
   findLinkedOpenPullRequest(
     issueNumber: number,
     headBranch?: string,
   ): Promise<number | undefined>;
+  markPullRequestReadyForReview(pullNumber: number): Promise<void>;
   requestReviewer(pullNumber: number, reviewer: string): Promise<void>;
   comment(issueNumber: number, body: string): Promise<void>;
   getStatus(issueNumber: number, fieldName: string): Promise<string | undefined>;
@@ -326,7 +326,7 @@ export async function buildTaskContext(
   );
   core.setOutput("task_ready", "true");
   core.setOutput("draft_flag", draftFlag);
-  core.setOutput("validation_required", String(config.validationRequired));
+  core.setOutput("skip_validation", String(config.skipValidation));
   core.setOutput("prompt", prompt);
   core.setOutput("target_file", taskConfig.target ?? "");
   core.setOutput("task_owner", taskOwner);
@@ -463,23 +463,16 @@ export async function requestReview(
   context: OperationContext,
   pullNumber: number,
 ): Promise<string> {
-  const reviewer = await assignPullRequestOwner(context, pullNumber);
+  const reviewer = await context.client.getLatestAssignedUser(context.issueNumber);
+  if (!reviewer) {
+    throw new Error("No assigned task owner found in the issue activity");
+  }
+  // A review request on a draft asks for a review of work GitHub still labels unfinished,
+  // so the pull request leaves draft first and the reviewer is added to a ready one.
+  await context.client.markPullRequestReadyForReview(pullNumber);
   await context.client.requestReviewer(pullNumber, reviewer);
   core.setOutput("reviewer", reviewer);
   return reviewer;
-}
-
-export async function assignPullRequestOwner(
-  context: OperationContext,
-  pullNumber: number,
-): Promise<string> {
-  const taskOwner = await context.client.getLatestAssignedUser(context.issueNumber);
-  if (!taskOwner) {
-    throw new Error("No assigned task owner found in the issue activity");
-  }
-  await context.client.assignPullRequest(pullNumber, taskOwner);
-  core.setOutput("task_owner", taskOwner);
-  return taskOwner;
 }
 
 export async function reportProof(
@@ -569,13 +562,11 @@ export async function finalizeTask(
     return;
   }
 
-  const nextStatus = config.validationRequired ? "Validation" : "Human Review";
+  const nextStatus = config.skipValidation ? "Human Review" : "Validation";
   const pullNumber = await resolveTaskPullRequest(context, branchName);
   const reviewer = nextStatus === "Human Review"
     ? await requestReview(context, pullNumber)
     : undefined;
-  const taskOwner = reviewer ??
-    await assignPullRequestOwner(context, pullNumber);
 
   await reportActivityBestEffort(context, {
     status: nextStatus,
@@ -585,7 +576,6 @@ export async function finalizeTask(
       : `Created task PR #${pullNumber} and queued validation.`,
     details: [
       `- Pull request: #${pullNumber}`,
-      `- Pull request assigned to @${taskOwner}`,
       reviewer ? `- Reviewer: @${reviewer}` : undefined,
       `- AI Task Status updated to \`${nextStatus}\``,
     ].filter(Boolean).join("\n"),

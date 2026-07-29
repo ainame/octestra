@@ -29,8 +29,8 @@ Ask for missing values one at a time:
 | How to discover or define tasks | Required |
 | Skill invoked for each task, such as `objc-to-swift` | Required; also becomes the EPIC ID and branch namespace |
 | Organization Project number | Required |
-| Draft pull requests | `true` |
-| Agentic validation | `false` |
+| Draft pull requests | `false` |
+| Skip agentic validation | `false` |
 | Shared migration instructions | Empty |
 | Validation instructions | Empty |
 | Excluded paths or task patterns | Empty |
@@ -77,8 +77,8 @@ Create a temporary JSON file outside the repository unless the user requests oth
   "epic": {
     "title": "Convert Objective-C screens to Swift",
     "skill": "objc-to-swift",
-    "draftPr": true,
-    "validationRequired": false,
+    "draftPr": false,
+    "skipValidation": false,
     "prompt": "Preserve public behavior and existing architecture.",
     "validationPrompt": ""
   },

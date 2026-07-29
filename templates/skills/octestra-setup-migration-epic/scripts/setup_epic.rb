@@ -193,8 +193,8 @@ class EpicSetup
     @epic = object!(@manifest['epic'], 'epic')
     @title = non_empty_string!(@epic['title'], 'epic.title')
     @skill = non_empty_string!(@epic['skill'], 'epic.skill')
-    boolean!(@epic.fetch('draftPr', true), 'epic.draftPr')
-    boolean!(@epic.fetch('validationRequired', false), 'epic.validationRequired')
+    boolean!(@epic.fetch('draftPr', false), 'epic.draftPr')
+    boolean!(@epic.fetch('skipValidation', false), 'epic.skipValidation')
     optional_string!(@epic.fetch('prompt', ''), 'epic.prompt')
     optional_string!(@epic.fetch('validationPrompt', ''), 'epic.validationPrompt')
 
@@ -326,7 +326,7 @@ class EpicSetup
 
   def epic_body(prompt)
     sections = [
-      "### Configuration\n\n```epic-config\nid: #{@skill}\nskill: #{@skill}\ndraft_pr: #{@epic.fetch('draftPr', true)}\nvalidation_required: #{@epic.fetch('validationRequired', false)}\n```"
+      "### Configuration\n\n```epic-config\nid: #{@skill}\nskill: #{@skill}\ndraft_pr: #{@epic.fetch('draftPr', false)}\nskip_validation: #{@epic.fetch('skipValidation', false)}\n```"
     ]
     unless prompt.empty?
       sections << "### Additional information\n\n```epic-prompt\n#{prompt}\n```"

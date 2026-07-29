@@ -181,14 +181,32 @@ export class GitHubClient {
     });
   }
 
-  async assignPullRequest(pullNumber: number, assignee: string): Promise<void> {
-    // Pull requests use the Issues assignee API because every pull request is also an issue.
-    await this.octokit.rest.issues.addAssignees({
+  async markPullRequestReadyForReview(pullNumber: number): Promise<void> {
+    // The mutation below fails on a pull request that is already ready, which is the
+    // common case now that `draft_pr` defaults to false, so read the state first.
+    const pull = await this.octokit.rest.pulls.get({
       owner: this.owner,
       repo: this.repo,
-      issue_number: pullNumber,
-      assignees: [assignee],
+      pull_number: pullNumber,
     });
+    if (!pull.data.draft) {
+      return;
+    }
+
+    // GraphQL-only: `PATCH /repos/{owner}/{repo}/pulls/{pull_number}` has no writable
+    // `draft` field, so REST can open a draft but cannot take one out of draft.
+    await this.octokit.graphql(
+      `mutation($pullRequestId: ID!) {
+        markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
+          pullRequest {
+            isDraft
+          }
+        }
+      }`,
+      {
+        pullRequestId: pull.data.node_id,
+      },
+    );
   }
 
   async requestReviewer(pullNumber: number, reviewer: string): Promise<void> {

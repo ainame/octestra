@@ -4,7 +4,6 @@ import { GitHubClient } from "./shared/github-client";
 import { positiveInteger } from "./shared/validate";
 import {
   assignOwner,
-  assignPullRequestOwner,
   buildTaskContext,
   buildValidationContext,
   finalizeMergedTask,
@@ -87,9 +86,6 @@ export async function run(): Promise<void> {
         lifecycleOperationContext(),
         ...triggerActorPair(true),
       );
-      break;
-    case "assign-pr-owner":
-      await assignPullRequestOwner(lifecycleOperationContext(), requiredNumber("pull-number"));
       break;
     case "lifecycle/prepare-task":
       await prepareTask(

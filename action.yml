@@ -58,8 +58,8 @@ outputs:
     description: Whether task execution may proceed; false when existing branch or PR work was found
   draft_flag:
     description: --draft when the task should create a draft PR
-  validation_required:
-    description: Whether the task must pass through Validation
+  skip_validation:
+    description: Whether the task goes straight to Human Review instead of Validation
   prompt:
     description: Rendered task prompt
   pull_number:
