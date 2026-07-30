@@ -1,95 +1,109 @@
 # Octestra
 
-**A serverless AI agent orchestration framework, built on GitHub Actions and Projects.**
+**Serverless AI agent orchestration on GitHub Actions and Projects.**
 
-Run many coding agents across many tasks without deploying anything. Task state is a field on a
-GitHub issue. Scheduling is GitHub's own event system. Compute is the Actions runners you already
-have. There is no coordinator to keep alive, no queue, no database, and nothing to page you at 3am.
+Move an issue to `In Progress`. An agent implements it, opens a pull request, validation runs, and a
+human is asked to review — driven by the task's state, with no server, queue or database to run.
 
-📖 [日本語版 README](README.ja.md) · [Design notes](docs/design.md) · [Glossary](docs/glossary.md)
+📖 [日本語](README.ja.md) · [Design notes](docs/design.md) · [Glossary](docs/glossary.md)
 
 ```
-you: move issue #42 to `In Progress`
-                │
-                ▼
-     agent implements → pull request → validation → review requested → merged → Done
+issue #42 ──▶ In Progress ──▶ agent ──▶ pull request ──▶ validation ──▶ review ──▶ Done
 ```
 
-## Why Octestra
+## Why
 
-### 1. There is no server, because there is nothing to run
+### 1. It orchestrates the handoffs, not just the agent run
 
-Every other way to orchestrate agents needs something alive: a coordinator process, a work queue, a
-database holding which task is in which state. Each is a thing to deploy, monitor, secure, and pay
-for — infrastructure standing between you and the work.
+Running an agent is the easy part. What costs you time is everything after it: turning the work into
+a pull request, getting it validated, putting it in front of the right human, and knowing what to do
+when any of that fails.
 
-Octestra has none of it. The state machine is an organization Issue Field, so GitHub stores your task
-state and GitHub's event system is your scheduler. Your Project board is the dashboard, already
-built. Uninstalling is deleting some workflow files: there is no service left running, no data to
-migrate, and no second permission model — access is the GitHub permissions you already manage.
+Octestra drives that chain off a task state graph. Implementation hands off to validation, validation
+hands off to review, and a merge closes the task — each transition checked against the issue's live
+state, so a stale or invalid move routes nothing instead of starting a second agent on the same
+branch. Failures land in `Blocked` with a link to the run, not in a log nobody reads.
 
-### 2. Any agent, and no lock-in to ours
+### 2. It runs entirely on GitHub, so there is no server to deploy
 
-Octestra never calls a model. It owns the tedious, easy-to-get-wrong half — who owns the task, which
-branch the work lives on, finding the pull request, asking the right human for review, recovering
-when a run fails — and hands your agent nothing but a rendered prompt and the branch to push.
+State is a field on the issue. Scheduling is GitHub's own events. Compute is Actions runners you
+already have. Nothing to deploy, nothing to keep alive, no second permission model — and
+uninstalling is deleting some workflow files.
 
-That boundary is the product. Swapping Claude Code for Codex, or for a shell script, is editing one
-block in one file. Your choice of agent is never a migration.
+You could build this out of Actions yourself; none of it is magic. What Octestra gives you is the
+inventory already assembled: the transition guard, the seven-state graph, owner assignment, branch
+resolution, pull request lookup, review routing, failure recovery. That is the part that takes months
+to get right, because each piece fails silently when it is wrong.
 
-### 3. Reviewable by default, so you can actually ship the output
+### 3. Prompts, configuration and results live in one reviewable place
 
-Agent output that nobody can review is a liability. Here, every task produces a branch, a pull
-request, a named reviewer, and a comment on the issue saying what happened. Nothing merges without a
-human moving it to `Done`. Failures land in `Blocked` with a link to the run instead of disappearing.
+Agent behaviour is in `.hbs` prompt templates and one `config.yml` — versioned, diffable, and
+reviewed in a pull request like anything else, instead of buried in workflow YAML across three files.
 
-### 4. Customize it without forfeiting updates
+Your validation agent's JSON result is rendered into a comment a reviewer actually reads, so "did
+this pass, and how do we know?" is answerable on the issue without opening Actions logs. Every
+operation Octestra uses is also callable on its own, if you want a workflow of a different shape.
 
-Generated CI normally rots the day you edit it — the next update overwrites the wiring you added, so
-in practice nobody ever updates. Octestra marks the parts you own, and `octestra.sh update` carries
-them into the new version while replacing everything around them. Taking a newer Octestra stays one
-command, permanently.
+## What it provides, and what it doesn't
 
-## Serverless, concretely
+| Provides | Does not provide |
+|---|---|
+| A seven-state task lifecycle on a GitHub issue field | An agent — Octestra never calls a model |
+| Owner assignment, branch naming, pull request lookup, review request | A scheduler — something has to move the field |
+| Prompts rendered from your own templates | A server, dashboard, queue or database |
+| A validation step that posts its result on the issue | Any view across repositories |
+| Failure handling: a comment with a run link, task moved to `Blocked` | Acceptance criteria — your validation agent defines `passed` |
+| An installer and an updater that keep your customization | Any agent memory — each run starts cold, with the issue and pull request as its context |
+| | Isolation between the agent and its token ([Security](#security)) |
 
-| | Octestra | A server-based orchestrator |
+## Compared to Symphony
+
+[openai/symphony](https://github.com/openai/symphony) attacks the same problem from the opposite
+direction: a service that polls your issue tracker and dispatches agents itself. Neither choice is
+free.
+
+| | Octestra | Symphony |
 |---|---|---|
-| Task state lives in | A field on the issue | A database you operate |
-| Scheduling | GitHub issue events | A coordinator process you keep alive |
-| Compute | Actions runners you already have | Workers you provision |
-| Dashboard | Your GitHub Project board | Its own UI, beside your repo |
-| Audit trail | The issue, the pull request, Actions logs | Its own store, to be exported |
-| Access control | GitHub permissions | A second permission model to keep in sync |
-| To remove it | Delete the workflow files | Decommission a service |
+| Shape | GitHub Actions workflows | A service you run |
+| What starts work | You move the issue field | It polls the tracker and dispatches |
+| Issue tracker | GitHub issues | An adapter per tracker |
+| The agent | Any step you write | A coding agent speaking Codex app-server |
+| Workspace | A fresh runner per run | A per-issue directory on the host, reused |
+| Agent context | Re-derived each run from the repo, the issue and the pull request | Accumulated in one live Codex thread, reused across turns |
+| Concurrency, retries, backoff | GitHub concurrency groups | Its own scheduler |
+| Run length | Actions minutes and job limits | Bounded by your host |
+| Credentials live | GitHub Secrets | On the host running it |
+| Audit trail | Issue, pull request, Actions logs | Its own logs, plus the tracker |
+| Getting started | One installer command | Run the Elixir reference, or build from the spec |
 
-What you give up by having no server:
+**Choose Symphony** if agents should pick up work unattended, keep iterating inside one accumulated
+context instead of starting cold, or run longer than Actions allows — or if your tracker is not
+GitHub.
 
-- **No unattended start.** Something has to move the field — a person, or a scheduled workflow you
-  add. Octestra ships no scheduler of its own.
-- **One repository at a time.** There is no cross-repository view, because there is nothing central
-  to hold one.
-- **Actions minutes.** Long agent runs are billed as Actions time, on runners you choose per job.
-- **GitHub only.** The design is inseparable from Issue Fields and `workflow_call`.
+**Choose Octestra** if you would rather not operate a service, your work already lives in GitHub
+issues, and you want each run isolated on a fresh runner with its context in the issue and the pull
+request rather than in a process.
+
+Both are early, both assume a trusted environment, and neither puts a sandbox around the agent.
 
 ## When to use it
 
-Good fits:
+Good fit:
 
-- A migration or a sweep split into many similar units of work — one EPIC issue, one sub-issue each.
+- A migration or sweep split into many similar tasks — one EPIC issue, one sub-issue each.
 - A backlog of small, well-specified tasks you would rather not shepherd one at a time.
-- A team already living in GitHub issues and Projects that does not want a second place to look.
+- A team already living in GitHub issues and Projects.
 
 Look elsewhere if:
 
-- You want a single agent run — use [`anthropics/claude-code-action`](https://github.com/anthropics/claude-code-action) directly.
-- Your repository is not in a GitHub organization. Octestra is driven by an organization Issue Field,
-  a custom field GitHub lets an organization add to its issues.
-- Your repository is public, or not everyone who can edit an issue is trusted. See [Security](#security).
+- You want a single agent run — use [`claude-code-action`](https://github.com/anthropics/claude-code-action) directly.
+- You want agents to pick up work with nobody in the loop — see [Symphony](#compared-to-symphony).
+- Your repository is not in a GitHub organization.
+- Your repository is public, or not everyone who can edit an issue is trusted.
 
 ## How it works
 
-Everything is driven by one field on the issue — `AI Task Status`, an Issue Field your organization
-owns. Its seven options are the task states, and changing the field is what starts a workflow run:
+One organization Issue Field, `AI Task Status`, holds the state. Changing it starts a workflow run.
 
 ```
 Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human Review ──▶ Done
@@ -98,137 +112,109 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
             └──────────── Blocked ◀──── any failure above
 ```
 
-| Status | Who sets it | What Octestra does |
+| Status | Set by | Octestra then |
 |---|---|---|
-| `Todo` | you | Nothing. The task is not ready to start. |
-| `Ready` | you | Nothing. Waiting for you to release it. |
-| `In Progress` | you | Runs your implementation agent, confirms the branch and pull request, then moves to `Validation` or `Human Review`. |
-| `Validation` | Octestra | Runs your validation agent, posts its result on the issue, then moves to `Human Review` or `Blocked`. |
-| `Human Review` | Octestra | Marks the pull request ready, requests review from the task owner, and moves to `Done` when that pull request merges. |
-| `Blocked` | Octestra | Nothing. Comments why, and waits for you to move it back to `Ready`. |
-| `Done` | Octestra | Nothing. The task is finished. |
+| `Todo` | you | — |
+| `Ready` | you | — |
+| `In Progress` | you | Runs your agent, checks the branch and pull request, moves on |
+| `Validation` | Octestra | Runs your validation agent, posts the result, moves on |
+| `Human Review` | Octestra | Requests review, then `Done` when the pull request merges |
+| `Blocked` | Octestra | Comments why. Move it back to `Ready` to retry |
+| `Done` | Octestra | — |
 
-Work is organised as an **EPIC issue** with one **task issue** per unit of work. The EPIC's body
-carries the configuration and instructions its tasks share; each task issue carries its own. The
-installer adds a skill for Claude Code, Codex or another agent that writes both from a plan, so you
-do not open fifty issues by hand.
+Work is an **EPIC issue** plus one **task issue** per unit of work. The EPIC body holds the config and
+instructions its tasks share. An installed agent skill writes both from a plan.
 
 ## Requirements
 
-- A repository in a **GitHub organization** — Octestra routes on organization Issue Fields.
+- A repository in a **GitHub organization** — Issue Fields are organization-level.
 - [GitHub CLI](https://cli.github.com/), authenticated.
-- Organization administrator access, once, to create the `AI Task Status` field. An existing
-  compatible field can be reused instead.
-- A **GitHub App** with repository **Contents**, **Issues** and **Pull requests** write access.
-- A GitHub Project, if you want a board over the EPIC and its tasks.
+- Organization admin, once, to create the `AI Task Status` field.
+- A **GitHub App** with Contents, Issues and Pull requests write access.
 
 ## Security
 
-Read this before installing. Octestra is built for a **private repository whose members you trust**,
-and it is not safe outside that.
+Octestra is built for a **private repository whose members you trust**, and is not safe outside that.
 
-An agent runs with instructions taken from the task issue body, from its parent EPIC issue body, and
-from the repository contents. In that same job, Octestra gives it a GitHub App token with Contents,
-Issues and Pull requests write access, and the checkout leaves that token on disk. So, today:
+The agent's instructions come from the issue bodies and the repository. In the same job, it holds a
+GitHub App token with Contents, Issues and Pull requests write access. So:
 
-- **Anyone who can change the `AI Task Status` field can start an agent run.** Treat that ability as
-  equivalent to write access to the repository.
-- Anyone who can edit an issue body decides what that agent is told to do.
-- The steps that move the task run in the same job as the agent, so an agent that goes wrong can also
-  change the task's status and comment as Octestra.
-- A validation agent judges the pull request it was given and writes its own result file. A `passed`
-  outcome is that agent's claim, not an independent check of it.
+- **Whoever can change `AI Task Status` can run an agent.** Treat it as write access.
+- Whoever can edit an issue body decides what the agent is told to do.
+- The lifecycle steps share the agent's job, so a compromised agent can move the task and comment as
+  Octestra.
+- `passed` is the validation agent's claim about its own work, not an independent check.
 
-Separating agent execution from the privileged token is not implemented. What is in place:
-`secrets: inherit` is used nowhere, so an agent job receives only the secrets its own workflow
-declares and the caller passes; each App token is restricted to the single repository it runs in; and
-the App private key stays in GitHub Actions Secrets, where no Octestra code reads it.
-
-Before installing, decide who may change the status field — that is who may run an agent — and what
-the agent's credentials reach beyond this repository. A cloud role assumed through OIDC, or a model
-API key, is as exposed as the agent is.
+Separating the agent from the privileged token is **not implemented**. What is: no `secrets: inherit`
+anywhere, each App token restricted to its own repository, and the private key never read by
+Octestra code.
 
 ## Install
 
-Run from the root of the repository that will run the tasks:
+From the root of the repository that will run the tasks:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/install.sh | bash
 ```
 
-It finds or creates the `AI Task Status` field, writes the workflows, prompts, the
-`.github/octestra/octestra.sh` maintenance tool and the EPIC setup skill, and syncs four repository
-variables. Rerunning it is safe: `config.yml` is kept, and so is everything you wrote between the
-you customized in the places [The contract](#the-contract) marks out.
-
-Then install your GitHub App with Contents, Issues and Pull requests write access, and store its
-private key as the `OCTESTRA_GITHUB_APP_PRIVATE_KEY` Actions secret. Each workflow mints a token
-scoped to its own repository, so the App needs no configuration beyond that.
+Then install your GitHub App and store its private key as the `OCTESTRA_GITHUB_APP_PRIVATE_KEY`
+Actions secret. Rerunning the installer keeps `config.yml` and everything you customized.
 
 | Flag | Effect |
 |---|---|
-| `--org NAME` | Organization owning the Issue Field. Inferred from the repository by default. |
-| `--status-field NAME` | Field name to use or create. Defaults to `AI Task Status`. |
+| `--org NAME` | Organization owning the field. Inferred by default. |
+| `--status-field NAME` | Field to use or create. Default `AI Task Status`. |
 | `--fork` / `--repository OWNER/REPO` | Call your organization's fork instead of `ainame/octestra`. |
-| `--ref REF` | Pin the workflows to a tag or branch. Defaults to the newest version tag. |
-| `--enable-oidc` | Enable `id-token: write`, for a cloud role assumed through OIDC. |
-| `--skill-target claude\|codex\|agents` | Which directory the EPIC setup skill is installed into. |
-| `--yes` | Accept the defaults without prompting. |
-
-The generated workflows call Octestra as an action, so their `uses:` reference decides whose code
-runs in your repository. Pointing them at your own fork means you run only code your organization
-controls, in exchange for merging upstream yourself; `octestra.sh ref` changes that choice later. A
-private fork also has to allow the repositories that call it, under its Actions access policy.
+| `--ref REF` | Pin to a tag or branch. Default: newest version tag. |
+| `--enable-oidc` | Enable `id-token: write` for a cloud role. |
+| `--skill-target claude\|codex\|agents` | Where the EPIC setup skill goes. |
+| `--yes` | Take the defaults. |
 
 ## The contract
 
-Octestra owns the steps that move a task; you own the agent. This is the whole interface between the
-two — read it once before writing your agent steps.
+Octestra owns the steps that move a task; you own the agent. This is the whole interface.
 
-### What you provide
+### You provide
 
 | Where | What |
 |---|---|
-| `agent-steps` in `octestra-lifecycle-in-progress.yml` | The steps that set up and run your implementation agent. |
-| `agent-steps` in `octestra-lifecycle-validation.yml` | The same for your validation agent, plus any artifact upload. |
-| `agent-credentials` in both files | An `on.workflow_call.secrets` entry for every secret those steps need. |
-| `in-progress-secrets`, `validation-secrets` in `octestra-lifecycle.yml` | Passing each of those secrets in from the caller. |
-| `.github/octestra/prompts/*.md.hbs` | What each agent is told to do. |
-| `.github/octestra/config.yml` | The two runners, the App client ID, the branch template, the prompt paths. |
+| `agent-steps` in the in-progress workflow | Setup and invocation of your implementation agent |
+| `agent-steps` in the validation workflow | The same, plus any artifact upload |
+| `agent-credentials` in both | A `secrets:` entry for each secret those steps need |
+| `in-progress-secrets`, `validation-secrets` in `octestra-lifecycle.yml` | Passing those secrets in |
+| `.github/octestra/prompts/*.md.hbs` | What each agent is told to do |
+| `.github/octestra/config.yml` | Runners, App client ID, branch template, prompt paths |
 
-Each of those names marks a **custom region**: the lines enclosed by a matching pair of
-`# octestra:custom:begin <name>` and `# octestra:custom:end <name>` markers. An update keeps what is
-inside them and replaces everything else, so anything you write outside one is lost. If a region
-cannot be carried over, the installer saves the previous file as `<workflow>.yml.octestra-bak` and
-says so.
+Each name marks a **custom region** — the lines enclosed by `# octestra:custom:begin <name>` and
+`# octestra:custom:end <name>`. Updates keep what is inside and replace everything else.
 
-### What Octestra gives you
+### Octestra provides
 
-In `octestra-lifecycle-in-progress.yml`, before your steps run:
+In the in-progress workflow, before your steps:
 
 | Name | Holds |
 |---|---|
-| `steps.epic.outputs.prompt` | Your task prompt, rendered. |
-| `steps.epic.outputs.branch_name` | The branch your agent must push. Nothing else is looked for later. |
-| `steps.epic.outputs.task_ready` | `false` when an existing branch or open pull request stopped this task. Guard your steps on it. |
-| `steps.epic.outputs.draft_flag` | `--draft` when the pull request should be a draft, empty when not. |
-| `steps.epic.outputs.skip_validation` | Whether this task goes straight to `Human Review`. |
-| `steps.epic.outputs.task_owner` | The human assigned to the issue. |
-| `steps.epic.outputs.epic_id`, `parent_number`, `skill_name`, `target_file` | The EPIC's id, its issue number, the skill it names, and the task's target. |
-| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | The agent's GitHub token. |
+| `steps.epic.outputs.prompt` | Your task prompt, rendered |
+| `steps.epic.outputs.branch_name` | The branch your agent must push. Nothing else is looked for |
+| `steps.epic.outputs.task_ready` | `false` when existing work stopped this task. Guard your steps on it |
+| `steps.epic.outputs.draft_flag` | `--draft`, or empty |
+| `steps.epic.outputs.skip_validation` | Whether the task skips `Validation` |
+| `steps.epic.outputs.task_owner` | The issue's assignee |
+| `steps.epic.outputs.epic_id`, `parent_number`, `skill_name`, `target_file` | EPIC id and issue number, its skill, the task's target |
+| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | The agent's GitHub token |
 
-In `octestra-lifecycle-validation.yml`, before your steps run:
+In the validation workflow, before your steps:
 
 | Name | Holds |
 |---|---|
-| `steps.epic.outputs.prompt` | Your validation prompt, rendered. |
-| `steps.epic.outputs.pull_number` | The open pull request to validate. It is already checked out. |
-| `steps.epic.outputs.result_path` | The file your agent must write its result to. |
-| `steps.epic.outputs.artifact_path` | The directory for screenshots, logs and other evidence. |
-| `steps.epic.outputs.branch_name`, `parent_number`, `target_file` | The task branch, the EPIC's issue number, and the task's target. |
-| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | The agent's GitHub token. |
+| `steps.epic.outputs.prompt` | Your validation prompt, rendered |
+| `steps.epic.outputs.pull_number` | The pull request to validate, already checked out |
+| `steps.epic.outputs.result_path` | Where your agent writes its result |
+| `steps.epic.outputs.artifact_path` | Where to put screenshots, logs and other evidence |
+| `steps.epic.outputs.branch_name`, `parent_number`, `target_file` | Branch, EPIC issue number, target |
+| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | The agent's GitHub token |
 
-Using Claude Code Action, pass the branch through unchanged:
+With Claude Code Action, pass the branch through unchanged:
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
@@ -239,30 +225,30 @@ Using Claude Code Action, pass the branch through unchanged:
     prompt: ${{ steps.epic.outputs.prompt }}
 ```
 
-### What you must not break
+### Don't break these
 
-| Rule | What happens if you do |
+| Rule | Or else |
 |---|---|
-| Your agent pushes exactly `branch_name` | Octestra finds no branch, comments that the agent created none, and moves the task to `Blocked`. |
-| Your agent opens a pull request from that branch | The finalize step fails with `PR not found for branch …`, and the task moves to `Blocked`. |
-| Your validation agent writes `outcome` and `summary` as JSON to `result_path` | The finalize step fails on the unreadable file, and the task moves to `Blocked`. |
-| `outcome` is exactly `passed` for a success | Any other value moves the task to `Blocked` — right for a real failure, a silent surprise for a typo. |
-| Your validation agent creates no branch and no commit | It is validating a checked-out pull request head; a push from here is part of no lifecycle and nothing cleans it up. |
-| The `Prepare …` and `Finalize …` steps stay outside the markers, first and last | Your steps read `steps.epic.outputs`, so nothing works before the prepare step; the finalize step reports what your steps did, so it must be last. |
-| Nothing inside a custom region names another step by its id | A later version can move that step, and GitHub turns the dangling reference into an empty string instead of an error. |
-| No `secrets: inherit`, anywhere | It hands every organization secret to a job that runs an agent. |
-| `octestra-lifecycle.yml`'s workflow-level `permissions:` stays a superset of every workflow it calls | The whole run fails with `startup_failure` before any job starts — no logs, no annotation, nothing to read. |
+| Push exactly `branch_name` | No branch is found; the task is commented on and moved to `Blocked` |
+| Open a pull request from it | `PR not found for branch …`, task moved to `Blocked` |
+| Write `outcome` and `summary` as JSON to `result_path` | The file cannot be read; task moved to `Blocked` |
+| `outcome` is exactly `passed` on success | Anything else moves the task to `Blocked` |
+| The validation agent makes no branch or commit | It is on a checked-out pull request head; nothing cleans up a push |
+| `Prepare …` stays first, `Finalize …` stays last, both outside the markers | Your steps read `steps.epic.outputs`; the finalize step reports what they did |
+| No step id is referenced from inside a custom region | A later version may move it, and GitHub makes the dangling reference an empty string |
+| No `secrets: inherit` | It hands every organization secret to a job running an agent |
+| `octestra-lifecycle.yml` permissions stay a superset of every workflow it calls | `startup_failure` before any job starts — no logs, nothing to read |
 
 ## Configuring a task
 
-An EPIC issue body carries fenced blocks its tasks inherit; a task issue body carries its own.
+The EPIC issue body holds blocks its tasks inherit:
 
 ````markdown
 ```epic-config
-id: ios-swift6            # required, lowercase slug — namespaces the task branches
-skill: swift-concurrency  # optional, an agent skill to select
+id: ios-swift6            # required, lowercase slug — namespaces task branches
+skill: swift-concurrency  # optional, an agent skill your prompt can use
 draft_pr: false           # open the pull request as a draft
-skip_validation: false    # go straight to Human Review, without a validation run
+skip_validation: false    # skip Validation, go straight to Human Review
 ```
 
 ```epic-prompt
@@ -274,23 +260,21 @@ Instructions the validation agent receives.
 ```
 ````
 
-A task issue takes `task-config` with an optional `target`, and `task-prompt` with instructions for
-that task alone. Both prompts are appended to the EPIC's.
+A task issue adds `task-config` (an optional `target`) and `task-prompt`. Both prompts are appended to
+the EPIC's.
 
-> Set `skip_validation: true` until your validation workflow has a real agent in it. The shipped
-> placeholder fails on purpose, which sends the task to `Blocked`.
+> Set `skip_validation: true` until your validation workflow has a real agent — the shipped
+> placeholder fails on purpose.
 
-`.github/octestra/config.yml` holds the rest: the two runner labels, the App client ID, the branch
-template (`octestra/{epic_id}/issue-{issue_number}` by default), and the prompt paths. Four of its
-values are also copied into repository variables, because a workflow needs them before it can read a
-file: `OCTESTRA_GITHUB_APP_CLIENT_ID`, `OCTESTRA_ORCHESTRATION_RUNNER`, `OCTESTRA_AGENT_RUNNER` and
-`OCTESTRA_STATUS_FIELD_ID`. Edit the file, then run `octestra.sh vars sync`.
+`config.yml` holds the runners, App client ID, branch template
+(`octestra/{epic_id}/issue-{issue_number}`) and prompt paths. Four values are also copied into
+repository variables, because a workflow needs them before it can read a file. Edit the file, then
+run `octestra.sh vars sync`.
 
 ## The validation result file
 
-Your validation agent writes JSON to `result_path` — Octestra calls this file the **proof**. Only
-`outcome` and `summary` are required. Octestra renders it as an issue comment for the reviewer, and
-reads `outcome` to decide where the task goes.
+Your validation agent writes JSON to `result_path`. Only `outcome` and `summary` are required.
+Octestra renders it as an issue comment and reads `outcome` to route the task.
 
 ```json
 {
@@ -303,53 +287,48 @@ reads `outcome` to decide where the task goes.
 }
 ```
 
-`acceptance`, `checks`, `evidence`, `artifacts`, `knownGaps` and `details` are optional and rendered
-when present. Unknown fields are ignored, so you can extend the document freely. Octestra does not
-check the contents against your acceptance criteria — those stay yours.
+`acceptance`, `checks`, `evidence`, `artifacts`, `knownGaps` and `details` are optional. Unknown
+fields are ignored, so extend it freely.
 
 ## Maintaining an installation
 
-`.github/octestra/octestra.sh` is installed beside `config.yml` and needs only an authenticated
-GitHub CLI.
-
 ```sh
-.github/octestra/octestra.sh doctor          # report every problem, exit non-zero if any
-.github/octestra/octestra.sh vars check      # exit non-zero if a variable no longer matches config.yml
-.github/octestra/octestra.sh vars sync       # write the config.yml values into the variables
+.github/octestra/octestra.sh doctor          # report every problem, non-zero if any
+.github/octestra/octestra.sh vars check      # non-zero if a variable no longer matches config.yml
+.github/octestra/octestra.sh vars sync       # write config.yml values into the variables
 .github/octestra/octestra.sh ref             # show which Octestra the workflows call
 .github/octestra/octestra.sh update --latest # reinstall from the newest version tag
 ```
 
-`doctor` only reads. It catches the failures that are otherwise silent: a variable that no longer
-matches `config.yml` or was never set, a renamed field, a missing status option, an enabled job whose
-workflow file is absent, a prompt path that points nowhere, and a marker left without its pair.
+`doctor` only reads, and catches what otherwise fails silently: a stale or unset variable, a renamed
+field, a missing status option, an enabled job with no workflow file, a prompt path pointing nowhere,
+a marker without its pair.
 
-`update` downloads the target version and runs **its** installer against your repository, so an
-update always runs the new logic. It reuses the answers your installation already records, and
-re-syncs the variables at the end. Review the result with `git diff` before committing.
+`update` downloads the target version and runs **its** installer, so an update always runs the new
+logic. Review with `git diff` before committing.
 
 ## Operations
 
-Each step above runs one Octestra operation, named by its `operation:` input. An **aggregate** does
-several things behind one name, and the generated workflows use those. An **individual** operation is
-one of those things on its own, for a repository that needs a different order.
+Each step runs one operation, named by its `operation:` input. An **aggregate** does several things
+behind one name; the generated workflows use those. An **individual** operation is one piece, for a
+repository that needs a different order.
 
 | Type | Operation | Behavior |
 |---|---|---|
-| Guard | `lifecycle/validate-transition` | Validates a status change against the live issue state. An invalid change by a person is assigned to them and explained, without moving the task. |
-| Aggregate | `lifecycle/prepare-task` | Assigns the task owner, stops if a branch or pull request already exists, renders the task prompt, and sets up the Git co-author trailer. |
-| Aggregate | `lifecycle/finalize-task` | Resolves the branch and pull request, requests review when a human is next, updates the status, and comments with the result. |
-| Aggregate | `lifecycle/prepare-validation` | Resolves the pull request, renders the validation prompt, and publishes the result and artifact paths. |
-| Aggregate | `lifecycle/finalize-validation` | Posts the proof, and on `passed` requests review and moves to `Human Review`; anything else moves to `Blocked`. |
+| Guard | `lifecycle/validate-transition` | Checks a status change against the live issue. An invalid change by a person is assigned to them and explained. |
+| Aggregate | `lifecycle/prepare-task` | Assigns the owner, stops if a branch or pull request exists, renders the prompt, sets the co-author trailer. |
+| Aggregate | `lifecycle/finalize-task` | Resolves branch and pull request, requests review if a human is next, updates status, comments. |
+| Aggregate | `lifecycle/prepare-validation` | Resolves the pull request, renders the prompt, publishes the result and artifact paths. |
+| Aggregate | `lifecycle/finalize-validation` | Posts the result; `passed` requests review and moves to `Human Review`, anything else to `Blocked`. |
 | Aggregate | `lifecycle/finalize-merged-task` | Moves a `Human Review` task to `Done` when its pull request merges. |
-| Aggregate | `lifecycle/report-failure` | Comments with a link to the failed run and moves the task to `Blocked`. |
-| Individual | `assign-owner` | Assigns whoever triggered the change, keeping the existing owner for bot transitions. |
-| Individual | `lifecycle/build-task-context` | The context half of `prepare-task`, without the owner assignment. |
+| Aggregate | `lifecycle/report-failure` | Comments with a run link and moves the task to `Blocked`. |
+| Individual | `assign-owner` | Assigns whoever made the change, keeping the owner for bot transitions. |
+| Individual | `lifecycle/build-task-context` | `prepare-task` without the owner assignment. |
 | Individual | `lifecycle/build-validation-context` | The context half of `prepare-validation`. |
 | Individual | `resolve-task-pr` | Publishes the open pull request number for a branch. |
-| Individual | `report-proof` | Renders a proof file as an issue comment, without touching the status. |
-| Individual | `request-review` | Marks the pull request ready and requests review from the task owner. |
-| Individual | `update-status` | Sets the Issue Field to a status. |
+| Individual | `report-proof` | Renders a result file as an issue comment, without touching status. |
+| Individual | `request-review` | Marks the pull request ready and requests review. |
+| Individual | `update-status` | Sets the field to a status. |
 
 ## Development
 
@@ -358,13 +337,12 @@ npm ci
 make all
 ```
 
-`make all` must be green before any commit, and it regenerates `dist/index.js`, which is committed
+`make all` must be green before any commit. It regenerates `dist/index.js`, which is committed
 because it is the Actions runtime bundle.
 
-[`AGENTS.md`](AGENTS.md) is the contract for changing this repository: layout, platform invariants,
-code style and the review checklist. [`docs/design.md`](docs/design.md) records why the system is
-shaped the way it is, [`docs/glossary.md`](docs/glossary.md) fixes the vocabulary, and
-[`TODO.md`](TODO.md) tracks open work.
+[`AGENTS.md`](AGENTS.md) is the contract for changing this repository.
+[`docs/design.md`](docs/design.md) records why it is shaped this way,
+[`docs/glossary.md`](docs/glossary.md) fixes the vocabulary, [`TODO.md`](TODO.md) tracks open work.
 
 ## License
 

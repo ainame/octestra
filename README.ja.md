@@ -1,95 +1,105 @@
 # Octestra
 
-**サーバーレスな AI エージェントオーケストレーションフレームワーク。GitHub Actions と Projects の上に構築。**
+**GitHub Actions と Projects 上で完結する、サーバーレスな AI エージェントオーケストレーション。**
 
-何もデプロイせずに、多数のタスクへ多数のコーディングエージェントを流します。タスクの状態は GitHub issue の
-フィールド。スケジューリングは GitHub 自身のイベント。実行環境はすでに持っている Actions の runner。生かし
-続けるコーディネータも、キューも、データベースも、深夜に叩き起こされる対象もありません。
+issue を `In Progress` に動かすと、エージェントが実装し、プルリクエストを開き、検証が走り、人間にレビューが
+依頼されます。すべてタスクの状態が駆動し、サーバーもキューもデータベースも不要です。
 
-📖 [English README](README.md) · [設計メモ](docs/design.md) · [用語集](docs/glossary.md)
+📖 [English](README.md) · [設計メモ](docs/design.md) · [用語集](docs/glossary.md)
 
 ```
-あなた: issue #42 を `In Progress` へ
-                │
-                ▼
-   エージェントが実装 → プルリクエスト → 検証 → レビュー依頼 → マージ → Done
+issue #42 ──▶ In Progress ──▶ agent ──▶ pull request ──▶ validation ──▶ review ──▶ Done
 ```
 
-## Octestra を使う理由
+## なぜ Octestra か
 
-### 1. サーバーが無い。動かすものが無いから
+### 1. エージェントの実行ではなく、その後の受け渡しを自動化する
 
-エージェントをオーケストレーションする他の方法は、何かを生かし続ける必要があります。コーディネータの
-プロセス、ジョブキュー、どのタスクがどの状態かを保持するデータベース。いずれもデプロイし、監視し、守り、
-費用を払う対象であり、あなたと作業の間に立つインフラです。
+エージェントを走らせること自体は簡単です。時間を取られるのはその後です。成果をプルリクエストにし、検証を
+通し、適切な人の前に出し、そのどこかが失敗したときにどうするかを決める部分です。
 
-Octestra にはそれがありません。状態機械は organization の Issue Field なので、タスクの状態は GitHub が保存し、
-GitHub のイベントがそのままスケジューラになります。ダッシュボードは既に存在するあなたの Project ボードです。
-アンインストールはワークフローのファイルを消すこと。残り続けるサービスも、移行すべきデータも、二重に管理する
-権限モデルもありません。アクセス制御は、あなたが既に運用している GitHub の権限そのものです。
+Octestra はこの連鎖をタスクの状態グラフで駆動します。実装から検証へ、検証からレビューへ受け渡し、マージが
+タスクを閉じます。各遷移は issue の現在の状態と照合されるため、古い変更や不正な変更は何も起動しません
+（同じブランチに2体目のエージェントが乗ることがない）。失敗は誰も読まないログではなく、実行へのリンク付きで
+`Blocked` に残ります。
 
-### 2. エージェントは自由、こちらへのロックインも無い
+### 2. GitHub の上だけで動くので、デプロイするサーバーがない
 
-Octestra はモデルを一切呼びません。面倒で間違えやすい側 — タスクの持ち主は誰か、作業はどのブランチにあるか、
-プルリクエストを見つける、適切な人にレビューを依頼する、実行が失敗したときの回復 — を Octestra が担い、
-エージェントへ渡すのはレンダリング済みのプロンプトと push すべきブランチだけです。
+状態は issue のフィールド。スケジューリングは GitHub 自身のイベント。実行環境はすでに持っている Actions の
+runner。デプロイするものも、生かし続けるものも、二重に管理する権限モデルもありません。アンインストールは
+ワークフローのファイルを消すことです。
 
-この境界こそが製品です。Claude Code から Codex へ、あるいはシェルスクリプトへ乗り換えるのは、1ファイルの
-1ブロックを編集するだけ。エージェントの選択が移行作業になることはありません。
+これは Actions で自作もできます。魔法は何もありません。Octestra が渡すのは、揃った状態の部品一式です。遷移の
+ガード、7状態のグラフ、担当者の割り当て、ブランチ名の解決、プルリクエストの探索、レビューの振り分け、失敗
+からの回復。ここが数か月かかる部分で、しかもどれも間違えたときに静かに壊れます。
 
-### 3. 既定でレビュー可能。だから成果物を本当に出荷できる
+### 3. プロンプト・設定・結果が、レビューできる1箇所に集まる
 
-誰もレビューできないエージェントの出力は負債です。Octestra では、すべてのタスクがブランチ、プルリクエスト、
-指名されたレビュアー、そして何が起きたかを記した issue のコメントを生みます。人間が `Done` へ動かさない限り
-マージされません。失敗は消え去るのではなく、実行へのリンク付きで `Blocked` に残ります。
+エージェントの振る舞いは `.hbs` のプロンプトテンプレートと1つの `config.yml` にあります。3つのワークフロー
+YAML に埋もれるのではなく、バージョン管理され、差分が読め、他のコードと同じようにプルリクエストでレビュー
+できます。
 
-### 4. カスタマイズしても、更新を受け取り続けられる
+検証エージェントが出力した JSON は、レビュアーが実際に読むコメントとして整形されます。「これは通ったのか、
+何を根拠にそう言えるのか」に、Actions のログを開かずに issue 上で答えられます。Octestra が使う操作はどれも
+単体で呼べるので、別の形のワークフローを組むこともできます。
 
-生成された CI は、手を入れた瞬間から腐るのが普通です。次の更新が追加した配線を上書きするので、結果として誰も
-更新しなくなります。Octestra はあなたが所有する部分に印を付け、`octestra.sh update` がその中身を新しい
-バージョンへ運び、周囲だけを置き換えます。新しい Octestra の取り込みは、この先ずっとコマンド1つです。
+## 提供するもの、しないもの
 
-## サーバーレスであることの実際
+| 提供する | 提供しない |
+|---|---|
+| GitHub issue のフィールド上で動く7状態のタスクライフサイクル | エージェント本体 — Octestra はモデルを呼びません |
+| 担当者の割り当て、ブランチ名、プルリクエストの探索、レビュー依頼 | スケジューラ — フィールドを動かすものが別に必要です |
+| あなたのテンプレートから描画されるプロンプト | サーバー、ダッシュボード、キュー、データベース |
+| 結果を issue に投稿する検証ステップ | リポジトリを横断するビュー |
+| 失敗時の処理: 実行へのリンク付きコメントと `Blocked` への移動 | 受け入れ基準 — `passed` の意味は検証エージェントが決めます |
+| カスタマイズを保つインストーラと更新コマンド | エージェントの記憶 — 毎回コールドスタートし、文脈は issue とプルリクエストです |
+| | エージェントとトークンの分離（[セキュリティ](#セキュリティ)） |
 
-| | Octestra | サーバー型のオーケストレータ |
+## Symphony との比較
+
+[openai/symphony](https://github.com/openai/symphony) は同じ問題に逆側から取り組んでいます。常駐サービスが
+issue トラッカーを polling し、自らエージェントをディスパッチします。どちらの選択にも代償があります。
+
+| | Octestra | Symphony |
 |---|---|---|
-| タスクの状態の置き場所 | issue のフィールド | 自分で運用するデータベース |
-| スケジューリング | GitHub の issue イベント | 生かし続けるコーディネータのプロセス |
-| 実行環境 | 既にある Actions の runner | 自分で用意するワーカー |
-| ダッシュボード | あなたの GitHub Project ボード | リポジトリの隣にある専用 UI |
-| 監査ログ | issue、プルリクエスト、Actions のログ | 専用のストア（必要なら書き出す） |
-| アクセス制御 | GitHub の権限 | 同期し続けるべき2つ目の権限モデル |
-| やめるとき | ワークフローのファイルを消す | サービスを廃止する |
+| 形態 | GitHub Actions のワークフロー | 自分で動かすサービス |
+| 作業を開始するもの | あなたが issue のフィールドを動かす | サービスがトラッカーを polling してディスパッチ |
+| issue トラッカー | GitHub issues | トラッカーごとのアダプタ |
+| エージェント | あなたが書く任意のステップ | Codex app-server を話すコーディングエージェント |
+| ワークスペース | 実行ごとに新しい runner | ホスト上の issue ごとのディレクトリを再利用 |
+| エージェントの文脈 | 実行ごとにリポジトリ・issue・プルリクエストから再構築 | 1つの生きた Codex スレッドに蓄積し、ターンをまたいで再利用 |
+| 並行数・リトライ・バックオフ | GitHub の concurrency group | 独自のスケジューラ |
+| 実行時間 | Actions の分数とジョブの上限 | ホストの制約のみ |
+| 資格情報の置き場所 | GitHub Secrets | 動かしているホスト |
+| 監査ログ | issue、プルリクエスト、Actions のログ | 独自のログとトラッカー |
+| 導入 | インストーラのコマンド1つ | Elixir のリファレンスを動かす、または SPEC から実装する |
 
-サーバーを持たないことで諦めるもの:
+**Symphony を選ぶ**のは、人が介在せずにエージェントが作業を拾ってほしいとき、コールドスタートせずに蓄積された
+文脈の中で反復してほしいとき、Actions の上限より長く走らせたいとき、あるいはトラッカーが GitHub でないとき。
 
-- **無人での起動はできません。** 誰か、あるいはあなたが追加するスケジュール実行のワークフローが、フィールドを
-  変える必要があります。Octestra 自体はスケジューラを同梱しません。
-- **一度に1リポジトリです。** 中央に保持するものが無いので、リポジトリ横断のビューもありません。
-- **Actions の実行時間を消費します。** 長時間のエージェント実行は Actions の時間として課金されます。runner は
-  ジョブごとに選べます。
-- **GitHub 専用です。** 設計が Issue Field と `workflow_call` と不可分です。
+**Octestra を選ぶ**のは、サービスを運用したくないとき、作業がすでに GitHub の issue にあり、各実行を新しい
+runner で独立させ、文脈をプロセスではなく issue とプルリクエストに置きたいとき。
+
+どちらも早期段階で、どちらも信頼できる環境を前提とし、どちらもエージェントをサンドボックスで囲っていません。
 
 ## こういうときに向いている
 
-向いているケース:
+向いている:
 
-- 大きな移行や一斉修正を、似た単位の作業に分割したいとき — EPIC issue 1つと、作業単位ごとの sub-issue。
-- 仕様が固まった小さめのタスクが溜まっており、1件ずつ付き添いたくないとき。
-- すでに GitHub の issue と Projects で仕事をしていて、見る場所を増やしたくないチーム。
+- 大きな移行や一斉修正を、似たタスクに分割したいとき — EPIC issue 1つと、作業単位ごとの sub-issue。
+- 仕様が固まった小さめのタスクが溜まっていて、1件ずつ付き添いたくないとき。
+- すでに GitHub の issue と Projects で仕事をしているチーム。
 
-別の手段を検討したほうがよいケース:
+別の手段を検討したほうがよい:
 
-- エージェントを1回だけ動かしたい場合。[`anthropics/claude-code-action`](https://github.com/anthropics/claude-code-action)
-  を直接使うほうが早いです。
-- リポジトリが GitHub organization に属していない場合。Octestra は organization の Issue Field
-  （organization が issue に追加できるカスタムフィールド）で駆動します。
-- リポジトリが public、または issue を編集できる全員を信頼できるわけではない場合。[セキュリティ](#セキュリティ)を参照。
+- エージェントを1回だけ動かしたいとき。[`claude-code-action`](https://github.com/anthropics/claude-code-action) を直接使ってください。
+- 人が介在せずにエージェントが作業を拾ってほしいとき。[Symphony](#symphony-との比較) を参照。
+- リポジトリが GitHub organization に属していないとき。
+- リポジトリが public、または issue を編集できる全員を信頼できるわけではないとき。
 
 ## 仕組み
 
-すべては issue 上の1つのフィールド — organization が持つ Issue Field `AI Task Status` — で駆動します。その
-7つの選択肢がタスクの状態であり、このフィールドの変更がワークフローの実行を開始させます。
+organization の Issue Field `AI Task Status` が状態を持ちます。これを変更するとワークフローの実行が始まります。
 
 ```
 Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human Review ──▶ Done
@@ -98,135 +108,109 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
             └──────────── Blocked ◀──── 上のいずれかが失敗したとき
 ```
 
-| 状態 | 設定するのは | Octestra がすること |
+| 状態 | 設定するのは | Octestra はそのあと |
 |---|---|---|
-| `Todo` | あなた | 何もしません。まだ着手できる状態ではないという意味です。 |
-| `Ready` | あなた | 何もしません。あなたが開始するのを待っています。 |
-| `In Progress` | あなた | 実装エージェントを実行し、ブランチとプルリクエストを確認して、`Validation` か `Human Review` へ移動します。 |
-| `Validation` | Octestra | 検証エージェントを実行し、その結果を issue に投稿して、`Human Review` か `Blocked` へ移動します。 |
-| `Human Review` | Octestra | プルリクエストを draft から外してレビューを依頼し、そのプルリクエストがマージされたら `Done` へ移動します。 |
-| `Blocked` | Octestra | 何もしません。理由をコメントし、あなたが `Ready` に戻すのを待ちます。 |
-| `Done` | Octestra | 何もしません。タスクは完了です。 |
+| `Todo` | あなた | — |
+| `Ready` | あなた | — |
+| `In Progress` | あなた | エージェントを実行し、ブランチとプルリクエストを確認して次へ |
+| `Validation` | Octestra | 検証エージェントを実行し、結果を投稿して次へ |
+| `Human Review` | Octestra | レビューを依頼し、プルリクエストがマージされたら `Done` へ |
+| `Blocked` | Octestra | 理由をコメント。`Ready` に戻せば再試行 |
+| `Done` | Octestra | — |
 
-作業は **EPIC issue** と、作業単位ごとの **task issue** で構成します。EPIC の本文には配下のタスクが共有する
-設定と指示を書き、task issue には個別のものを書きます。インストーラが Claude Code や Codex 向けのスキルも
-入れるので、計画からこの2種類を生成できます。50個の issue を手で作る必要はありません。
+作業は **EPIC issue** と、作業単位ごとの **task issue** で表します。EPIC の本文には配下のタスクが共有する設定と
+指示を書きます。同梱のエージェントスキルが、計画からこの両方を書き起こします。
 
 ## 必要なもの
 
-- **GitHub organization** に属するリポジトリ。Octestra は organization の Issue Field で駆動します。
+- **GitHub organization** に属するリポジトリ — Issue Field は organization 単位の機能です。
 - 認証済みの [GitHub CLI](https://cli.github.com/)。
-- `AI Task Status` フィールドを作成するための organization 管理者権限（初回のみ）。互換性のある既存の
-  フィールドがあれば、それを再利用できます。
-- リポジトリの **Contents**・**Issues**・**Pull requests** に書き込み権限を持つ **GitHub App**。
-- EPIC とタスクをボードで見たい場合は GitHub Project。
+- `AI Task Status` フィールドを作る organization 管理者権限（初回のみ）。
+- Contents・Issues・Pull requests に書き込み権限を持つ **GitHub App**。
 
 ## セキュリティ
 
-インストールする前に読んでください。Octestra は**メンバーを信頼できるプライベートリポジトリ**向けに作られて
-おり、その外では安全ではありません。
+Octestra は**メンバーを信頼できるプライベートリポジトリ**向けであり、その外では安全ではありません。
 
-エージェントは、task issue の本文、親 EPIC issue の本文、そしてリポジトリの内容を指示として受け取って動きま
-す。同じジョブの中で、Octestra は Contents・Issues・Pull requests への書き込み権限を持つ GitHub App トークン
-をエージェントに渡し、checkout はそのトークンをディスク上に残します。したがって現時点では:
+エージェントへの指示は issue の本文とリポジトリの内容から来ます。同じジョブの中で、エージェントは Contents・
+Issues・Pull requests への書き込み権限を持つ GitHub App トークンを保持します。したがって:
 
-- **`AI Task Status` フィールドを変更できる人は、エージェントを起動できます。** その権限は、リポジトリへの
-  書き込み権限と同等に扱ってください。
+- **`AI Task Status` を変更できる人は、エージェントを実行できます。** 書き込み権限と同等に扱ってください。
 - issue の本文を編集できる人が、エージェントへの指示内容を決められます。
-- タスクを進めるステップがエージェントと同じジョブで動くため、エージェントが暴走した場合、タスクの状態変更や
-  Octestra としてのコメント投稿も可能です。
-- 検証エージェントは、渡されたプルリクエストを自分で判定し、自分で結果ファイルを書きます。`passed` はその
-  エージェント自身の主張であって、独立した検査ではありません。
+- ライフサイクルのステップがエージェントと同じジョブにあるため、乗っ取られたエージェントはタスクの状態を
+  動かし、Octestra としてコメントすることもできます。
+- `passed` は検証エージェントが自分の作業について述べた主張であり、独立した検査ではありません。
 
-エージェントの実行と特権トークンの分離は未実装です。実装済みの対策は次のとおりです。`secrets: inherit` は
-どこでも使っていないため、エージェントのジョブはそのワークフローが宣言し呼び出し側が渡した secret だけを
-受け取ります。App トークンは実行中のリポジトリ1つに限定されます。App の秘密鍵は GitHub Actions Secrets に
-留まり、Octestra のコードがその値を読むことはありません。
-
-インストール前に2つ決めてください。誰にステータスフィールドの変更を許すか（それがエージェントを起動できる人
-です）。そして、エージェントの資格情報がこのリポジトリの外のどこまで届くか。OIDC で引き受けるクラウドの
-ロールやモデルの API キーは、エージェントと同じだけ露出します。
+エージェントと特権トークンの分離は**未実装**です。実装されているのは、`secrets: inherit` をどこでも使わない
+こと、App トークンをそれぞれ自分のリポジトリに限定すること、そして秘密鍵を Octestra のコードが一度も読まない
+ことです。
 
 ## インストール
 
-タスクを実行するリポジトリのルートで実行します。
+タスクを実行するリポジトリのルートで:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/install.sh | bash
 ```
 
-`AI Task Status` フィールドを検出または作成し、ワークフロー、プロンプト、メンテナンス用の
-`.github/octestra/octestra.sh`、EPIC セットアップスキルを書き込み、4つのリポジトリ変数を同期します。再実行
-しても安全です。`config.yml` は保持され、[インターフェース](#インターフェース)が示す場所であなたがカスタマ
-イズした内容も保持されます。
-
-続いて、Contents・Issues・Pull requests への書き込み権限を持つ GitHub App をインストールし、その秘密鍵を
-`OCTESTRA_GITHUB_APP_PRIVATE_KEY` という Actions secret に保存してください。各ワークフローは自分のリポジ
-トリに限定したトークンを都度発行するので、App 側の追加設定は不要です。
+続いて GitHub App をインストールし、その秘密鍵を `OCTESTRA_GITHUB_APP_PRIVATE_KEY` という Actions secret に
+保存します。インストーラを再実行しても `config.yml` とカスタマイズした内容は保たれます。
 
 | フラグ | 効果 |
 |---|---|
-| `--org NAME` | Issue Field を持つ organization。既定ではリポジトリから推測します。 |
-| `--status-field NAME` | 使用または作成するフィールド名。既定は `AI Task Status`。 |
+| `--org NAME` | フィールドを持つ organization。既定では推測します。 |
+| `--status-field NAME` | 使用または作成するフィールド。既定は `AI Task Status`。 |
 | `--fork` / `--repository OWNER/REPO` | `ainame/octestra` ではなく自分の organization の fork を呼びます。 |
-| `--ref REF` | ワークフローが呼ぶタグやブランチを固定します。既定は最新のバージョンタグ。 |
-| `--enable-oidc` | `id-token: write` を有効にします。OIDC でクラウドのロールを引き受ける場合に。 |
-| `--skill-target claude\|codex\|agents` | EPIC セットアップスキルの設置先ディレクトリ。 |
-| `--yes` | 確認なしで既定値を採用します。 |
-
-生成されるワークフローは Octestra を action として呼ぶため、その `uses:` の参照先が「あなたのリポジトリで誰の
-コードが動くか」を決めます。自分の fork を指せば、organization が管理するコードだけが動きます。その代わり
-upstream の取り込みは自分の仕事になります。この選択は後から `octestra.sh ref` で変更できます。fork が
-private の場合は、その Actions アクセスポリシーで呼び出し元リポジトリを許可する必要もあります。
+| `--ref REF` | タグやブランチに固定します。既定は最新のバージョンタグ。 |
+| `--enable-oidc` | クラウドのロール用に `id-token: write` を有効にします。 |
+| `--skill-target claude\|codex\|agents` | EPIC セットアップスキルの設置先。 |
+| `--yes` | 既定値をそのまま使います。 |
 
 ## インターフェース
 
-タスクを進めるステップは Octestra が持ち、エージェントはあなたが持ちます。両者の境界はこれだけです。
-エージェントのステップを書く前に、一度目を通してください。
+タスクを動かすステップは Octestra が持ち、エージェントはあなたが持ちます。境界はこれだけです。
 
-### あなたが用意するもの
+### あなたが用意する
 
 | 場所 | 内容 |
 |---|---|
-| `octestra-lifecycle-in-progress.yml` の `agent-steps` | 実装エージェントの準備と実行のステップ。 |
-| `octestra-lifecycle-validation.yml` の `agent-steps` | 検証エージェントについて同じもの。成果物のアップロードも。 |
-| 両ファイルの `agent-credentials` | それらのステップが必要とする secret ごとの `on.workflow_call.secrets` 宣言。 |
-| `octestra-lifecycle.yml` の `in-progress-secrets`・`validation-secrets` | 呼び出し側からその secret を渡す記述。 |
-| `.github/octestra/prompts/*.md.hbs` | 各エージェントへの指示。 |
-| `.github/octestra/config.yml` | 2つの runner、App のクライアント ID、ブランチのテンプレート、プロンプトのパス。 |
+| in-progress ワークフローの `agent-steps` | 実装エージェントの準備と呼び出し |
+| validation ワークフローの `agent-steps` | 同じもの。成果物のアップロードも |
+| 両方の `agent-credentials` | それらのステップが必要とする secret ごとの `secrets:` 宣言 |
+| `octestra-lifecycle.yml` の `in-progress-secrets`・`validation-secrets` | その secret を渡す記述 |
+| `.github/octestra/prompts/*.md.hbs` | 各エージェントへの指示 |
+| `.github/octestra/config.yml` | runner、App のクライアント ID、ブランチのテンプレート、プロンプトのパス |
 
-ここに挙げた名前はいずれも **custom region** を示します。custom region とは、対応する
-`# octestra:custom:begin <name>` と `# octestra:custom:end <name>` のマーカーに挟まれた行のことです。更新は
-その内側を保持し、それ以外をすべて置き換えます。つまり、外側に書いたものは失われます。region を引き継げない
-場合、インストーラは以前のファイルを `<workflow>.yml.octestra-bak` として保存し、そのことを報告します。
+これらの名前はいずれも **custom region** を示します。`# octestra:custom:begin <name>` と
+`# octestra:custom:end <name>` に挟まれた行のことです。更新はその内側を保ち、それ以外を置き換えます。
 
-### Octestra が渡すもの
+### Octestra が用意する
 
-`octestra-lifecycle-in-progress.yml` で、あなたのステップの前に:
+in-progress ワークフローで、あなたのステップの前に:
 
 | 名前 | 内容 |
 |---|---|
-| `steps.epic.outputs.prompt` | レンダリング済みのタスクプロンプト。 |
-| `steps.epic.outputs.branch_name` | エージェントが push すべきブランチ。以降これ以外は探されません。 |
-| `steps.epic.outputs.task_ready` | 既存のブランチや未クローズのプルリクエストで中断した場合に `false`。ステップの実行条件に使ってください。 |
-| `steps.epic.outputs.draft_flag` | プルリクエストを draft にすべきときは `--draft`、そうでなければ空。 |
-| `steps.epic.outputs.skip_validation` | このタスクが `Human Review` へ直行するかどうか。 |
-| `steps.epic.outputs.task_owner` | issue の担当者。 |
-| `steps.epic.outputs.epic_id`・`parent_number`・`skill_name`・`target_file` | EPIC の id、その issue 番号、指定されたスキル、タスクの対象。 |
-| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub トークン。 |
+| `steps.epic.outputs.prompt` | 描画済みのタスクプロンプト |
+| `steps.epic.outputs.branch_name` | エージェントが push すべきブランチ。これ以外は探されません |
+| `steps.epic.outputs.task_ready` | 既存の作業で中断したときに `false`。ステップの実行条件に使ってください |
+| `steps.epic.outputs.draft_flag` | `--draft`、または空 |
+| `steps.epic.outputs.skip_validation` | `Validation` を飛ばすかどうか |
+| `steps.epic.outputs.task_owner` | issue の担当者 |
+| `steps.epic.outputs.epic_id`・`parent_number`・`skill_name`・`target_file` | EPIC の id と issue 番号、指定されたスキル、タスクの対象 |
+| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub トークン |
 
-`octestra-lifecycle-validation.yml` で、あなたのステップの前に:
+validation ワークフローで、あなたのステップの前に:
 
 | 名前 | 内容 |
 |---|---|
-| `steps.epic.outputs.prompt` | レンダリング済みの検証プロンプト。 |
-| `steps.epic.outputs.pull_number` | 検証対象の未クローズのプルリクエスト。すでに checkout されています。 |
-| `steps.epic.outputs.result_path` | エージェントが結果を書き込むファイル。 |
-| `steps.epic.outputs.artifact_path` | スクリーンショットやログなどの証跡を置くディレクトリ。 |
-| `steps.epic.outputs.branch_name`・`parent_number`・`target_file` | タスクのブランチ、EPIC の issue 番号、タスクの対象。 |
-| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub トークン。 |
+| `steps.epic.outputs.prompt` | 描画済みの検証プロンプト |
+| `steps.epic.outputs.pull_number` | 検証対象のプルリクエスト。すでに checkout 済み |
+| `steps.epic.outputs.result_path` | エージェントが結果を書き込む先 |
+| `steps.epic.outputs.artifact_path` | スクリーンショットやログなどの証跡の置き場所 |
+| `steps.epic.outputs.branch_name`・`parent_number`・`target_file` | ブランチ、EPIC の issue 番号、対象 |
+| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub トークン |
 
-Claude Code Action を使う場合は、ブランチ名をそのまま通します。
+Claude Code Action の場合は、ブランチ名をそのまま通します。
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
@@ -237,30 +221,30 @@ Claude Code Action を使う場合は、ブランチ名をそのまま通しま�
     prompt: ${{ steps.epic.outputs.prompt }}
 ```
 
-### 壊してはいけないこと
+### これは壊さないでください
 
-| 守ること | 破ったときに起きること |
+| 守ること | 破ると |
 |---|---|
-| エージェントは `branch_name` そのものを push する | ブランチが見つからず、エージェントが作らなかったとコメントして `Blocked` へ移動します。 |
-| エージェントはそのブランチからプルリクエストを作る | 最終処理が `PR not found for branch …` で失敗し、タスクは `Blocked` へ移動します。 |
-| 検証エージェントは `outcome` と `summary` を JSON で `result_path` に書く | 最終処理がファイルを読めずに失敗し、タスクは `Blocked` へ移動します。 |
-| 成功時の `outcome` はちょうど `passed` | 他の値はすべて `Blocked` へ移動します。本当の失敗には正しく、タイプミスには静かな罠になります。 |
-| 検証エージェントはブランチもコミットも作らない | checkout 済みのプルリクエストの HEAD を検証しています。ここからの push はどのライフサイクルにも属さず、後始末もされません。 |
-| `Prepare …` と `Finalize …` のステップはマーカーの外に、最初と最後に置く | あなたのステップは `steps.epic.outputs` を読むので、prepare より前では何も動きません。finalize はあなたのステップの結果を報告するので、最後でなければなりません。 |
-| custom region の中から他のステップを id で参照しない | 将来のバージョンがそのステップを移動でき、GitHub は解決できない参照をエラーではなく空文字にします。 |
-| `secrets: inherit` はどこでも使わない | エージェントを実行するジョブに、organization のすべての secret を渡してしまいます。 |
-| `octestra-lifecycle.yml` のワークフローレベルの `permissions:` は、呼び出す全ワークフローの上位集合を保つ | ジョブが1つも作られないまま実行全体が `startup_failure` になります。ログも注釈もなく、読めるものが残りません。 |
+| `branch_name` そのものを push する | ブランチが見つからず、issue にコメントして `Blocked` へ |
+| そのブランチからプルリクエストを開く | `PR not found for branch …` で失敗し、`Blocked` へ |
+| `outcome` と `summary` を JSON で `result_path` に書く | ファイルが読めず、`Blocked` へ |
+| 成功時の `outcome` はちょうど `passed` | それ以外の値はすべて `Blocked` へ |
+| 検証エージェントはブランチもコミットも作らない | checkout 済みのプルリクエストの HEAD 上です。push しても後始末されません |
+| `Prepare …` を最初、`Finalize …` を最後に、どちらもマーカーの外に置く | あなたのステップは `steps.epic.outputs` を読み、finalize はその結果を報告します |
+| custom region の中から他のステップの id を参照しない | 将来そのステップが移動され、GitHub は解決できない参照を空文字にします |
+| `secrets: inherit` を使わない | エージェントを実行するジョブに organization のすべての secret を渡します |
+| `octestra-lifecycle.yml` の permissions を、呼ぶ全ワークフローの上位集合に保つ | ジョブが1つも始まらないまま `startup_failure`。ログも残りません |
 
 ## タスクの設定
 
-EPIC issue の本文には配下のタスクが継承するブロックを、task issue の本文には個別のものを書きます。
+EPIC issue の本文に、配下のタスクが継承するブロックを書きます。
 
 ````markdown
 ```epic-config
 id: ios-swift6            # 必須。小文字のスラグで、タスクのブランチ名の名前空間になります
-skill: swift-concurrency  # 任意。プロンプトから使わせるエージェントのスキル名
-draft_pr: false           # プルリクエストを draft で作るか
-skip_validation: false    # 検証を通さず Human Review へ直行するか
+skill: swift-concurrency  # 任意。プロンプトから使えるエージェントのスキル
+draft_pr: false           # プルリクエストを draft で開くか
+skip_validation: false    # Validation を飛ばして Human Review へ直行するか
 ```
 
 ```epic-prompt
@@ -272,23 +256,21 @@ skip_validation: false    # 検証を通さず Human Review へ直行するか
 ```
 ````
 
-task issue には、任意の `target` を持つ `task-config` と、そのタスク固有の指示を書く `task-prompt` を置けま
-す。どちらのプロンプトも EPIC のものに追記される形で渡されます。
+task issue には `task-config`（任意の `target`）と `task-prompt` を書けます。どちらのプロンプトも EPIC のものに
+追記されます。
 
 > 検証ワークフローに実際のエージェントを入れるまでは `skip_validation: true` にしてください。同梱の
-> プレースホルダは意図的に失敗するので、タスクが `Blocked` に移動します。
+> プレースホルダは意図的に失敗します。
 
-残りの設定は `.github/octestra/config.yml` にあります。2つの runner のラベル、App のクライアント ID、
-ブランチのテンプレート（既定は `octestra/{epic_id}/issue-{issue_number}`）、プロンプトのパスです。このうち
-4つの値はリポジトリ変数にもコピーされます。ワークフローがファイルを読む前に必要になる値だからです
-（`OCTESTRA_GITHUB_APP_CLIENT_ID`・`OCTESTRA_ORCHESTRATION_RUNNER`・`OCTESTRA_AGENT_RUNNER`・
-`OCTESTRA_STATUS_FIELD_ID`）。ファイルを編集したら `octestra.sh vars sync` を実行してください。
+`config.yml` には runner、App のクライアント ID、ブランチのテンプレート
+（`octestra/{epic_id}/issue-{issue_number}`）、プロンプトのパスがあります。うち4つの値はリポジトリ変数にも
+コピーされます。ワークフローがファイルを読む前に必要になるからです。ファイルを編集したら
+`octestra.sh vars sync` を実行してください。
 
 ## 検証結果のファイル
 
-検証エージェントは `result_path` に JSON を書きます。Octestra はこのファイルを **proof** と呼びます。必須は
-`outcome` と `summary` だけです。Octestra はこれをレビュアー向けの issue コメントとして整形し、`outcome` を
-読んでタスクの行き先を決めます。
+検証エージェントは `result_path` に JSON を書きます。必須は `outcome` と `summary` だけです。Octestra はこれを
+issue のコメントとして整形し、`outcome` を読んでタスクの行き先を決めます。
 
 ```json
 {
@@ -297,56 +279,52 @@ task issue には、任意の `target` を持つ `task-config` と、そのタ�
   "checks": [
     { "name": "unit tests", "kind": "test", "result": "passed", "evidence": "3 packages" }
   ],
-  "details": "実行したコマンドや、レビュアーが知るべきことを Markdown で。"
+  "details": "実行したコマンドと、レビュアーが知るべきことを Markdown で。"
 }
 ```
 
-`acceptance`・`checks`・`evidence`・`artifacts`・`knownGaps`・`details` は任意で、あれば描画されます。未知の
-フィールドは無視されるので、自由に拡張できます。Octestra は内容をあなたの受け入れ基準と照合しません。それは
-あなたの領域のままです。
+`acceptance`・`checks`・`evidence`・`artifacts`・`knownGaps`・`details` は任意です。未知のフィールドは無視
+されるので、自由に拡張できます。
 
 ## インストールの保守
 
-`.github/octestra/octestra.sh` が `config.yml` の隣に設置されます。必要なのは認証済みの GitHub CLI だけです。
-
 ```sh
-.github/octestra/octestra.sh doctor          # 問題をすべて報告し、あれば非ゼロ終了
+.github/octestra/octestra.sh doctor          # 問題をすべて報告。あれば非ゼロ終了
 .github/octestra/octestra.sh vars check      # 変数が config.yml と一致しなければ非ゼロ終了
 .github/octestra/octestra.sh vars sync       # config.yml の値を変数へ書き込む
 .github/octestra/octestra.sh ref             # ワークフローが呼ぶ Octestra を表示
 .github/octestra/octestra.sh update --latest # 最新のバージョンタグから再インストール
 ```
 
-`doctor` は読み取りのみです。放置すると静かに壊れる種類の問題を拾います。`config.yml` と一致しなくなった、
-あるいは一度も設定されていない変数、名前が変わったフィールド、欠けている状態の選択肢、有効なのにワークフロー
-ファイルが存在しないジョブ、存在しないパスを指すプロンプト、対応するもう一方が無いマーカーです。
+`doctor` は読み取りのみで、放置すると静かに壊れるものを拾います。古くなった、または未設定の変数、名前が
+変わったフィールド、欠けている状態の選択肢、有効なのにワークフローファイルが無いジョブ、存在しない場所を指す
+プロンプトのパス、対応が無いマーカー。
 
-`update` は対象バージョンをダウンロードし、**そのバージョンの**インストーラをあなたのリポジトリに対して実行
-します。更新では常に新しいロジックが走るということです。既存のインストールが記録している回答を再利用し、
-最後に変数を同期します。結果は `git diff` で確認してからコミットしてください。
+`update` は対象バージョンをダウンロードし、**そのバージョンの**インストーラを実行します。更新では常に新しい
+ロジックが走るということです。結果は `git diff` で確認してからコミットしてください。
 
 ## 操作一覧
 
-各ステップは `operation:` 入力で指定した Octestra の操作を1つ実行します。**aggregate** は複数の処理を1つの
-名前でまとめたもので、生成されるワークフローはこちらを使います。**individual** はその構成要素を単体で使う
-もので、別の順序が必要なリポジトリのためにあります。
+各ステップは `operation:` 入力で指定した操作を1つ実行します。**aggregate** は複数の処理を1つの名前でまとめた
+もので、生成されるワークフローはこちらを使います。**individual** はその構成要素を単体で使うもので、別の順序が
+必要なリポジトリのためにあります。
 
 | 種類 | 操作 | 動作 |
 |---|---|---|
-| Guard | `lifecycle/validate-transition` | 状態変更を issue の現在の状態と照合します。人が行った不正な変更は、その人に割り当てて説明し、タスクは動かしません。 |
-| Aggregate | `lifecycle/prepare-task` | 担当者を割り当て、ブランチやプルリクエストが既にあれば中断し、タスクプロンプトを描画し、Git の co-author trailer を設定します。 |
-| Aggregate | `lifecycle/finalize-task` | ブランチとプルリクエストを解決し、次が人間ならレビューを依頼し、状態を更新して結果をコメントします。 |
-| Aggregate | `lifecycle/prepare-validation` | プルリクエストを解決し、検証プロンプトを描画し、結果と証跡のパスを公開します。 |
-| Aggregate | `lifecycle/finalize-validation` | proof を投稿し、`passed` ならレビューを依頼して `Human Review` へ、それ以外は `Blocked` へ移動します。 |
-| Aggregate | `lifecycle/finalize-merged-task` | `Human Review` のタスクを、そのプルリクエストがマージされたときに `Done` へ移動します。 |
-| Aggregate | `lifecycle/report-failure` | 失敗した実行へのリンクをコメントし、タスクを `Blocked` へ移動します。 |
-| Individual | `assign-owner` | 変更を行った人を割り当てます。ボットによる変更のときは既存の担当者を保ちます。 |
-| Individual | `lifecycle/build-task-context` | `prepare-task` のうち、担当者割り当てを除いたコンテキスト構築の部分。 |
-| Individual | `lifecycle/build-validation-context` | `prepare-validation` のコンテキスト構築の部分。 |
+| Guard | `lifecycle/validate-transition` | 状態変更を issue の現在の状態と照合します。人による不正な変更は、その人に割り当てて説明します。 |
+| Aggregate | `lifecycle/prepare-task` | 担当者を割り当て、ブランチやプルリクエストが既にあれば中断し、プロンプトを描画し、co-author trailer を設定します。 |
+| Aggregate | `lifecycle/finalize-task` | ブランチとプルリクエストを解決し、次が人間ならレビューを依頼し、状態を更新してコメントします。 |
+| Aggregate | `lifecycle/prepare-validation` | プルリクエストを解決し、プロンプトを描画し、結果と証跡のパスを公開します。 |
+| Aggregate | `lifecycle/finalize-validation` | 結果を投稿します。`passed` ならレビューを依頼して `Human Review` へ、それ以外は `Blocked` へ。 |
+| Aggregate | `lifecycle/finalize-merged-task` | `Human Review` のタスクを、プルリクエストのマージ時に `Done` へ移動します。 |
+| Aggregate | `lifecycle/report-failure` | 実行へのリンクをコメントし、タスクを `Blocked` へ移動します。 |
+| Individual | `assign-owner` | 変更した人を割り当てます。ボットによる変更では既存の担当者を保ちます。 |
+| Individual | `lifecycle/build-task-context` | 担当者の割り当てを除いた `prepare-task`。 |
+| Individual | `lifecycle/build-validation-context` | `prepare-validation` のコンテキスト構築部分。 |
 | Individual | `resolve-task-pr` | ブランチに対応する未クローズのプルリクエスト番号を公開します。 |
-| Individual | `report-proof` | proof ファイルを issue コメントとして描画します。状態は変えません。 |
-| Individual | `request-review` | プルリクエストを draft から外し、担当者にレビューを依頼します。 |
-| Individual | `update-status` | Issue Field を指定の状態に設定します。 |
+| Individual | `report-proof` | 結果ファイルを issue のコメントとして整形します。状態は変えません。 |
+| Individual | `request-review` | プルリクエストを draft から外し、レビューを依頼します。 |
+| Individual | `update-status` | フィールドを指定の状態に設定します。 |
 
 ## 開発
 
@@ -358,9 +336,9 @@ make all
 `make all` はコミット前に必ず通してください。`dist/index.js` を再生成します。これは Actions の実行時バンドル
 なのでコミットされています。
 
-このリポジトリを変更するための取り決めは [`AGENTS.md`](AGENTS.md) にあります（構成、プラットフォームの
-不変条件、コードスタイル、レビューチェックリスト）。なぜこの形なのかは [`docs/design.md`](docs/design.md)、
-用語の定義は [`docs/glossary.md`](docs/glossary.md)、未着手の作業は [`TODO.md`](TODO.md) にあります。
+このリポジトリを変更するための取り決めは [`AGENTS.md`](AGENTS.md) にあります。なぜこの形なのかは
+[`docs/design.md`](docs/design.md)、用語は [`docs/glossary.md`](docs/glossary.md)、未着手の作業は
+[`TODO.md`](TODO.md) にあります。
 
 ## ライセンス
 
