@@ -605,6 +605,8 @@ describe("resolveTaskPullRequest", () => {
 });
 
 describe("reportProof", () => {
+  // Spawning git for the subject SHA can take longer than vitest's default 5s
+  // on constrained CI runners; the test itself does four git subprocesses in setup.
   it("posts the consumer proof without changing lifecycle status", async () => {
     const client = createClient();
     const proofPath = await proofResultPath("passed");
@@ -647,7 +649,7 @@ describe("reportProof", () => {
     );
     expect(client.updateStatus).not.toHaveBeenCalled();
     expect(core.setOutput).toHaveBeenCalledWith("outcome", "passed");
-  });
+  }, 30_000);
 });
 
 describe("finalizeValidation", () => {
