@@ -43,22 +43,7 @@ function triggerActorPair(required: boolean): [string, string] {
 
 export async function run(): Promise<void> {
   const token = core.getInput("github-token", { required: true });
-  const requestedOperation = core.getInput("operation", { required: true });
-  const aliases: Record<string, string> = {
-    "validate-transition": "lifecycle/validate-transition",
-    "finalize-merged-task": "lifecycle/finalize-merged-task",
-    "prepare-task": "lifecycle/prepare-task",
-    "finalize-task": "lifecycle/finalize-task",
-    "prepare-validation": "lifecycle/prepare-validation",
-    "finalize-validation": "lifecycle/finalize-validation",
-    "build-task-context": "lifecycle/build-task-context",
-    "build-validation-context": "lifecycle/build-validation-context",
-    "report-failure": "lifecycle/report-failure",
-  };
-  const operation = aliases[requestedOperation] ?? requestedOperation;
-  if (operation !== requestedOperation) {
-    core.warning(`${requestedOperation} is deprecated; use ${operation}`);
-  }
+  const operation = core.getInput("operation", { required: true });
   const client = new GitHubClient(token);
   const config = await loadOctestraConfig(client, core.getInput("config-ref"));
   function lifecycleOperationContext(): OperationContext {

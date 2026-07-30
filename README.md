@@ -94,7 +94,7 @@ authentication or static cloud credentials. Noninteractive installs leave OIDC d
 `--enable-oidc` is passed; `--yes` also accepts that disabled default without prompting.
 
 The installer also optionally records the GitHub App client ID in `.github/octestra/config.yml` and
-mirrors it into the `OCTESTRA_GITHUB_APP_CLIENT_ID` repository variable.
+copies it into the `OCTESTRA_GITHUB_APP_CLIENT_ID` repository variable.
 Install that App with repository **Contents**, **Issues**, and **Pull requests** permissions set to
 read and write. Leave the prompt empty to retain `YOUR-GITHUB-APP-CLIENT-ID`, or pass
 `--github-app-client-id` in a noninteractive install. Store its private key as the
@@ -108,7 +108,7 @@ setup, and prompts for the consumer repository.
 
 `.github/octestra/config.yml` keeps non-secret consumer settings together, including the GitHub App
 client ID, the runner for lightweight orchestration work, and the runner for work that invokes an
-agent. Edit that file and run `.github/octestra/octestra.sh vars sync` to mirror the platform values
+agent. Edit that file and run `.github/octestra/octestra.sh vars sync` to copy the platform values
 into repository variables. Keep `OCTESTRA_GITHUB_APP_PRIVATE_KEY` in GitHub Actions Secrets; add
 agent credentials only when the chosen agent integration needs them. The workflows use an App token
 instead of `GITHUB_TOKEN` so lifecycle field updates and agent pushes can trigger follow-up
@@ -125,10 +125,10 @@ policy in `config.yml` rather than in the script.
 ```
 
 `doctor` reads only, and reports each way an installation breaks: a repository variable that
-drifted from `config.yml` or was never set (an unset variable routes nothing), a missing
+no longer matches `config.yml` or was never set (an unset variable routes nothing), a missing
 `OCTESTRA_GITHUB_APP_PRIVATE_KEY` (checked by name — no secret value is read), an Issue Field that
 was renamed or whose ID no longer matches, a missing status option, a status job whose reusable
-workflow is absent, a prompt path that points nowhere, custom region markers a hand edit left
+workflow is absent, a prompt path that points nowhere, `octestra:custom:` markers a hand edit left
 unbalanced, and which Octestra the workflows call together with any newer tag available. It exits
 non-zero when it finds a problem.
 
@@ -136,8 +136,8 @@ The other commands change things:
 
 - `update` **replaces the installed files** from a newer Octestra and re-syncs the repository
   variables; see [Updating an installation](#updating-an-installation).
-- `vars check` exits non-zero on drift; `vars sync` **writes this repository's Actions variables**
-  from `config.yml`, printing each one it sets.
+- `vars check` exits non-zero when a variable no longer matches `config.yml`; `vars sync`
+  **writes this repository's Actions variables** from `config.yml`, printing each one it sets.
 - `ref` prints the Octestra repository and ref the workflows call. `ref OWNER/REPO@REF`, `ref @REF`,
   `ref OWNER/REPO`, and `ref --latest` **edit the workflow files in your checkout** (and the
   reference recorded in the script itself, so the two cannot disagree). Review and commit the diff
@@ -182,6 +182,15 @@ file's header comment lists its regions. Today they are:
 | `octestra-lifecycle-in-progress.yml` | `agent-credentials`, `agent-steps` | the task agent's secret declarations, setup, and invocation |
 | `octestra-lifecycle-validation.yml` | `agent-credentials`, `agent-steps` | the validation agent's secret declarations, setup, invocation, and artifact upload |
 
+An update preserves the contents of each custom region — the lines enclosed by a matching pair of
+`# octestra:custom:begin <name>` and `# octestra:custom:end <name>` markers — and replaces every
+step outside one. A custom region may therefore reference only names that survive that: the
+`steps.epic.outputs.*` values each file lists,
+`env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token, and the secrets, variables and
+inputs the file declares. Do not refer to another step by its id. If a later version removes that
+step, GitHub turns the reference into an empty string instead of reporting an error, and the agent
+runs with an empty value.
+
 `.github/octestra/config.yml` is not regenerated: an installation that already has one keeps it,
 because it holds the runners, branch template and prompt paths the repository chose. The installer
 reports any value it resolved that the file contradicts — a status field ID that no longer matches,
@@ -208,15 +217,15 @@ action inputs (`issue-number`, `previous-status`, `current-status`, `trigger-act
 `trigger-actor-type`). Aggregate operations infer their fixed lifecycle behavior:
 
 - Prompt paths default by phase.
-- `finalize-task` reads the EPIC configuration to choose Validation or Human Review.
-- `finalize-validation` moves passed results to Human Review and other results to Blocked.
-- `report-failure` derives the workflow run URL and moves the task to Blocked.
+- `lifecycle/finalize-task` reads the EPIC configuration to choose Validation or Human Review.
+- `lifecycle/finalize-validation` moves passed results to Human Review and other results to Blocked.
+- `lifecycle/report-failure` derives the workflow run URL and moves the task to Blocked.
 - Proof reporting derives the checked-out commit SHA from the workspace.
 
 Each EPIC's required `epic-config.id` is a lowercase slug that namespaces its task branches. The
 generated lifecycle workflow reads the default branch template from `.github/octestra/config.yml`;
-its default is `octestra/{epic_id}/issue-{issue_number}`. `prepare-task` exposes the resolved `branch_name` for
-any task agent to use directly, while `finalize-task` and `prepare-validation` independently
+its default is `octestra/{epic_id}/issue-{issue_number}`. `lifecycle/prepare-task` exposes the resolved `branch_name` for
+any task agent to use directly, while `lifecycle/finalize-task` and `lifecycle/prepare-validation` independently
 resolve the same branch. For Claude Code Action, pass `branch_name` as `branch_prefix` with
 `branch_name_template: "{{prefix}}"`. `epic-config.skill` is optional and is reserved for
 agent-specific capability selection.
@@ -232,7 +241,7 @@ of draft first, so a review request never points at a PR GitHub still marks unfi
 does not assign anyone to the pull request; the task owner is the assignee of the *issue*, and
 review is requested from them.
 
-Before task execution, `prepare-task` checks the expected branch and every linked open pull
+Before task execution, `lifecycle/prepare-task` checks the expected branch and every linked open pull
 request. If either exists, it moves the task to `Blocked`, posts an activity comment mentioning
 the task owner, and sets `task_ready` to `false`; the generated workflow skips the agent and
 finalization steps. Close the existing PR, delete its source branch, then move the task through
@@ -245,20 +254,20 @@ issues and closures unrelated to a merged pull request.
 
 | Type | Operation | Behavior |
 |---|---|---|
-| Guard | `validate-transition` | Validates the observed state transition against the live issue state; an invalid human transition assigns and warns its triggering user without changing status. |
-| Aggregate | `prepare-task` | Assigns the task owner, blocks existing task branch or linked PR work, otherwise builds task context, renders the task prompt, and configures the Git co-author trailer. |
-| Aggregate | `finalize-task` | Resolves the task branch and pull request, optionally marks it ready for review and requests review, updates status, and records task activity. |
-| Aggregate | `prepare-validation` | Builds validation context, resolves the linked pull request, renders the validation prompt, and provides the result path. |
-| Aggregate | `finalize-validation` | Reports proof and, for a passed result, marks the pull request ready for review, requests review from the task owner, and moves the task to the configured success status; other outcomes move to the failure status. |
-| Aggregate | `finalize-merged-task` | Moves a `Human Review` task to `Done` when GitHub closes it as part of a linked pull request merge. |
+| Guard | `lifecycle/validate-transition` | Validates the observed state transition against the live issue state; an invalid human transition assigns and warns its triggering user without changing status. |
+| Aggregate | `lifecycle/prepare-task` | Assigns the task owner, blocks existing task branch or linked PR work, otherwise builds task context, renders the task prompt, and configures the Git co-author trailer. |
+| Aggregate | `lifecycle/finalize-task` | Resolves the task branch and pull request, optionally marks it ready for review and requests review, updates status, and records task activity. |
+| Aggregate | `lifecycle/prepare-validation` | Builds validation context, resolves the linked pull request, renders the validation prompt, and provides the result path. |
+| Aggregate | `lifecycle/finalize-validation` | Reports proof and, for a passed result, marks the pull request ready for review, requests review from the task owner, and moves the task to the configured success status; other outcomes move to the failure status. |
+| Aggregate | `lifecycle/finalize-merged-task` | Moves a `Human Review` task to `Done` when GitHub closes it as part of a linked pull request merge. |
 | Individual | `assign-owner` | Assigns the user who triggered the task transition while preserving the existing owner for bot transitions. |
-| Individual | `build-task-context` | Loads task and EPIC configuration, renders the task prompt, configures co-authorship, and publishes task outputs. |
-| Individual | `build-validation-context` | Loads task and EPIC configuration, resolves the linked pull request, renders the validation prompt, and publishes validation outputs. |
+| Individual | `lifecycle/build-task-context` | Loads task and EPIC configuration, renders the task prompt, configures co-authorship, and publishes task outputs. |
+| Individual | `lifecycle/build-validation-context` | Loads task and EPIC configuration, resolves the linked pull request, renders the validation prompt, and publishes validation outputs. |
 | Individual | `resolve-task-pr` | Resolves the open pull request for a task branch and publishes its number. |
 | Individual | `report-proof` | Renders consumer-owned proof JSON as a reviewer-focused issue comment without changing lifecycle status. |
 | Individual | `request-review` | Takes the pull request out of draft, then requests review from the latest human Issue task owner. |
 | Individual | `update-status` | Updates the configured organization Issue Field to the requested status. |
-| Failure | `report-failure` | Records workflow failure details and moves the task to the configured failure status. |
+| Failure | `lifecycle/report-failure` | Records workflow failure details and moves the task to the configured failure status. |
 
 ## Proof reporting
 
@@ -289,19 +298,20 @@ default policy:
 report proof and move it to Blocked. A consumer can replace that aggregate with the individual
 operations above without reimplementing the underlying GitHub behavior.
 
-## Configuration control plane
+## Configuration
 
 Installation creates `.github/octestra/config.yml`, the source of truth for platform values, branch
-templates, and prompt paths. Four values are mirrored into
+templates, and prompt paths. Four values are also copied into
 repository variables: `OCTESTRA_GITHUB_APP_CLIENT_ID`, `OCTESTRA_ORCHESTRATION_RUNNER`,
 `OCTESTRA_AGENT_RUNNER`, and `OCTESTRA_STATUS_FIELD_ID`. Run
-`.github/octestra/octestra.sh vars check` to detect drift and `vars sync` to apply, or `doctor` to
-see drift alongside every other problem. Prompts are read from the checkout under
+`.github/octestra/octestra.sh vars check` to find a variable that no longer matches and
+`vars sync` to rewrite it, or `doctor` to see that alongside every other problem. Prompts are read
+from the checkout under
 `.github/octestra/prompts`, at the paths `config.yml` names.
 
 Installed workflows are `octestra-lifecycle.yml` and the lifecycle in-progress and validation
-reusable workflows. Lifecycle operations use the `lifecycle/<verb>` namespace; old lifecycle names
-are deprecated aliases.
+reusable workflows. An operation tied to one task's state is named `lifecycle/<verb>`; the
+scope-neutral ones in the table above are a bare `<verb>`. There is no other spelling.
 
 ## Development
 

@@ -13,6 +13,44 @@ count_references() {
   { grep -R -o -- "$pattern" "$path" || true; } | wc -l | tr -d ' '
 }
 
+# A region's contents are carried across updates verbatim, so they may name only the symbols
+# Octestra keeps stable. A reference to any other step survives into a version where that step is
+# gone, and GitHub resolves it to an empty string instead of failing — the breakage would be
+# silent. Credentials reach a region through env.OCTESTRA_AGENT_GITHUB_TOKEN for that reason.
+#
+# The marker match is anchored exactly as `custom_region_marker` in install.sh anchors it, so a
+# comment that merely quotes a marker name stays prose here too. Loosen one side only and this
+# check reports lines the merge never treated as a region.
+assert_region_interface() {
+  local template="$1"
+  local offenders
+
+  offenders=$(awk '
+    /^[[:space:]]*# octestra:custom:begin / { inside = 1; next }
+    /^[[:space:]]*# octestra:custom:end /   { inside = 0; next }
+    inside {
+      line = $0
+      while (match(line, /steps\.[A-Za-z0-9_-]+/)) {
+        symbol = substr(line, RSTART, RLENGTH)
+        if (symbol != "steps.epic") {
+          printf "  line %d: %s\n", NR, symbol
+        }
+        line = substr(line, RSTART + RLENGTH)
+      }
+    }
+  ' "$template")
+
+  if [[ -n "$offenders" ]]; then
+    printf 'custom region in %s references a symbol outside the documented interface:\n%s' \
+      "${template#"$ROOT"/}" "$offenders" >&2
+    exit 1
+  fi
+}
+
+for workflow_template in "$ROOT"/templates/.github/workflows/*.yml; do
+  assert_region_interface "$workflow_template"
+done
+
 mkdir -p "$TEMP_DIR/bin" "$TEMP_DIR/consumer"
 git -C "$TEMP_DIR/consumer" init --quiet
 git -C "$TEMP_DIR/consumer" remote add origin git@github.com:example-org/consumer.git
@@ -428,7 +466,7 @@ if PATH="$TEMP_DIR/bin:$PATH" \
   echo "vars check accepted a drifted variable" >&2
   exit 1
 fi
-grep -q "OCTESTRA_AGENT_RUNNER drifted" "$drift_output"
+grep -q "OCTESTRA_AGENT_RUNNER does not match" "$drift_output"
 
 doctor_output="$TEMP_DIR/doctor-output"
 PATH="$TEMP_DIR/bin:$PATH" \

@@ -3,7 +3,7 @@ description: Portable GitHub issue task lifecycle operations
 
 inputs:
   operation:
-    description: Operation to run, as lifecycle/<verb>. The bare <verb> forms are deprecated aliases kept for existing installations.
+    description: Operation to run. Anything tied to one task's state is lifecycle/<verb>; the scope-neutral pieces are a bare <verb>.
     required: true
   github-token:
     description: GitHub App token used for API requests

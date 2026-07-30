@@ -5,20 +5,32 @@
 # and pull request; this workflow then advances the task to Validation or Human Review.
 #
 # UPDATING THIS FILE
-# `.github/octestra/octestra.sh update` replaces this file, except for the regions between
+# `.github/octestra/octestra.sh update` replaces this file, except for each custom region — the
+# lines enclosed by a matching pair of
 #
 #     # octestra:custom:begin <name>
 #     # octestra:custom:end <name>
 #
-# whose contents are carried into the new version. Put repository-specific setup, agent
-# invocation, and agent credentials inside those regions; anything outside them belongs to
-# Octestra and is overwritten, so edits there are lost on the next install.
+# markers — whose contents it carries into the new version. Place this repository's setup, agent
+# invocation and agent credentials inside a custom region; everything outside one is replaced, so
+# edits there are lost on the next update.
 #
-# The steps that must stay outside a custom region are prepare-task and finalize-task:
-# Octestra changes them as the lifecycle changes, and an installation that keeps an old
-# copy will break. When an update cannot carry a region over — the markers were removed, or
-# the region no longer exists — it saves the previous file as
-# `octestra-lifecycle-in-progress.yml.octestra-bak` and says so.
+# WHAT A CUSTOM REGION MAY REFERENCE
+# An update preserves the contents of a custom region and replaces every step outside one, so a
+# custom region may reference only names that survive that. These do:
+#
+#     steps.epic.outputs.*             the outputs listed on prepare-task below
+#     env.OCTESTRA_AGENT_GITHUB_TOKEN  the agent's GitHub token
+#     secrets.*, vars.*, inputs.*      declared in this file or passed by the caller
+#
+# Do not refer to any other step by its id. If a later version removes that step, GitHub turns
+# the reference into an empty string instead of reporting an error, and the agent runs with an
+# empty value.
+#
+# Leave the `Prepare task lifecycle` and `Finalize task lifecycle` steps outside the markers.
+# Octestra keeps changing them, and an installation holding an old copy breaks. If an update
+# cannot find a marker pair it expected — renamed or deleted by hand — it saves the previous
+# file as `octestra-lifecycle-in-progress.yml.octestra-bak` and says so.
 name: Octestra - In Progress (Task Execution)
 
 on:
@@ -45,8 +57,8 @@ on:
 
       # octestra:custom:begin agent-credentials
       # Declare the secrets the agent steps below need, and pass each one explicitly from
-      # octestra-lifecycle.yml — `secrets: inherit` would hand every organization secret to
-      # a job that executes an agent, so it is not used anywhere in Octestra.
+      # octestra-lifecycle.yml. Do not use `secrets: inherit` here: it would hand every
+      # organization secret to a job that runs an agent.
       #
       #   your_agent_api_key:
       #     description: API key for the task agent
@@ -68,7 +80,8 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      # Use an App token so lifecycle updates and agent pushes can trigger follow-up workflows.
+      # An App token, not GITHUB_TOKEN: a push or status change made with GITHUB_TOKEN
+      # starts no next workflow run, and the task would stall here.
       - name: Generate a token from GitHub App
         id: app-token
         uses: actions/create-github-app-token@v3
@@ -84,23 +97,24 @@ jobs:
 
       # prepare-task:
       # - Assigns the triggering user as task owner when the transition was made by a user.
-      # - Loads the task and parent EPIC configuration.
-      # - Renders the repository's task prompt and publishes it as an Action output.
+      # - Loads the task issue and its parent EPIC.
+      # - Renders .github/octestra/prompts/lifecycle-in-progress.md.hbs into `prompt`.
       # - Configures the task owner's Git co-author trailer for agent commits.
       # - Publishes these outputs for the task agent:
       #   - parent_number: parent EPIC issue number.
-      #   - epic_id: stable EPIC branch namespace.
-      #   - skill_name: optional EPIC agent skill.
-      #   - branch_name: exact task branch used by finalize-task and validation.
-      #   - task_ready: false when existing branch or linked PR work blocked execution.
+      #   - epic_id: the EPIC's id, used as the task branch prefix.
+      #   - skill_name: agent skill named by the EPIC, if any.
+      #   - branch_name: the branch the steps below must use.
+      #   - task_ready: `false` when an existing branch or pull request stopped this task.
       #   - draft_flag: `--draft` when the PR should be a draft.
       #   - skip_validation: whether the task goes to Human Review without validation.
       #   - prompt: rendered task instructions.
       #   - target_file: configured target, if any.
       #   - task_owner: assigned human task owner.
-      # Use assign-owner and build-task-context separately when custom sequencing is required.
+      # `operation: assign-owner` and `operation: lifecycle/build-task-context` do the two halves
+      # apart.
       #
-      # **Keep prepare-task as the first Octestra lifecycle action in this job.**
+      # **Keep this step first: every step below reads `steps.epic.outputs`.**
       - name: Prepare task lifecycle
         id: epic
         uses: ainame/octestra@main
@@ -110,6 +124,16 @@ jobs:
           issue-number: ${{ inputs.issue-number }}
           trigger-actor: ${{ inputs.trigger-actor }}
           trigger-actor-type: ${{ inputs.trigger-actor-type }}
+
+      # Publishes the agent's GitHub token as OCTESTRA_AGENT_GITHUB_TOKEN for the steps below.
+      # Reference that name from the custom region below rather than the token step above: an
+      # update replaces every step outside a custom region, so that step may move or disappear,
+      # while this name remains valid.
+      - name: Expose agent credentials
+        env:
+          AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          printf 'OCTESTRA_AGENT_GITHUB_TOKEN=%s\n' "$AGENT_GITHUB_TOKEN" >> "$GITHUB_ENV"
 
       # octestra:custom:begin agent-steps
       # Everything between these markers is this repository's: environment and dependency
@@ -140,7 +164,7 @@ jobs:
       #   uses: anthropics/claude-code-action@v1
       #   with:
       #     anthropic_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
-      #     github_token: ${{ steps.app-token.outputs.token }}
+      #     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
       #     track_progress: true
       #     # `branch_name` is the exact branch Octestra will later finalize and validate.
       #     # Passing it through `{{prefix}}` prevents Claude from adding any suffix.
@@ -153,14 +177,14 @@ jobs:
       # octestra:custom:end agent-steps
 
       # finalize-task:
-      # - Confirms that the agent created the expected branch.
-      # - Resolves the open pull request created from that branch.
+      # - Confirms the agent pushed the branch named by branch_name above.
+      # - Finds the open pull request made from that branch.
       # - When the next status is Human Review, takes the pull request out of draft and
       #   requests review from the Issue task owner.
-      # - Updates the lifecycle status and records the resulting Octestra activity.
-      # Use lower-level operations when the repository needs a different completion policy.
+      # - Moves the task to its next status and comments on the issue with the result.
+      # `operation: request-review` and `operation: update-status` do these one at a time.
       #
-      # **Keep finalize-task as the last Octestra lifecycle action in this job.**
+      # **Keep this step last: it reports what the agent steps above did.**
       - name: Finalize task lifecycle
         if: steps.epic.outputs.task_ready == 'true'
         uses: ainame/octestra@main
@@ -175,7 +199,7 @@ jobs:
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
-      # Use an App token so lifecycle updates can trigger follow-up workflows.
+      # An App token, not GITHUB_TOKEN: a change made with GITHUB_TOKEN starts no next run.
       - name: Generate a token from GitHub App
         id: app-token
         uses: actions/create-github-app-token@v3

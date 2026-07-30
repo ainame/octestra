@@ -104,8 +104,3 @@ Revisit if the write endpoint gains ID addressing.
   `config.yml`; today it regenerates the file.
 - The installer overwrites workflows, prompts, and the agent skill on every run. Say so before doing
   it.
-
-## 5. Remove deprecated aliases
-
-`src/index.ts` maps nine bare operation names to their `lifecycle/` equivalents and warns. They were
-kept for one release. Remove the alias table and its warning once consumers have migrated.

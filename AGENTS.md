@@ -42,6 +42,7 @@ templates/.github/
   octestra/prompts/            handlebars prompts, read from the consumer's checkout
 install.sh, test/install.test.sh
 docs/design.md                 decisions and rationale
+docs/glossary.md               canonical names, and the wording to introduce each one with
 ```
 
 ## Build, test, verify
@@ -143,6 +144,28 @@ whose *input* is not valid on its own is a placeholder by another name; that val
 finds it with or without a `/subpath`, and fails the install loudly if a reference survives
 unrewritten.
 
+**Consumer-facing text is low-context.** Template comments, `README.md` and the prompts are read
+by someone who has never seen this repository, so they must not lean on its vocabulary. Name the
+thing, not the concept: "the step that creates the App token", not "the trust boundary".
+
+A term that exists only here is *defined where the reader first meets it, and used normally after
+that*. Octestra's own nouns are the trap, because they read as ordinary English — nothing warns a
+consumer that *custom region* is a term. So introduce it: "each custom region — the lines enclosed
+by a matching pair of `# octestra:custom:begin <name>` and `# octestra:custom:end <name>` markers".
+Do not instead avoid the term. Circumlocution costs more words at every recurrence and drifts into
+a chatty register ("what you wrote between…"), which is the wrong voice for a file someone edits in
+their production repository.
+
+`docs/glossary.md` carries that first-mention wording for every term, and separates the terms a
+consumer reads from the ones only a contributor may use. Take the phrasing from there rather than
+inventing one, and add a new term there before it reaches a template.
+
+Say what the reader must do and what breaks if they do not — that is what earns a comment its
+place. Do not describe what Octestra intends to do in a later release: the reader can neither
+verify nor act on it, and the sentence rots on its own. `AGENTS.md`, `docs/design.md` and
+`TODO.md` are the opposite. They are written for people building Octestra, so the internal
+vocabulary, the invariant numbers and the roadmap belong there and only there.
+
 **Custom regions are the update contract (D14).** A rerun of `install.sh` replaces an installed
 workflow except for the parts between `# octestra:custom:begin <name>` and
 `# octestra:custom:end <name>`, whose contents it carries into the new version. So the line between
@@ -158,6 +181,15 @@ Give a region the narrowest scope that holds one decision (`agent-credentials`, 
 job`). Never rename or drop a region without accepting that every installation that used it gets a
 `.octestra-bak` file and a manual migration. Every template that declares a region also documents
 it in the file's header comment, because that comment is where a consumer looks first.
+
+A region has an *interface*, and it is as binding as the region name. Carried-over content may
+reference only `steps.epic.outputs.*`, `env.OCTESTRA_*`, and the `secrets`/`vars`/`inputs` the
+template declares — never another step's id. A `steps.<id>` naming something outside the region
+couples content you cannot edit to a step you must be free to move, and the failure is silent
+rather than loud: GitHub resolves a reference to an absent step to `''`, so the update succeeds,
+`doctor` passes, and the agent runs with an empty value. Anything a region needs from Octestra is
+therefore published under a stable `OCTESTRA_*` name by a step outside it — which is what
+`OCTESTRA_AGENT_GITHUB_TOKEN` exists for. `test/install.test.sh` fails when a template breaks this.
 
 The consumer's entry point is `octestra.sh update`, which downloads a reference and runs **that
 version's** `install.sh` against the repository. Two consequences:
@@ -228,3 +260,5 @@ Derived from bugs that actually shipped into review here:
 5. Do budget and limit parameters bound the work, or only the result?
 6. Are new tests asserting the behaviour that would break, or only the guards around it?
 7. Do new files match the style of the files beside them?
+8. Does new consumer-facing text stand on its own, or does it require this repository's vocabulary
+   and promises about a later release?

@@ -1,26 +1,27 @@
-# Octestra lifecycle entry point: one Issue Field event, one task.
+# Octestra starts here: GitHub runs this workflow when a task issue's Issue Field changes,
+# and it calls the workflow for the status the task moved to.
 #
 # UPDATING THIS FILE
-# `.github/octestra/octestra.sh update` replaces this file, except for the regions between
+# `.github/octestra/octestra.sh update` replaces this file, except for each custom region — the
+# lines enclosed by a matching pair of
 #
 #     # octestra:custom:begin <name>
 #     # octestra:custom:end <name>
 #
-# whose contents are carried into the new version. Here those regions hold the secrets this
-# caller passes to each reusable workflow, and the status jobs this repository enables.
-# The guard job, the permissions ceiling, and the job wiring around them belong to Octestra
-# and are overwritten.
+# markers — whose contents it carries into the new version. Here they hold the secrets this file
+# passes to each workflow it calls, and the extra status jobs this repository enables. Everything
+# outside a custom region — the `guard` job, `permissions:`, and the job wiring — is replaced, so
+# edits there are lost.
 name: Octestra Lifecycle
 on:
   issues:
     types: [field_added, closed]
 permissions:
-  # These are the workflow-level permissions, which serve as the ceiling for every
-  # called reusable workflow. A callee that declares a permission this ceiling does
-  # not grant fails the entire run with startup_failure before any job is created —
-  # so the caller must be a superset of every callee (in-progress needs contents:
-  # write for pushes, validation and both need pull-requests: write for PR handling).
-  # Individual jobs still narrow this at the job level.
+  # Every workflow this file starts with `uses:` is limited to the permissions listed
+  # here. If one of them asks for a permission this list omits, the whole run fails
+  # with startup_failure before any job starts — no logs, no annotation. So keep this
+  # list a superset of the `permissions:` in every octestra-lifecycle-*.yml you enable.
+  # Jobs below still narrow it for themselves.
   contents: write
   # Uncomment for OIDC federation, for example AWS IAM role assumption with
   # aws-actions/configure-aws-credentials. This is the only place id-token needs to
@@ -29,13 +30,12 @@ permissions:
   issues: write
   pull-requests: write
 jobs:
-  # Validate lifecycle transitions before dispatching status-specific jobs.
+  # Checks the status change is one Octestra allows, and reports which status job to run.
   guard:
     if: github.event.action == 'field_added' && format('{0}', github.event.issue_field.id) == vars.OCTESTRA_STATUS_FIELD_ID
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
-    # Narrow the workflow-level ceiling to what guard actually uses. The reusable
-    # workflows below still see the full ceiling because job-level permissions only
-    # apply to this job, not to the ones started by `uses:`.
+    # This job only reads, so it takes less than the list above. Jobs started by
+    # `uses:` are unaffected: job-level permissions apply to this job only.
     permissions:
       contents: read
       issues: read
@@ -62,10 +62,10 @@ jobs:
           trigger-actor-type: ${{ github.event.sender.type }}
 
   # ========================================================================
-  # Consumer lifecycle entrypoints: customize the reusable workflows below.
+  # Status jobs. Edit the workflow file each one calls, not the job itself.
   # ========================================================================
   in-progress:
-    # Consumer entrypoint for task implementation.
+    # Runs when a task moves to In Progress.
     needs: guard
     if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'in_progress'
     uses: ./.github/workflows/octestra-lifecycle-in-progress.yml
@@ -81,7 +81,7 @@ jobs:
       # octestra:custom:end in-progress-secrets
 
   validation:
-    # Consumer entrypoint for task validation.
+    # Runs when a task moves to Validation.
     needs: guard
     if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'validation'
     uses: ./.github/workflows/octestra-lifecycle-validation.yml
@@ -95,8 +95,8 @@ jobs:
       # octestra:custom:end validation-secrets
 
   # octestra:custom:begin status-jobs
-  # Add the matching reusable workflow, then uncomment a status job to enable it. Jobs added
-  # here survive an update, so this is where a repository's own lifecycle jobs belong.
+  # Add the workflow file a job calls, then uncomment the job to enable it. An update preserves
+  # this custom region, so this repository's own status jobs belong here.
   #
   # todo:
   #   needs: guard
@@ -149,7 +149,7 @@ jobs:
     name: Finalize merged task
     if: github.event.action == 'closed'
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
-    # Narrow the workflow-level ceiling to what finalize-merged-task actually uses.
+    # Less than the list above: this job only reads code and writes the issue.
     permissions:
       contents: read
       issues: write

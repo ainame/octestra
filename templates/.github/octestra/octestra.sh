@@ -14,8 +14,8 @@
 # files in this checkout, and 'update' replaces the installed files and re-syncs those
 # variables. No command reads or writes a secret value.
 #
-# install.sh overwrites this file on every run, so keep repository policy in config.yml
-# beside it rather than here.
+# install.sh overwrites this file on every run, so put anything you want to change in
+# config.yml beside it, not here.
 
 set -euo pipefail
 
@@ -30,16 +30,16 @@ readonly CUSTOM_REGION_PREFIX="# octestra:custom:"
 readonly BACKUP_SUFFIX=".octestra-bak"
 # The values Octestra needs before a job starts, as variable|section|key. A workflow reads
 # these from repository variables because no file can be read that early, which is why they
-# can drift from config.yml at all.
+# can disagree with config.yml at all.
 readonly MIRRORED_VARIABLES=(
   "OCTESTRA_GITHUB_APP_CLIENT_ID|github_app|client_id"
   "OCTESTRA_ORCHESTRATION_RUNNER|runners|orchestration"
   "OCTESTRA_AGENT_RUNNER|runners|agent"
   "OCTESTRA_STATUS_FIELD_ID|status|field_id"
 )
-# The statuses the lifecycle state graph moves a task through. Octestra addresses a status
-# option by its display name, so renaming one in the organization breaks this installation:
-# doctor reports it here instead of leaving a transition to fail mid-workflow.
+# The statuses a task moves through. Octestra sets a status by its display name, so renaming
+# one in the organization breaks this installation: doctor reports it here instead of letting
+# a status change fail mid-workflow.
 readonly REQUIRED_STATUS_OPTIONS=(
   "Todo"
   "Ready"
@@ -71,7 +71,8 @@ Commands:
   doctor          Report every problem this installation has (default)
   update [SPEC]   Reinstall the workflows, prompts and skill from the Octestra the
                   workflows call, or from SPEC (OWNER/REPO@REF, @REF, OWNER/REPO, or
-                  --latest). Keeps config.yml and the marked custom regions
+                  --latest). Keeps config.yml and every line inside an
+                  octestra:custom: marker pair
   vars check      Exit non-zero when a repository variable disagrees with config.yml
   vars sync       Write the config.yml values into this repository's variables
   ref             Show which Octestra repository and ref the workflows call
@@ -219,7 +220,7 @@ check_config() {
 }
 
 # An unset variable is the dangerous case: it evaluates to the empty string, which casts to
-# 0 in the entry point's numeric comparison and silently routes nothing.
+# 0 in the comparison octestra-lifecycle.yml routes on, so nothing runs and nothing fails.
 check_variables() {
   local before="$FAILURES"
   local entry=""
@@ -244,7 +245,7 @@ check_variables() {
     fi
   done
   if (( FAILURES == before )); then
-    report ok "the four mirrored repository variables match $CONFIG_PATH"
+    report ok "the four Octestra repository variables match $CONFIG_PATH"
   fi
 }
 
@@ -271,8 +272,8 @@ check_private_key_secret() {
   fi
 }
 
-# Two different failures live here. Operations look the field up by *name*, so a rename
-# makes every status update fail; the entry point routes on the field *ID*, so a stale ID
+# Two different failures live here. A status update looks the field up by *name*, so a rename
+# makes every update fail; octestra-lifecycle.yml routes on the field *ID*, so a stale ID
 # means no workflow ever starts. Both must point at one field.
 check_status_field() {
   local before="$FAILURES"
@@ -371,8 +372,8 @@ check_workflows() {
     report fail "$ENTRY_WORKFLOW is missing; rerun install.sh"
     return
   fi
-  # A status job whose reusable workflow is absent fails the whole run at startup, with no
-  # jobs and no logs, so an enabled-but-missing callee is worth catching here.
+  # A job whose workflow file is absent fails the whole run at startup, with no jobs and no
+  # logs, so a job left enabled without its file is worth catching here.
   while IFS= read -r called; do
     if [[ ! -f "$called" ]]; then
       report fail "a workflow calls $called, which does not exist"
@@ -413,9 +414,9 @@ check_workflows() {
   fi
 }
 
-# install.sh replaces everything outside the marked custom regions in these workflows and
-# carries what is inside them across. A marker that was deleted or renamed by hand takes the
-# work in that region with it on the next install, so it is reported before that happens.
+# install.sh carries the lines between a begin and end marker into the new workflow and
+# replaces everything else. A marker deleted or renamed by hand takes the work between the
+# pair with it on the next install, so it is reported before that happens.
 check_custom_regions() {
   local workflow=""
   local begins=""
@@ -436,8 +437,8 @@ check_custom_regions() {
   done
 }
 
-# Region names a file declares for one marker kind, in order. The marker must be the whole
-# comment, so the header block documenting the syntax is prose rather than a marker.
+# The names a file declares for one marker kind, sorted. A marker must be the whole comment,
+# so the indented copies in a file's header block are prose, not markers.
 marked_region_names() {
   local file="$1"
   local kind="$2"
@@ -508,7 +509,7 @@ vars_command() {
     fi
     actual=$(gh variable get "$name" 2>/dev/null || true)
     if [[ "$actual" != "$expected" ]]; then
-      printf "Octestra: %s drifted: variable '%s', %s '%s'\n" \
+      printf "Octestra: %s does not match: variable '%s', %s '%s'\n" \
         "$name" "$actual" "$CONFIG_PATH" "$expected" >&2
       status=1
     fi
@@ -639,13 +640,15 @@ confirm_update() {
   fi
   cat > /dev/tty <<EOF
 Update $REPOSITORY from $target?
-  .github/workflows/octestra-*.yml  replaced, except the marked custom regions
+  .github/workflows/octestra-*.yml  replaced, except each custom region
   .github/octestra/prompts/         replaced
   .github/octestra/octestra.sh      replaced
   the installed agent skill         replaced
   .github/octestra/config.yml       kept as it is
 It also re-syncs the four Octestra repository variables from config.yml.
-Anything you changed outside a custom region is lost, so check 'git status' first.
+A custom region is the lines enclosed by '# octestra:custom:begin <name>' and its matching
+'# octestra:custom:end <name>'. Anything you changed outside one is lost, so check
+'git status' first.
 EOF
   printf 'Continue? [y/N]: ' > /dev/tty
   IFS= read -r answer < /dev/tty
@@ -700,8 +703,8 @@ update_command() {
     fi
   fi
 
-  # OIDC is a single commented line in the entry workflow, outside every custom region, so an
-  # update would revert it unless the installer is told to enable it again.
+  # `id-token: write` is one commented line in octestra-lifecycle.yml, outside every marker
+  # pair, so an update would comment it out again unless the installer is told to enable it.
   if grep -q '^[[:space:]]*id-token: write' "$ENTRY_WORKFLOW"; then
     oidc=(--enable-oidc)
   fi
@@ -712,9 +715,9 @@ update_command() {
   source_dir=$(download_source "$target")
   [[ -f "$source_dir/install.sh" ]] || die "$target ships no install.sh"
 
-  # The installer that just arrived does the work: it owns the custom-region merge, the
-  # action-reference rewrite and the variable sync, and this script must not hold a second
-  # copy of any of them. `${oidc[@]}` is expanded through `+` because an empty array under
+  # The installer that just arrived does the work: it keeps what the markers hold, rewrites
+  # the action references and syncs the variables, and this script must not hold a second
+  # copy of any of that. `${oidc[@]}` is expanded through `+` because an empty array under
   # `set -u` is a fatal error in the bash that ships with macOS.
   bash "$source_dir/install.sh" \
     --target "$PWD" \

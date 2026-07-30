@@ -6,7 +6,6 @@ type ProofRow = Record<string, unknown>;
 export interface ProofDocument {
   outcome: string;
   summary: string;
-  nextStatus?: string;
   details?: string;
   acceptance?: ProofRow[];
   checks?: ProofRow[];
@@ -73,7 +72,6 @@ export function parseProofDocument(raw: unknown): ProofDocument {
   return {
     outcome: requireString(proof.outcome, "outcome", true)!,
     summary: requireString(proof.summary, "summary", true)!,
-    nextStatus: requireString(proof.next_status ?? proof.nextStatus, "next_status"),
     details: requireString(proof.details, "details"),
     acceptance: optionalRows(proof.acceptance, "acceptance"),
     checks: optionalRows(proof.checks, "checks"),
