@@ -2,6 +2,10 @@
 
 **GitHub Actions と Projects のための serverless AI agent orchestration framework。**
 
+<p align="center">
+<img src="docs/assets/octestra-logo.png" alt="Octestra" width="200">
+</p>
+
 issue を `In Progress` に移すだけ。その先は Octestra が引き継ぎます。コーディングエージェントがタスクを実装し、
 プルリクエストを開き、変更を検証したあと、人間にレビューを依頼します。
 

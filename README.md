@@ -2,6 +2,10 @@
 
 **A serverless AI agent orchestration framework for GitHub Actions and Projects.**
 
+<p align="center">
+<img src="docs/assets/octestra-logo.png" alt="Octestra" width="200">
+</p>
+
 Move an issue to `In Progress`. Octestra takes it from there: your coding agent implements the task,
 opens a pull request, validation checks the change, and a person reviews the result.
 
@@ -120,35 +124,6 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
 Tasks are organized under an **EPIC issue** — the parent issue whose `epic-config` block configures
 every task issue under it. Each **task issue** is one unit of agent work and a sub-issue of that
 EPIC.
-
-## Comparison with OpenAI Symphony
-
-[OpenAI Symphony](https://github.com/openai/symphony) is a specification with an experimental
-reference service. The service repeatedly checks a project tracker for eligible issues, gives each
-issue its own reusable working directory, and runs Codex until the issue no longer needs work.
-
-Octestra focuses on explicit handoffs inside GitHub. A field change starts a GitHub Actions
-workflow, and that workflow calls whichever implementation or validation agent you configured.
-
-| | Octestra | Symphony |
-|---|---|---|
-| Primary role | Move one task through implementation, validation, and review | Select eligible tasks and keep agents working on them |
-| Runtime | GitHub Actions workflows | Long-running service or executable |
-| Trigger | A change to the task's `AI Task Status` field | The service repeatedly checks the tracker |
-| Trackers | GitHub Issues | Linear, GitHub Issues, Jira Cloud, Asana, and GitLab in the reference implementation |
-| Agent | Any action or command you configure | Codex through its app-server interface |
-| Working directory | A fresh GitHub Actions job for each workflow run | A directory for each issue, reused across runs |
-| Agent session | One agent run for implementation and another for validation | Multiple Codex turns while the service handles an issue |
-| Parallel work and retries | Managed by GitHub Actions | Managed by Symphony |
-| Human review | A built-in `Human Review` step | Defined by your tracker states and Symphony's `WORKFLOW.md` file |
-| Infrastructure | No Octestra process stays running | Requires a running process, local disk, and tracker credentials |
-
-**Choose Octestra** for GitHub-native, event-driven handoffs with your own agent.
-
-**Choose Symphony** when agents should select work without a person starting each task, when Codex
-needs a working directory that survives across runs, or when your tracker is not GitHub.
-
-For a single agent run without these handoffs, call the agent's GitHub Action directly.
 
 ## Agent Integration
 
@@ -342,6 +317,35 @@ Each Octestra step selects one operation through the `operation:` input in
 [`action.yml`](action.yml). The installed workflows use the operations that perform complete
 implementation and validation handoffs. You can call the smaller operations directly when you need
 a different workflow order.
+
+## Comparison with OpenAI Symphony
+
+[OpenAI Symphony](https://github.com/openai/symphony) is a specification with an experimental
+reference service. The service repeatedly checks a project tracker for eligible issues, gives each
+issue its own reusable working directory, and runs Codex until the issue no longer needs work.
+
+Octestra focuses on explicit handoffs inside GitHub. A field change starts a GitHub Actions
+workflow, and that workflow calls whichever implementation or validation agent you configured.
+
+| | Octestra | Symphony |
+|---|---|---|
+| Primary role | Move one task through implementation, validation, and review | Select eligible tasks and keep agents working on them |
+| Runtime | GitHub Actions workflows | Long-running service or executable |
+| Trigger | A change to the task's `AI Task Status` field | The service repeatedly checks the tracker |
+| Trackers | GitHub Issues | Linear, GitHub Issues, Jira Cloud, Asana, and GitLab in the reference implementation |
+| Agent | Any action or command you configure | Codex through its app-server interface |
+| Working directory | A fresh GitHub Actions job for each workflow run | A directory for each issue, reused across runs |
+| Agent session | One agent run for implementation and another for validation | Multiple Codex turns while the service handles an issue |
+| Parallel work and retries | Managed by GitHub Actions | Managed by Symphony |
+| Human review | A built-in `Human Review` step | Defined by your tracker states and Symphony's `WORKFLOW.md` file |
+| Infrastructure | No Octestra process stays running | Requires a running process, local disk, and tracker credentials |
+
+**Choose Octestra** for GitHub-native, event-driven handoffs with your own agent.
+
+**Choose Symphony** when agents should select work without a person starting each task, when Codex
+needs a working directory that survives across runs, or when your tracker is not GitHub.
+
+For a single agent run without these handoffs, call the agent's GitHub Action directly.
 
 ## Development
 
