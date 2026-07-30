@@ -71,13 +71,6 @@ What the `operation:` input names. Two spellings are both correct and the differ
 (D9): `lifecycle/<verb>` for anything tied to one task's state, a bare verb for the pieces that are
 scope-neutral, such as `update-status`.
 
-### aggregate operation, individual operation
-
-An aggregate operation does several things behind one name, such as `lifecycle/prepare-task`. An
-individual operation is one of those things on its own, callable directly by a repository that needs
-its own sequencing. `README.md` labels every operation as one or the other, so both terms are part
-of what a consumer reads.
-
 ### proof
 
 The JSON file a validation agent writes to `result_path`. Octestra renders it as an issue comment
