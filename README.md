@@ -27,6 +27,33 @@ Octestra must be installed in each consumer repository.
 - Private Octestra repositories must allow access from consumer repositories through their Actions
   access policy.
 
+## Security
+
+Read this before installing. Octestra is built for a **private repository whose members you trust**,
+and it is not safe outside that.
+
+An agent runs with instructions taken from the task issue body, from its parent EPIC issue body, and
+from the repository contents. In that same job, Octestra gives it a GitHub App token with
+**Contents, Issues and Pull requests write access**, and the checkout leaves that token on disk.
+So, today:
+
+- Anyone who can change the `AI Task Status` field on an issue can start an agent run. Treat that
+  ability as equivalent to write access to the repository.
+- Anyone who can edit an issue body decides what that agent is told to do.
+- The steps that move the task run in the same job as the agent, so an agent that goes wrong can
+  also change the task's status and comment as Octestra.
+- A validation agent judges the pull request it was given and writes its own result file. A `passed`
+  outcome is that agent's claim, not an independent check of it.
+
+Separating agent execution from the privileged token is not implemented. What is in place:
+`secrets: inherit` is used nowhere, so an agent job receives only the secrets its own workflow
+declares and the caller passes; each App token is restricted to the single repository it runs in;
+and the App private key stays in GitHub Actions Secrets, where no Octestra code reads it.
+
+Decide two things before installing. Who may change the status field, since that is who may run an
+agent. And what the agent's credentials reach beyond this repository — a cloud role assumed through
+OIDC, or a model API key, is as exposed as the agent is.
+
 ## Installation
 
 Run the installer from the root of the consumer repository:
@@ -206,6 +233,66 @@ what it did; move what you still need into the new file and delete the backup. T
 
 Reinstalling with no local changes leaves the workflows byte-identical, so an update produces a
 diff only where Octestra actually changed.
+
+## The contract
+
+Octestra owns the steps that move a task; you own the agent. This section is the whole interface
+between the two — read it once before writing your agent steps.
+
+### What you provide
+
+| Where | What |
+|---|---|
+| `agent-steps` in `octestra-lifecycle-in-progress.yml` | the steps that set up and run your implementation agent |
+| `agent-steps` in `octestra-lifecycle-validation.yml` | the same for your validation agent, plus any artifact upload |
+| `agent-credentials` in both files | an `on.workflow_call.secrets` entry for every secret those steps need |
+| `in-progress-secrets` and `validation-secrets` in `octestra-lifecycle.yml` | passing each of those secrets in from the caller |
+| `.github/octestra/prompts/*.md.hbs` | what each agent is told to do |
+| `.github/octestra/config.yml` | the two runners, the App client ID, the branch template, the prompt paths |
+
+### What Octestra gives you
+
+Before your steps run, in `octestra-lifecycle-in-progress.yml`:
+
+| Name | Holds |
+|---|---|
+| `steps.epic.outputs.prompt` | your task prompt, rendered |
+| `steps.epic.outputs.branch_name` | the branch your agent must push. Nothing else is looked for later |
+| `steps.epic.outputs.task_ready` | `false` when an existing branch or open pull request stopped this task. Guard your steps on it |
+| `steps.epic.outputs.draft_flag` | `--draft` when the pull request should be a draft, empty when not |
+| `steps.epic.outputs.skip_validation` | whether this task goes straight to Human Review |
+| `steps.epic.outputs.task_owner` | the human assigned to the issue |
+| `steps.epic.outputs.epic_id`, `parent_number`, `skill_name`, `target_file` | the EPIC's id, its issue number, the skill it names, and the task's target |
+| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | the agent's GitHub token |
+
+Before your steps run, in `octestra-lifecycle-validation.yml`:
+
+| Name | Holds |
+|---|---|
+| `steps.epic.outputs.prompt` | your validation prompt, rendered |
+| `steps.epic.outputs.pull_number` | the open pull request to validate. It is already checked out |
+| `steps.epic.outputs.result_path` | the file your agent must write its result to |
+| `steps.epic.outputs.artifact_path` | the directory to save screenshots, logs and other evidence in |
+| `steps.epic.outputs.branch_name`, `parent_number`, `target_file` | the task branch, the EPIC's issue number, and the task's target |
+| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | the agent's GitHub token |
+
+After your steps run, Octestra moves the task, comments on the issue with the result, and requests
+review from the task owner when a human is next. If your steps fail, it comments with a link to the
+run and moves the task to `Blocked`.
+
+### What you must not break
+
+| Rule | What happens if you do |
+|---|---|
+| Your agent pushes exactly `branch_name` | Octestra finds no branch, comments that the agent created none, and moves the task to `Blocked` |
+| Your agent opens a pull request from that branch | The finalize step fails with `PR not found for branch …`, and the task moves to `Blocked` |
+| Your validation agent writes `outcome` and `summary` as JSON to `result_path` | The finalize step fails on the unreadable file, and the task moves to `Blocked` |
+| `outcome` is exactly `passed` for a success | Any other value moves the task to `Blocked`, which is the intended behaviour for a real failure and a silent surprise for a typo |
+| Your validation agent creates no branch and no commit | It is validating a checked-out pull request head; a push from here is not part of any lifecycle and nothing cleans it up |
+| The steps named `Prepare …` and `Finalize …` stay outside the marker pairs, first and last | Your steps read `steps.epic.outputs`, so nothing works before the prepare step; the finalize step reports what your steps did, so it must be last |
+| Nothing between the markers names another step by its id | A later version can move that step, and GitHub turns the dangling reference into an empty string instead of an error |
+| No `secrets: inherit`, anywhere | It hands every organization secret to a job that runs an agent |
+| `octestra-lifecycle.yml`'s workflow-level `permissions:` stays a superset of every workflow it calls | The whole run fails with `startup_failure` before any job starts — no logs, no annotation, nothing to read |
 
 ## Operations
 

@@ -27,6 +27,9 @@
 # the reference into an empty string instead of reporting an error, and the agent runs with an
 # empty value.
 #
+# Octestra's README has a section called `The contract`. It lists every name these steps publish
+# and every rule your steps have to follow, with what breaks when one is ignored.
+#
 # Leave the `Prepare task lifecycle` and `Finalize task lifecycle` steps outside the markers.
 # Octestra keeps changing them, and an installation holding an old copy breaks. If an update
 # cannot find a marker pair it expected — renamed or deleted by hand — it saves the previous
