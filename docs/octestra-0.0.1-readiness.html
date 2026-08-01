@@ -1,0 +1,464 @@
+<title>Octestra — Core Value &amp; 0.0.1 Readiness</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --panel: #ffffff; --panel-2: #f5f3ef;
+    --ink: #1c1a17; --ink-2: #55504a; --ink-3: #8a827a; --rule: #e5e0d8;
+    --accent: #b8562f; --ok: #3f7a4e; --warn: #b07d16; --stop: #ab3a2e;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16161a; --panel: #1e1e23; --panel-2: #26262c;
+      --ink: #ecebe8; --ink-2: #b4b0aa; --ink-3: #7d7871; --rule: #33333a;
+      --accent: #e8845c; --ok: #6fb586; --warn: #d6a83f; --stop: #e07a6c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16161a; --panel: #1e1e23; --panel-2: #26262c;
+    --ink: #ecebe8; --ink-2: #b4b0aa; --ink-3: #7d7871; --rule: #33333a;
+    --accent: #e8845c; --ok: #6fb586; --warn: #d6a83f; --stop: #e07a6c;
+  }
+  :root[data-theme="light"] {
+    --bg: #fbfaf8; --panel: #ffffff; --panel-2: #f5f3ef;
+    --ink: #1c1a17; --ink-2: #55504a; --ink-3: #8a827a; --rule: #e5e0d8;
+    --accent: #b8562f; --ok: #3f7a4e; --warn: #b07d16; --stop: #ab3a2e;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
+         line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 62rem; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+
+  header { border-bottom: 1px solid var(--rule); padding-bottom: 1.75rem; margin-bottom: 2.25rem; }
+  .eyebrow { font-family: var(--mono); font-size: .72rem; letter-spacing: .14em;
+             text-transform: uppercase; color: var(--accent); margin: 0 0 .6rem; }
+  h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); line-height: 1.15; margin: 0 0 .75rem; letter-spacing: -.02em; }
+  .meta { font-family: var(--mono); font-size: .78rem; color: var(--ink-3);
+          display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; }
+
+  h2 { font-size: 1.05rem; letter-spacing: -.01em; margin: 3.25rem 0 .4rem;
+       display: flex; align-items: baseline; gap: .6rem; }
+  h2 .n { font-family: var(--mono); font-size: .78rem; color: var(--accent); }
+  .lede { color: var(--ink-2); font-size: .93rem; margin: 0 0 1.5rem; max-width: 48rem; }
+
+  /* hero */
+  .hero { display: grid; grid-template-columns: 1fr minmax(0, 14rem); gap: 2rem 2.5rem;
+          align-items: center; background: var(--panel); border: 1px solid var(--rule);
+          border-radius: 14px; padding: 1.75rem; }
+  @media (max-width: 44rem) { .hero { grid-template-columns: 1fr; } }
+  .hero p { margin: 0 0 .8rem; font-size: .95rem; color: var(--ink-2); }
+  .hero p:last-child { margin-bottom: 0; }
+  .hero strong { color: var(--ink); }
+  .gauge { display: block; width: 100%; height: auto; max-width: 14rem; margin: 0 auto; }
+  .gauge .num { font-family: var(--mono); font-size: 2.4rem; font-weight: 600; fill: var(--ink); }
+  .gauge .cap { font-family: var(--mono); font-size: .6rem; letter-spacing: .12em; fill: var(--ink-3); }
+
+  /* value ledger */
+  .ledger { display: grid; gap: .6rem; }
+  .lrow { display: grid; grid-template-columns: minmax(0, 15rem) 5.5rem 6.5rem 1fr;
+          gap: 1rem; align-items: start; background: var(--panel); border: 1px solid var(--rule);
+          border-radius: 10px; padding: .85rem 1rem; }
+  .lrow.head { background: transparent; border: none; padding: 0 1rem .1rem;
+               font-family: var(--mono); font-size: .66rem; letter-spacing: .1em;
+               text-transform: uppercase; color: var(--ink-3); }
+  @media (max-width: 52rem) {
+    .lrow { grid-template-columns: 1fr auto; gap: .5rem .9rem; }
+    .lrow.head { display: none; }
+    .lrow .dur { grid-column: 1 / -1; }
+    .lrow .say { grid-column: 1 / -1; }
+  }
+  .lrow .what { font-size: .89rem; font-weight: 600; letter-spacing: -.01em; }
+  .lrow .what small { display: block; font-weight: 400; font-family: var(--mono);
+                      font-size: .71rem; color: var(--ink-3); margin-top: .15rem; }
+  .lrow .dur { font-family: var(--mono); font-size: .74rem; color: var(--ink-3); }
+  .lrow .say { font-size: .85rem; color: var(--ink-2); }
+  .badge { font-family: var(--mono); font-size: .66rem; letter-spacing: .07em; text-transform: uppercase;
+           padding: .2rem .5rem; border-radius: 5px; border: 1px solid var(--rule);
+           background: var(--panel-2); white-space: nowrap; font-weight: 600; }
+  .badge.hi { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--rule)); }
+  .badge.mid { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--rule)); }
+  .badge.lo { color: var(--stop); border-color: color-mix(in srgb, var(--stop) 40%, var(--rule)); }
+  .badge.na { color: var(--ink-3); }
+
+  /* generic cards */
+  .cards { display: grid; gap: 1rem; }
+  .card { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px;
+          padding: 1.15rem 1.3rem; border-left: 3px solid var(--rule); }
+  .card.stop { border-left-color: var(--stop); }
+  .card.warn { border-left-color: var(--warn); }
+  .card.ok { border-left-color: var(--ok); }
+  .card.accent { border-left-color: var(--accent); }
+  .card h3 { margin: 0 0 .5rem; font-size: .95rem; letter-spacing: -.01em;
+             display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; }
+  .card p { margin: 0 0 .55rem; font-size: .88rem; color: var(--ink-2); }
+  .card p:last-child { margin-bottom: 0; }
+  .card strong { color: var(--ink); }
+  .tag { font-family: var(--mono); font-size: .66rem; letter-spacing: .07em; text-transform: uppercase;
+         padding: .18rem .45rem; border-radius: 5px; background: var(--panel-2); color: var(--ink-3);
+         border: 1px solid var(--rule); white-space: nowrap; font-weight: 500; }
+  .tag.stop { color: var(--stop); } .tag.warn { color: var(--warn); } .tag.ok { color: var(--ok); }
+  code { font-family: var(--mono); font-size: .84em; background: var(--panel-2);
+         padding: .1rem .3rem; border-radius: 4px; color: var(--ink);
+         border: 1px solid var(--rule); word-break: break-word; }
+  .where { font-family: var(--mono); font-size: .74rem; color: var(--ink-3); margin-top: .6rem; }
+
+  /* area bars */
+  .areas { display: grid; gap: .9rem; }
+  .area { display: grid; grid-template-columns: minmax(0, 13rem) 1fr auto; gap: .9rem; align-items: center; }
+  @media (max-width: 34rem) { .area { grid-template-columns: 1fr auto; } .area .track { grid-column: 1 / -1; } }
+  .area .name { font-size: .88rem; }
+  .area .name small { display: block; color: var(--ink-3); font-size: .74rem; font-family: var(--mono); }
+  .track { background: var(--panel-2); border-radius: 999px; height: .55rem; overflow: hidden; }
+  .fill { height: 100%; border-radius: 999px; background: var(--ink-3); }
+  .fill.hi { background: var(--ok); } .fill.mid { background: var(--warn); } .fill.lo { background: var(--stop); }
+  .pct { font-family: var(--mono); font-size: .8rem; color: var(--ink-2); min-width: 2.6rem; text-align: right; }
+
+  .door { background: var(--panel); border: 1px solid var(--stop); border-radius: 14px; padding: 1.5rem 1.6rem; }
+  .door h3 { margin: 0 0 .7rem; font-size: 1rem; }
+  .door p { margin: 0 0 .8rem; font-size: .9rem; color: var(--ink-2); }
+  .door p:last-child { margin-bottom: 0; }
+  .scrollx { overflow-x: auto; margin: .9rem 0; }
+  pre { margin: 0; font-family: var(--mono); font-size: .78rem; line-height: 1.7;
+        background: var(--panel-2); border: 1px solid var(--rule); border-radius: 8px;
+        padding: .9rem 1rem; color: var(--ink-2); min-width: max-content; }
+  pre b { color: var(--stop); font-weight: 600; }
+  pre i { color: var(--ok); font-style: normal; }
+
+  ol.check { list-style: none; counter-reset: c; padding: 0; margin: 0; display: grid; gap: .55rem; }
+  ol.check li { counter-increment: c; display: grid; grid-template-columns: 1.6rem 1fr auto; gap: .8rem;
+                align-items: baseline; background: var(--panel); border: 1px solid var(--rule);
+                border-radius: 9px; padding: .7rem .9rem; font-size: .88rem; }
+  ol.check li::before { content: counter(c); font-family: var(--mono); font-size: .74rem; color: var(--ink-3);
+                        background: var(--panel-2); border-radius: 5px; text-align: center; padding: .1rem 0; }
+  ol.check .est { font-family: var(--mono); font-size: .72rem; color: var(--ink-3); white-space: nowrap; }
+
+  ul.plain { padding-left: 1.1rem; margin: 0; font-size: .88rem; color: var(--ink-2); }
+  ul.plain li { margin-bottom: .45rem; }
+  ul.plain strong { color: var(--ink); }
+
+  footer { margin-top: 3.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);
+           font-family: var(--mono); font-size: .72rem; color: var(--ink-3); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Core value &amp; release readiness</p>
+    <h1>Octestra: what is it worth, and how far from <span style="color:var(--accent)">0.0.1</span>?</h1>
+    <div class="meta">
+      <span>updated 2026-07-30</span><span>HEAD 20588ee+</span><span>36 commits / 5 days</span>
+      <span><code>make all</code> green</span><span>5 of 6 blockers closed</span>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div>
+      <p><strong>The value is real and it is concentrated in two places:</strong> the maintenance
+      contract that lets a customized workflow still take an upgrade, and the handful of lifecycle
+      correctness details a team would get wrong silently. It is <em>not</em> in agent orchestration,
+      proof rendering, or the config plumbing.</p>
+      <p><strong>What ships today is the part that matters:</strong> a field change becomes an agent
+      run, a pull request, a validation pass, a review request and a merge, repeatable across as many
+      task issues as you open. Running that unattended on a schedule is a later convenience, not a
+      missing pillar — see the correction in section 02.</p>
+      <p><strong>Readiness: five of six blockers closed.</strong> The one-way door is shut, the
+      security scope and the consumer contract are written down, and the only thing left is the
+      end-to-end run — whose result is the one thing that can still add work here.</p>
+    </div>
+    <svg class="gauge" viewBox="0 0 200 130" role="img" aria-label="Approximately 93 percent ready for 0.0.1">
+      <path d="M20 110 A80 80 0 0 1 180 110" fill="none" stroke="var(--panel-2)" stroke-width="14" stroke-linecap="round"/>
+      <path d="M20 110 A80 80 0 0 1 180 110" fill="none" stroke="var(--ok)" stroke-width="14"
+            stroke-linecap="round" stroke-dasharray="233.7 251.3"/>
+      <text class="num" x="100" y="100" text-anchor="middle">93%</text>
+      <text class="cap" x="100" y="122" text-anchor="middle">TO 0.0.1</text>
+    </svg>
+  </div>
+
+  <h2><span class="n">01</span> Core value, component by component</h2>
+  <p class="lede">Scored on what a consumer could not cheaply reproduce themselves, and on how likely
+  each is to survive a change in GitHub's platform. "Durability" is independence from the newest,
+  least stable thing Octestra depends on.</p>
+  <div class="ledger">
+    <div class="lrow head">
+      <div>Component</div><div>Value</div><div>Durability</div><div>Assessment</div>
+    </div>
+
+    <div class="lrow">
+      <div class="what">The update contract
+        <small>D14 · custom regions + update runs the target version's install.sh</small></div>
+      <div><span class="badge hi">High</span></div>
+      <div class="dur">High<br><span style="opacity:.7">storage-agnostic</span></div>
+      <div class="say">The crown jewel, and the most transferable idea here. It solves the failure that
+      kills every customizable-CI-template ecosystem: consumers edit, then can never upgrade. Nothing
+      about it is specific to Issue Fields or even to agents.</div>
+    </div>
+
+    <div class="lrow">
+      <div class="what">Lifecycle correctness details
+        <small>stale-event re-read · bot vs user · existing-work block · merged vs manual close · status-last</small></div>
+      <div><span class="badge hi">High</span></div>
+      <div class="dur">Medium<br><span style="opacity:.7">Issue Fields</span></div>
+      <div class="say">Not the transition table — that's 10 lines anyone can write. The value is the five
+      guards you only add after being burned, each of which fails <em>silently</em> when absent. This is
+      the strongest argument against hand-rolling.</div>
+    </div>
+
+    <div class="lrow">
+      <div class="what">Platform invariants
+        <small>AGENTS.md P1–P11 · design.md D3–D14</small></div>
+      <div><span class="badge hi">High</span></div>
+      <div class="dur">High</div>
+      <div class="say">Best value-per-byte in the repository. P11 alone — a callee requesting a permission
+      the caller lacks kills the run with no logs — costs a day to rediscover. Note it is
+      <em>non-excludable</em>: a reader gets it without adopting anything. Some of your best work
+      doesn't need your framework.</div>
+    </div>
+
+    <div class="lrow">
+      <div class="what">Config control plane
+        <small>config.yml + four mirrored repository variables</small></div>
+      <div><span class="badge mid">Medium</span></div>
+      <div class="dur">Medium</div>
+      <div class="say">Plumbing tax you pay so consumers don't — a careful answer to a problem GitHub
+      created (P2/P3). Necessary and well-executed, but purely cost-avoidance: nobody adopts Octestra
+      <em>for</em> this.</div>
+    </div>
+
+    <div class="lrow">
+      <div class="what">EPIC / sub-issue structure
+        <small>setup skill + setup_epic.rb generator</small></div>
+      <div><span class="badge mid">Medium</span></div>
+      <div class="dur">High</div>
+      <div class="say">Useful conventions and a working generator, but it's scaffolding — a competent
+      team reproduces it in an afternoon. Helps onboarding, doesn't create lock-in or leverage.</div>
+    </div>
+
+    <div class="lrow">
+      <div class="what">Proof reporting
+        <small>proof.ts · report-proof · finalize-validation</small></div>
+      <div><span class="badge lo">Low</span></div>
+      <div class="dur">High</div>
+      <div class="say">A markdown table formatter with a validation convention. Acceptance criteria are
+      consumer-owned, and the validating agent grades its own work in the same job — so what a green
+      proof asserts is "an agent said passed." The weakest claim to core status.</div>
+    </div>
+
+    <div class="lrow">
+      <div class="what">Agent orchestration
+        <small>the agent itself · prompts · tools</small></div>
+      <div><span class="badge na">Ceded</span></div>
+      <div class="dur">—</div>
+      <div class="say">Correctly delegated to the consumer and to <code>claude-code-action</code>. Not
+      yours, and shouldn't be — this is the right boundary and you drew it deliberately.</div>
+    </div>
+  </div>
+
+  <h2><span class="n">02</span> What bounds the value</h2>
+  <p class="lede">Two real ceilings, and two claims this report got wrong. The corrections come first,
+  because they move the verdict further than either ceiling does — both in the same direction, upward.</p>
+  <div class="cards">
+    <div class="card ok">
+      <h3>Removing Loops cost no value <span class="tag ok">correction</span></h3>
+      <p>An earlier version of this report deducted value for the removed Loop subsystem, arguing the
+      setup cost is only repaid by a continuous sweep across many tasks. Two mistakes in one paragraph.</p>
+      <p>It <strong>treated an unshipped roadmap item as a debt against what shipped</strong>. An
+      aspiration recorded in <code>TODO.md</code> is not a deficiency in the thing you can install
+      today; scoring it that way double-counts the author's own honesty about future work.</p>
+      <p>And it <strong>conflated "many tasks" with "needs a scheduler"</strong>. Nothing about running
+      fifty tasks requires one: the EPIC skill opens the sub-issues, a bulk field change starts them,
+      and the per-issue concurrency group serialises each one so a repeated transition queues instead
+      of putting a second agent on the same branch. Throughput at scale is already here.</p>
+      <p>What a schedule would add is unattended <em>initiation</em> — a capability orthogonal to the
+      state machine, and in implementation terms a cron plus a bounded query over operations that
+      already exist. The open questions in <code>TODO.md</code> §1 are about autonomous task
+      <em>creation</em>, which is a new feature, not the completion of this one.</p>
+    </div>
+
+    <div class="card ok">
+      <h3>Issue Fields is load-bearing, not a swappable backend <span class="tag ok">correction</span></h3>
+      <p>An earlier version of this report suggested putting the state machine's storage behind a seam,
+      so something more widely available could serve instead. That was wrong, and it was wrong because
+      it treated the field as a place to <em>keep</em> state rather than as the thing that <em>starts
+      the run</em>. The substrate has to satisfy three conditions at once:</p>
+      <ul class="plain">
+        <li><code>issues: field_added</code> is a repository workflow trigger. The field change is what
+        launches the workflow — a store GitHub emits no repository event for cannot drive anything.</li>
+        <li>Single select, so one task holds exactly one status.</li>
+        <li>The payload carries the previous value
+        (<code>changes.issue_field_value.from.option.name</code>), which is what the transition guard
+        compares against to decide whether the move was legal.</li>
+      </ul>
+      <p>So the organization + admin + new-API requirement really does bound how many teams can adopt
+      this — but as a consequence of how the run is triggered, not as a design choice to revisit. What
+      stays transferable is the <em>idea</em> of the update contract, not a re-hosting of the state
+      machine.</p>
+    </div>
+
+    <div class="card warn">
+      <h3>Payoff requires N tasks × time <span class="tag">scope</span></h3>
+      <p>For one agent on one repo occasionally, Octestra is strictly negative:
+      <code>claude-code-action</code> plus thirty lines of YAML wins. The framework only pays where
+      lifecycle state is genuinely hard <em>and</em> the workflow will be revised repeatedly. That's a
+      real ICP — a platform team running migrations across a large repo — but it's narrow, and the
+      README doesn't name it.</p>
+    </div>
+
+    <div class="card warn">
+      <h3>Name-addressed statuses are permanent fragility <span class="tag">accepted</span></h3>
+      <p>Renaming a status option in the organization breaks every installation (P1). You investigated
+      the alternative, reverted it, and documented why — the write endpoint gives no ID form. That's
+      the correct disposition, and it's still a footgun every adopter inherits forever.</p>
+    </div>
+  </div>
+
+  <h2><span class="n">03</span> Where readiness sits</h2>
+  <p class="lede">Contributor documentation is already past 1.0 quality. Consumer surface and
+  end-to-end verification are what hold the number down. Percentages are judgement, weighted by what
+  a 0.0.1 has to <em>assert</em> — not by lines of code remaining.</p>
+  <div class="areas">
+    <div class="area">
+      <div class="name">Contributor docs <small>AGENTS.md · design.md · TODO.md</small></div>
+      <div class="track"><div class="fill hi" style="width:95%"></div></div><div class="pct">95%</div>
+    </div>
+    <div class="area">
+      <div class="name">Lifecycle engine <small>state graph · guard · operations</small></div>
+      <div class="track"><div class="fill hi" style="width:88%"></div></div><div class="pct">88%</div>
+    </div>
+    <div class="area">
+      <div class="name">Install / update <small>region interface now defined and enforced</small></div>
+      <div class="track"><div class="fill hi" style="width:90%"></div></div><div class="pct">90%</div>
+    </div>
+    <div class="area">
+      <div class="name">Release mechanics <small>release.yml · never exercised</small></div>
+      <div class="track"><div class="fill mid" style="width:75%"></div></div><div class="pct">75%</div>
+    </div>
+    <div class="area">
+      <div class="name">Consumer docs <small>glossary · contract · security scope</small></div>
+      <div class="track"><div class="fill hi" style="width:90%"></div></div><div class="pct">90%</div>
+    </div>
+    <div class="area">
+      <div class="name">Verification <small>region guard added · end-to-end in flight</small></div>
+      <div class="track"><div class="fill mid" style="width:65%"></div></div><div class="pct">65%</div>
+    </div>
+    <div class="area">
+      <div class="name">Security posture <small>scope now stated · boundary still open</small></div>
+      <div class="track"><div class="fill mid" style="width:65%"></div></div><div class="pct">65%</div>
+    </div>
+  </div>
+
+  <h2><span class="n">04</span> The one-way door — closed</h2>
+  <div class="door" style="border-color: var(--ok)">
+    <h3>The <code>agent-steps</code> region no longer names a step Octestra must move
+      <span class="tag ok">fixed in d1efc7d</span></h3>
+    <p>What it was: a region's contents cross an update verbatim, and both <code>agent-steps</code>
+    regions named <code>steps.app-token.outputs.token</code>. Moving agent execution away from the
+    privileged token deletes that step from the agent's job — at which point every installation still
+    carries the old reference, and GitHub resolves it to the <strong>empty string, not an
+    error</strong>. Markers balanced, <code>doctor</code> green, clean diff, agent running with no
+    credential. This was the only item whose cost rose after release, which is why it went first.</p>
+    <div class="scrollx"><pre><i>env.OCTESTRA_AGENT_GITHUB_TOKEN  </i>  published by a step outside the region
+<i>steps.epic.outputs.*             </i>  the documented interface
+<b>steps.app-token.outputs.token    </b>  gone — and now a test failure if reintroduced</pre></div>
+    <p>Three things landed together: the token is published under a name Octestra owns, each
+    template's header states which symbols a region may reference, and
+    <code>test/install.test.sh</code> fails when a template breaks it. The check anchors its marker
+    match exactly as <code>custom_region_marker</code> in <code>install.sh</code> does — its first
+    version did not, and false-positived on a comment that merely quoted a marker name.</p>
+  </div>
+
+  <h2><span class="n">05</span> Blocks 0.0.1 — 5 of 6 closed</h2>
+  <p class="lede">Only the end-to-end run is still open, and it is running outside this report.</p>
+  <div class="cards">
+    <div class="card warn">
+      <h3>One end-to-end run <span class="tag warn">in progress</span><span class="tag">~1 day</span></h3>
+      <p>Todo → Ready → In Progress → Human Review → Done, real agent, real organization field. The 54
+      unit tests all use a fake client; nothing yet exercises the Issue Fields API, the
+      <code>field_added</code> payload shape, or the permissions ceiling that fails a run before any
+      job starts. Under way outside this report — its result may add work not listed here.</p>
+    </div>
+    <div class="card ok">
+      <h3>Region interface boundary <span class="tag ok">done · d1efc7d</span></h3>
+      <p>The token now reaches a region as <code>env.OCTESTRA_AGENT_GITHUB_TOKEN</code>, each header
+      lists the referenceable symbols, and a test fails if a template names anything else. See
+      section 04.</p>
+    </div>
+    <div class="card ok">
+      <h3>Dead scaffolding deleted <span class="tag ok">done · d1efc7d</span></h3>
+      <p><code>.trusted</code> — a third checkout hidden from git and read by nothing — is gone, along
+      with <code>proof.nextStatus</code>, which was parsed and never consumed. <code>next_status</code>
+      now falls under the documented rule that unknown fields are ignored.</p>
+    </div>
+    <div class="card ok">
+      <h3>Deprecated aliases dropped <span class="tag ok">done · d1efc7d</span></h3>
+      <p>The nine bare names protected installations that predate a release, and there is no release.
+      Removing them surfaced a real defect: <code>README.md</code> documented <em>every</em> lifecycle
+      operation by its pre-namespace name, so the table and the prose advertised names that would no
+      longer dispatch. Both now carry <code>lifecycle/</code>.</p>
+    </div>
+    <div class="card ok">
+      <h3>Security scope stated <span class="tag ok">done</span></h3>
+      <p><code>README.md</code> gained a <code>Security</code> section, placed before
+      <code>Installation</code> because it decides whether you should install at all. It says the
+      scope is a private repository with trusted members, that whoever can change the status field can
+      start an agent run and should be treated as having write access, that whoever can edit an issue
+      body decides what the agent is told, and that a <code>passed</code> proof is the validating
+      agent's own claim. It states what is not implemented without promising when it will be.</p>
+    </div>
+    <div class="card ok">
+      <h3>The consumer contract, as one page <span class="tag ok">done</span></h3>
+      <p><code>README.md</code> gained <code>The contract</code>: what you provide, every name Octestra
+      publishes for your steps in each workflow, and a table of rules paired with what breaks when one
+      is ignored — a branch under another name, a missing pull request, an <code>outcome</code> that is
+      not exactly <code>passed</code>, a permissions ceiling that kills the run before any job starts.
+      Both agent workflow headers now point at it, since being scattered was the original problem.</p>
+      <p>Every output name in it was checked against <code>setOutput</code> in
+      <code>operations.ts</code> and against the <code>outputs:</code> block in
+      <code>action.yml</code> — an undeclared output silently reads as empty.</p>
+    </div>
+  </div>
+
+  <h2><span class="n">06</span> Ships fine without these</h2>
+  <p class="lede">Deferrable because 0.0.1 signals "first cut," and because each is fixable later
+  without touching consumer-owned content.</p>
+  <ul class="plain">
+    <li><strong>The trust boundary itself.</strong> The insecure shape lives <em>outside</em> the custom
+    regions, so a later two-job split propagates to every installation through <code>update</code>.
+    That path is now actually available: with the credential reaching a region under an Octestra-owned
+    name, the split no longer has to edit anything a consumer wrote.</li>
+    <li><strong>SHA-pinning template actions</strong>, and pinning the installer's own download. Do it
+    before anyone security-reviews this; not a correctness issue for 0.0.1.</li>
+    <li><strong>A committed working agent example.</strong> Would move adoption more than anything else
+    listed, but the commented Claude Code block gets a first consumer moving.</li>
+    <li><strong>SECURITY.md, CONTRIBUTING.md, dependabot, repo description.</strong> Public-repo hygiene;
+    no bearing on whether 0.0.1 works.</li>
+    <li><strong>Loops (TODO §1).</strong> Correctly deferred, and not a gap in what ships: the seams
+    are held open, the design questions are about autonomous task creation, and the scheduling itself
+    is a cron over operations that already exist.</li>
+    <li><strong>Stale TODO §4 bullet</strong> claiming <code>config.yml</code> is regenerated;
+    <code>install.sh:815</code> already preserves it. Thirty seconds, contributors only.</li>
+    <li><strong>The iOS-specific default validation prompt.</strong>
+    <code>lifecycle-validation.md.hbs</code> ships an instruction to run Simulator and XcodeBuildMCP.
+    Prompts are consumer-owned and meant to be edited, so this is not wrong — but one repository's
+    policy is currently the framework's default.</li>
+  </ul>
+
+  <h2><span class="n">07</span> Definition of done for 0.0.1</h2>
+  <ol class="check">
+    <li><span>✅ Regions reference only documented names; the credential's source moved out of consumer content</span><span class="est">done</span></li>
+    <li><span>✅ <code>.trusted</code>, <code>proof.nextStatus</code> and the alias table deleted</span><span class="est">done</span></li>
+    <li><span>✅ <code>make all</code> green with the bundle regenerated and committed</span><span class="est">done</span></li>
+    <li><span>✅ README states the security scope and that issue bodies are executable input</span><span class="est">done</span></li>
+    <li><span>✅ A single consumer-contract page: provide / receive / what breaks</span><span class="est">done</span></li>
+    <li><span>🔄 One full task lifecycle run on a real organization, logged or screenshotted in the repo</span><span class="est">in flight</span></li>
+    <li><span>⬜ <code>release.yml</code> exercised once on a throwaway tag</span><span class="est">1 h</span></li>
+  </ol>
+
+  <footer>
+    Value scored on non-reproducibility and platform durability; readiness scored against a 0.0.1 bar —
+    installable, runnable once, honest about its boundaries, changeable afterwards without stranding the
+    first consumer. Public visibility, tags and releases excluded from scoring at the author's direction.
+    Percentages are judgement, not measurement. What remains is the end-to-end run, whose result is
+    the one thing that can still add work this report does not know about, and one rehearsal of
+    <code>release.yml</code>.
+  </footer>
+</div>
