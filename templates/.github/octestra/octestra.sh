@@ -528,13 +528,13 @@ latest_version_tag() {
     "/repos/$repository/tags" \
     --paginate \
     --jq '.[].name' 2>/dev/null |
-    grep -E '^v?[0-9]+(\.[0-9]+)*$' |
+    grep -E '^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*$' |
     sort -V |
     tail -n 1
 }
 
 # Resolves a reference spec against the installed one. Both 'ref' and 'update' accept the
-# same forms, so they cannot disagree about what `@v2` or `--latest` means.
+# same forms, so they cannot disagree about what `@2` or `--latest` means.
 resolve_action_spec() {
   local spec="$1"
   local repository="${INSTALLED_ACTION%@*}"

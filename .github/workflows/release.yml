@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version (for example, v1.0.0)
+        description: Version from package.json (for example, 0.0.1)
         required: true
         type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -29,17 +33,55 @@ jobs:
         with:
           ruby-version: "4.0"
 
-      - name: Validate version
+      - name: Validate release
+        id: release
         env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
         run: |
-          if ! printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "version must use the vMAJOR.MINOR.PATCH format" >&2
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            echo "release must be dispatched from $DEFAULT_BRANCH" >&2
             exit 1
           fi
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
-            echo "tag already exists: $VERSION" >&2
+
+          git fetch origin "$DEFAULT_BRANCH" --tags --force
+          default_sha=$(git rev-parse "origin/$DEFAULT_BRANCH")
+          if [[ "$GITHUB_SHA" != "$default_sha" ]]; then
+            echo "release commit $GITHUB_SHA is not the latest $DEFAULT_BRANCH commit $default_sha" >&2
             exit 1
+          fi
+
+          major_version=$(bash scripts/release-version.sh "$VERSION")
+          echo "major_version=$major_version" >> "$GITHUB_OUTPUT"
+
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "release already exists: $VERSION" >&2
+            exit 1
+          fi
+
+          existing_commit=$(git rev-parse --verify "refs/tags/$VERSION^{commit}" 2>/dev/null || true)
+          if [[ -n "$existing_commit" && "$existing_commit" != "$GITHUB_SHA" ]]; then
+            echo "tag $VERSION points at $existing_commit, not $GITHUB_SHA" >&2
+            exit 1
+          fi
+          if [[ -n "$existing_commit" && "$(git cat-file -t "refs/tags/$VERSION")" != "tag" ]]; then
+            echo "existing release tag $VERSION is not annotated" >&2
+            exit 1
+          fi
+
+          latest_version=$(
+            { git tag --list |
+              grep -E '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || true; } |
+              sort -V |
+              tail -n 1
+          )
+          if [[ -n "$latest_version" && "$latest_version" != "$VERSION" ]]; then
+            newest=$(printf '%s\n%s\n' "$latest_version" "$VERSION" | sort -V | tail -n 1)
+            if [[ "$newest" != "$VERSION" ]]; then
+              echo "version $VERSION must be newer than existing tag $latest_version" >&2
+              exit 1
+            fi
           fi
 
       - run: npm ci
@@ -47,23 +89,34 @@ jobs:
       - run: make all
 
       - name: Verify committed bundle
-        run: git diff --exit-code -- dist/index.js
+        run: git diff --exit-code
 
       - name: Publish release
         env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
+          MAJOR_VERSION: ${{ steps.release.outputs.major_version }}
           VERSION: ${{ inputs.version }}
         run: |
-          major_version=${VERSION%%.*}
+          git fetch origin "$DEFAULT_BRANCH" --tags --force
+          default_sha=$(git rev-parse "origin/$DEFAULT_BRANCH")
+          if [[ "$GITHUB_SHA" != "$default_sha" ]]; then
+            echo "$DEFAULT_BRANCH moved to $default_sha while the release was running" >&2
+            exit 1
+          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$VERSION" -m "Release $VERSION"
-          git push origin "$VERSION"
-          git tag -fa "$major_version" -m "Update $major_version to $VERSION"
-          git push origin "$major_version" --force
+          if ! git show-ref --verify --quiet "refs/tags/$VERSION"; then
+            git tag -a "$VERSION" -m "Release $VERSION" "$GITHUB_SHA"
+          fi
+          git push origin "refs/tags/$VERSION"
+
+          git tag -fa "$MAJOR_VERSION" -m "Update $MAJOR_VERSION to $VERSION" "$GITHUB_SHA"
+          git push origin "refs/tags/$MAJOR_VERSION" --force
 
           gh release create "$VERSION" \
             --generate-notes \
             --latest \
-            --title "$VERSION"
+            --title "$VERSION" \
+            --verify-tag

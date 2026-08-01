@@ -357,7 +357,8 @@ make all
 `make all` type-checks, tests, and rebuilds the committed `dist/index.js` bundle.
 
 Read [`AGENTS.md`](AGENTS.md) before changing Octestra. Architecture decisions are documented in
-[`docs/design.md`](docs/design.md), and planned work is tracked in [`TODO.md`](TODO.md).
+[`docs/design.md`](docs/design.md), planned work is tracked in [`TODO.md`](TODO.md), and the
+maintainer release procedure is in [`docs/releasing.md`](docs/releasing.md).
 
 ## License
 

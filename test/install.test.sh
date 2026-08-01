@@ -287,7 +287,7 @@ git -C "$TEMP_DIR/consumer-tagged" remote add origin git@github.com:example-org/
 PATH="$TEMP_DIR/bin:$PATH" \
   OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
   OCTESTRA_TEST_REPO_VIEW_FAIL=true \
-  OCTESTRA_TEST_TAGS="v1 v1.9.0 v1.10.0 v1.11.0-rc1 nightly" \
+  OCTESTRA_TEST_TAGS="1 1.9.0 1.10.0 v1.11.0 01.12.0 1.11.0-rc1 nightly" \
   bash "$ROOT/install.sh" \
     --org example-org \
     --status-field "AI Task Status" \
@@ -295,7 +295,7 @@ PATH="$TEMP_DIR/bin:$PATH" \
     --source-dir "$ROOT" \
     --skill-target codex \
     --yes
-tagged_references=$(count_references 'ainame/octestra@v1\.10\.0' "$TEMP_DIR/consumer-tagged/.github")
+tagged_references=$(count_references 'ainame/octestra@1\.10\.0' "$TEMP_DIR/consumer-tagged/.github")
 if [[ "$tagged_references" != "$template_references" ]]; then
   echo "tagged install pinned $tagged_references of $template_references action references" >&2
   exit 1
@@ -312,7 +312,7 @@ git -C "$TEMP_DIR/consumer-pinned" remote add origin git@github.com:example-org/
 PATH="$TEMP_DIR/bin:$PATH" \
   OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
   OCTESTRA_TEST_REPO_VIEW_FAIL=true \
-  OCTESTRA_TEST_TAGS="v1.10.0" \
+  OCTESTRA_TEST_TAGS="1.10.0" \
   bash "$ROOT/install.sh" \
     --org example-org \
     --status-field "AI Task Status" \
@@ -353,7 +353,7 @@ cat "$ROOT/install.sh" |
   OCTESTRA_TEST_ARCHIVE="$TEMP_DIR/octestra-main.tar.gz" \
   OCTESTRA_TEST_REPO_VIEW_FAIL=true \
   OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
-  OCTESTRA_TEST_TAGS="v1.9.0 v1.10.0" \
+  OCTESTRA_TEST_TAGS="1.9.0 1.10.0" \
   OCTESTRA_TEST_TARBALL_REF="$TEMP_DIR/tarball-ref" \
     bash -s -- \
       --org example-org \
@@ -364,8 +364,8 @@ cat "$ROOT/install.sh" |
 test -f "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-setup-migration-epic/SKILL.md"
 # Templates are downloaded from the same ref the generated workflows call.
-grep -q '^v1\.10\.0$' "$TEMP_DIR/tarball-ref"
-grep -q 'uses: ainame/octestra@v1\.10\.0' \
+grep -q '^1\.10\.0$' "$TEMP_DIR/tarball-ref"
+grep -q 'uses: ainame/octestra@1\.10\.0' \
   "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 
 # config.yml is the consumer's control plane, so a rerun keeps the file they have: rendering
@@ -515,10 +515,10 @@ mv "$TEMP_DIR/parked-validation.yml" \
 # ref reports what the workflows call, and switching rewrites the workflows and the script
 # itself, so the two cannot disagree afterwards.
 test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "ainame/octestra@main"
-PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref @v2.0.0 >/dev/null
-test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "ainame/octestra@v2.0.0"
+PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref @2.0.0 >/dev/null
+test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "ainame/octestra@2.0.0"
 test -x "$maintenance"
-grep -q 'uses: ainame/octestra@v2\.0\.0' \
+grep -q 'uses: ainame/octestra@2\.0\.0' \
   "$TEMP_DIR/consumer-doctor/.github/workflows/octestra-lifecycle.yml"
 if grep -R 'ainame/octestra@main' "$TEMP_DIR/consumer-doctor/.github" >/dev/null; then
   echo "ref left a reference on the previous ref" >&2
@@ -534,14 +534,14 @@ if [[ "$switched_references" != "$template_references" ]]; then
   exit 1
 fi
 
-PATH="$TEMP_DIR/bin:$PATH" OCTESTRA_TEST_TAGS="v1.9.0 v1.10.0" \
+PATH="$TEMP_DIR/bin:$PATH" OCTESTRA_TEST_TAGS="1.9.0 1.10.0" \
   bash "$maintenance" ref --latest >/dev/null
-test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "example-org/octestra@v1.10.0"
+test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "example-org/octestra@1.10.0"
 
 # Workflows that call a different Octestra than the script records — a hand edit on one side
 # — are a finding doctor must name rather than an error it dies on.
 for workflow in "$TEMP_DIR/consumer-doctor"/.github/workflows/octestra-*.yml; do
-  sed 's|example-org/octestra@v1\.10\.0|other-org/octestra@main|g' "$workflow" > "$workflow.new"
+  sed 's|example-org/octestra@1\.10\.0|other-org/octestra@main|g' "$workflow" > "$workflow.new"
   mv "$workflow.new" "$workflow"
 done
 mismatch_output="$TEMP_DIR/doctor-mismatch-output"
@@ -784,11 +784,11 @@ grep -q '^  id-token: write$' "$cli_entry"
 
 # A spec moves the installation to another ref, downloading that ref and rewriting every
 # reference to it, including the one the maintenance script records.
-run_update "$cli_dir" bash @v9.9.9 >/dev/null
-grep -q '^v9\.9\.9$' "$TEMP_DIR/update-tarball-ref"
-grep -q 'uses: ainame/octestra@v9\.9\.9' "$cli_entry"
+run_update "$cli_dir" bash @9.9.9 >/dev/null
+grep -q '^9\.9\.9$' "$TEMP_DIR/update-tarball-ref"
+grep -q 'uses: ainame/octestra@9\.9\.9' "$cli_entry"
 test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$cli_dir/.github/octestra/octestra.sh" ref)" = \
-  "ainame/octestra@v9.9.9"
+  "ainame/octestra@9.9.9"
 grep -q 'run: ./scripts/cli-agent.sh' "$cli_in_progress"
 
 # install.sh and octestra.sh run on consumer machines, where /bin/bash may be 3.2. An empty

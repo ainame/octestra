@@ -350,7 +350,7 @@ latest_version_tag() {
     "/repos/$SOURCE_REPOSITORY/tags" \
     --paginate \
     --jq '.[].name' 2>/dev/null |
-    grep -E '^v?[0-9]+(\.[0-9]+)*$' |
+    grep -E '^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*$' |
     sort -V |
     tail -n 1
 }
