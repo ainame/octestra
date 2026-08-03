@@ -1,4 +1,16 @@
-{{! Octestra validation agent prompt }}
+{{!--
+Octestra validation agent prompt.
+
+Available variables:
+- skillName: configured Codex skill name
+- target: task target file, when configured
+- epicPrompt: combined epic, task, and validation prompts
+- issueNumber: task issue number
+- pullNumber: linked pull request number
+- draftFlag: `--draft` when draft pull requests are configured
+- resultPath: path where the validation result must be saved
+- artifactPath: directory for validation artifacts
+--}}
 Validate the already checked-out head of PR #{{pullNumber}} for the following task.
 Do not create, switch, or push a branch.
 
