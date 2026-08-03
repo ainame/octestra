@@ -81,7 +81,8 @@ jobs:
       # octestra:custom:begin in-progress-secrets
       # For every secret octestra-lifecycle-in-progress.yml declares in `agent-credentials`,
       # pass the same name here from a GitHub Actions secret. Never write the secret value here.
-      # For example:
+      # The example below is inactive. After declaring the same name and creating the GitHub
+      # Secret, remove its leading `#` to pass it to the In Progress workflow:
       #   your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
       # octestra:custom:end in-progress-secrets
       # ========================================================================
@@ -101,7 +102,8 @@ jobs:
       # octestra:custom:begin validation-secrets
       # For every secret octestra-lifecycle-validation.yml declares in `agent-credentials`,
       # pass the same name here from a GitHub Actions secret. Never write the secret value here.
-      # For example:
+      # The example below is inactive. After declaring the same name and creating the GitHub
+      # Secret, remove its leading `#` to pass it to the Validation workflow:
       #   your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
       # octestra:custom:end validation-secrets
       # ========================================================================
