@@ -53,15 +53,21 @@ on:
         description: Private key for the task GitHub App
         required: true
 
+      # ========================================================================
+      # CUSTOM REGION: agent credentials
+      # ========================================================================
       # octestra:custom:begin agent-credentials
-      # Declare the secrets the agent steps below need, and pass each one explicitly from
-      # octestra-lifecycle.yml. Do not use `secrets: inherit` here: it would hand every
-      # organization secret to a job that runs an agent.
+      # 1. Store each value as a GitHub Actions secret. Never put a secret value in this file.
+      # 2. Declare only the name the agent steps use here.
+      # 3. In octestra-lifecycle.yml's `validation-secrets` region, pass every declared name
+      #    from the corresponding GitHub Secret. Do not use `secrets: inherit` here: it would
+      #    hand every organization secret to a job that runs an agent.
       #
       #   your_agent_api_key:
       #     description: API key for the validation agent
       #     required: true
       # octestra:custom:end agent-credentials
+      # ========================================================================
 
 permissions:
   contents: read
@@ -121,7 +127,11 @@ jobs:
         run: |
           printf 'OCTESTRA_AGENT_GITHUB_TOKEN=%s\n' "$AGENT_GITHUB_TOKEN" >> "$GITHUB_ENV"
 
+      # ========================================================================
+      # CUSTOM REGION: agent steps
+      # ========================================================================
       # octestra:custom:begin agent-steps
+      #
       # Everything between these markers is this repository's: environment and dependency
       # setup, credentials, the agent invocation itself, and any artifact upload. An update
       # carries it into the new version of this file.
@@ -166,7 +176,11 @@ jobs:
       #       ${{ steps.epic.outputs.artifact_path }}
       #       ${{ steps.epic.outputs.result_path }}
       #     if-no-files-found: warn
+
+      #
       # octestra:custom:end agent-steps
+      # ========================================================================
+
 
       # finalize-validation:
       # - Reads the JSON file the agent wrote to result_path and posts it as a comment.

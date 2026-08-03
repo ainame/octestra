@@ -58,15 +58,21 @@ on:
         description: Private key for the Octestra GitHub App
         required: true
 
+      # ========================================================================
+      # CUSTOM REGION: agent credentials
+      # ========================================================================
       # octestra:custom:begin agent-credentials
-      # Declare the secrets the agent steps below need, and pass each one explicitly from
-      # octestra-lifecycle.yml. Do not use `secrets: inherit` here: it would hand every
-      # organization secret to a job that runs an agent.
+      # 1. Store each value as a GitHub Actions secret. Never put a secret value in this file.
+      # 2. Declare only the name the agent steps use here.
+      # 3. In octestra-lifecycle.yml's `in-progress-secrets` region, pass every declared name
+      #    from the corresponding GitHub Secret. Do not use `secrets: inherit` here: it would
+      #    hand every organization secret to a job that runs an agent.
       #
       #   your_agent_api_key:
       #     description: API key for the task agent
       #     required: true
       # octestra:custom:end agent-credentials
+      # ========================================================================
 
 permissions:
   contents: write
@@ -138,7 +144,11 @@ jobs:
         run: |
           printf 'OCTESTRA_AGENT_GITHUB_TOKEN=%s\n' "$AGENT_GITHUB_TOKEN" >> "$GITHUB_ENV"
 
+      # ========================================================================
+      # CUSTOM REGION: agent steps
+      # ========================================================================
       # octestra:custom:begin agent-steps
+      #
       # Everything between these markers is this repository's: environment and dependency
       # setup, credentials, and the agent invocation itself. An update carries it into the new
       # version of this file.
@@ -177,7 +187,10 @@ jobs:
       #       --allowedTools
       #       "Bash,Read,Write,Edit,Grep,Glob"
       #     prompt: ${{ steps.epic.outputs.prompt }}
+
+      #
       # octestra:custom:end agent-steps
+      # ========================================================================
 
       # finalize-task:
       # - Confirms the agent pushed the branch named by branch_name above.
