@@ -1,15 +1,13 @@
 # Octestra
 
-**GitHub Actions と Projects のための serverless AI agent orchestration framework。**
+**Serverless AI agent orchestration framework built on top of GitHub**
 
 <p align="center">
 <img src="docs/assets/octestra-logo.png" alt="Octestra" width="200">
 </p>
 
-issue を `In Progress` に移すだけ。その先は Octestra が引き継ぎます。コーディングエージェントがタスクを実装し、
-プルリクエストを開き、変更を検証したあと、人間にレビューを依頼します。
-
-ワークフローはすべて GitHub 上で動きます。オーケストレーション用のサーバー、キュー、データベースは不要です。
+Octestraは、GitHub Issueを起点にAIエージェントがタスクの整理・実装・PR作成・検証までをGitHub Actions上で自動実行するためのフレームワークです。
+GitHub issue fieldsを用いてissueに記述したタスクの状態管理を行い、タスクのトリアージから人間によるレビューでPRをマージするまでに必要な仕組みを提供します。
 
 📖 [English](README.md) · [設計メモ](docs/design.md) · [用語集](docs/glossary.md)
 
@@ -20,91 +18,79 @@ GitHub issue
 In Progress ──▶ エージェント ──▶ プルリクエスト ──▶ 検証 ──▶ 人間によるレビュー ──▶ Done
 ```
 
-## 概要
-
-Octestra は GitHub Issues、GitHub Actions、そして任意のコーディングエージェントを連携させます。各 issue の
-カスタムフィールドにタスクの進行状況を記録し、その値が変わると次の処理を開始します。結果は issue、
-プルリクエスト、Actions の実行履歴のいずれかに残ります。
-
-Octestra 自身はバックログからタスクを選びません。人または別の自動化が `AI Task Status` フィールドを
-`In Progress` に変更すると、タスクが始まります。
-
-## 特徴
-
-- **GitHub 上で完結。** issue のカスタムフィールドが進行状況を保持し、GitHub Actions が処理を実行します。
-- **エージェントを自由に選択。** タスクを実装してプルリクエストを開ける Action やコマンドなら利用できます。
-- **受け渡しまで自動化。** ブランチとプルリクエストの特定、検証、レビュー依頼、issue の更新、失敗の報告を
-  Octestra が行います。
-- **指示をリポジトリで管理。** プロンプトと設定をコードと一緒にバージョン管理できます。
-- **設定を保ったまま更新。** Octestra を更新しても、エージェントと認証情報を設定したワークフロー部分は
-  保持されます。
-
-## Octestra を選ぶ理由
-
-### エージェントの実行だけでなく、デリバリーまでオーケストレーション
-
-コーディングエージェントの実行は工程のひとつにすぎません。成果を届けるには、ブランチとプルリクエストを特定し、
-変更を検証し、レビュアーに引き渡し、失敗から復旧する必要があります。Octestra はこれらの受け渡しを、ひとつの
-見えるワークフローにつなぎます。
-
-各処理は、開始前に issue の現在のステータスを確認します。失敗したタスクはログの中で止まるのではなく、
-`Blocked` に移動し、失敗した Actions 実行へのリンクが追加されます。
-
-### serverless のまま使える
-
-タスクのステータスは issue が保持し、GitHub のイベントが処理を開始し、GitHub Actions が実行環境を提供します。
-Octestra のために新たなサービスをデプロイ、監視、保護、バックアップする必要はありません。
-
-### 使いたいエージェントを持ち込める
-
-Octestra はモデルを直接呼び出さず、特定のエージェントベンダーも要求しません。タスクを実装してプルリクエストを
-開く GitHub Action やコマンドを、ワークフローから自由に実行できます。プロンプト、runner、エージェントの
-認証情報はリポジトリに置かれ、通常のコードレビューを通せます。
-
 ## はじめに
 
-### 必要要件
+### 必要なもの
 
 - GitHub organization に属するリポジトリ
+  - インストール時にカスタム issue フィールドを作成できる organization 管理者権限
 - 対象リポジトリに対して認証済みの [GitHub CLI](https://cli.github.com/)
-- インストール時にカスタム issue フィールドを作成できる organization 管理者権限
-- 対象リポジトリにインストールされた、**Contents**、**Issues**、**Pull requests** への書き込み権限を持つ
-  GitHub App
+- 対象リポジトリにインストールされた、**Contents**、**Issues**、**Pull requests** への書き込み権限を持つGitHub App
 - GitHub Actions 上で実行できるコーディングエージェント
 
-Octestra を利用するリポジトリで、次のインストーラを実行します。
+### セットアップ
+
+Octestra を利用するリポジトリのルートディレクトリで次のインストーラを実行
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/install.sh | bash
 ```
 
-続いて、次の設定を行います。
+インストーラは以下のファイルがコピーされます。
 
-1. GitHub App の秘密鍵を、`OCTESTRA_GITHUB_APP_PRIVATE_KEY` という名前の Actions secret に保存します。
-2. `.github/workflows/octestra-lifecycle-in-progress.yml` にあるプレースホルダーを、実際のエージェントを
-   実行するステップに置き換えます。
-3. `.github/workflows/octestra-lifecycle-validation.yml` を設定します。最初のタスクを準備している間は、
-   検証を無効にしても構いません。
-4. コーディングエージェントに、インストールされた `setup-migration-epic` スキルを使うよう依頼します。
-   このスキルは計画から親 issue をひとつ作り、タスクごとの sub-issue を作成します。
-5. task issue の `AI Task Status` フィールドを `In Progress` に変更します。
+- octestra専用のファイル
+   - `.github/octestra/octestra.sh`
+   - `.github/octestra/config.yml`
+   - `.github/octestra/prompts/in-progress.hbs`
+   - `.github/octestra/prompts/validation.hbs`
+- Workflowのテンプレート
+   - `.github/workflows/octestra-lifecycle.yml`
+   - `.github/workflows/octestra-lifecycle-in-progress.yml`
+   - `.github/workflows/octestra-lifecycle-validation.yml`
+- タスクセットアップ用のスキル
+   - `.agents/skills/setup-migration-epic/SKILL.md`
+   - `.agents/skills/setup-migration-epic/setup_epic.rb`
 
-インストーラは GitHub Actions ワークフロー、プロンプトテンプレート、設定ファイル、メンテナンススクリプト、
-`setup-migration-epic` エージェントスキル、ステータスフィールドで使う7つの選択肢を追加します。
+## workflowの開発
 
-> [!WARNING]
-> 現在の Octestra は、メンバーを信頼できるプライベートリポジトリを対象としています。使用前に
-> [セキュリティ](#セキュリティ)を確認してください。
+`octestra-lifecycle-in-progress.yml` と `octestra-lifecycle-validation.yml` にあるプレースホルダーをエージェントを実行するステップに置き換えます。
+`octestra-lifecycle-in-progress.yml`はPRを作成するためのタスク、`octestra-lifecycle-validation.yml`はPRの検証用のタスクを記述します。
 
-## 仕組み
+### テンプレートエンジンによるプロンプトの組み立て
 
-Octestra は organization に `AI Task Status` という GitHub Issue Field を作成します。Issue Field とは、
-issue に直接追加するカスタムフィールドです。この値を変更すると、タスクが次の流れで進みます。
+Octestraではエージェントに渡すためのプロンプトをHandlebarsのテンプレートとして管理していて、
+`Prepare task lifecycle` stepの中で処理されてレンダリング済みのプロンプトを
+`steps.epic.outputs.prompt` からエージェントの実行stepに渡すことができます。
+
+プロンプトのテンプレートに使える変数は以下の要素をもとに決定されます。
+
+* EPIC issueの設定と共通のプロンプト
+* sub issueごとの設定とプロンプト
+
+実際の変数としては以下になります。
+
+- epicPrompt: combined epic and task prompts
+- skillName: configured Codex skill name
+- target: task target file, when configured
+- issueNumber: task issue number
+- pullNumber: linked pull request number, when available
+- draftFlag: `--draft` when draft pull requests are configured
+- resultPath: validation-result path, when validating
+- artifactPath: validation-artifact directory, when validating
+
+## タスク(sub-issue)のライフサイクル
+
+Octestra は organization に `AI Task Status` という GitHub Issue Field を作成します。
+Issue Field とはissue に直接追加するカスタムフィールドです。
+See: https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-and-managing-issue-fields
+
+
+この値を変更すると、タスクが次の流れで進みます。
 
 ```text
 Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human Review ──▶ Done
-             ▲            │              │                ▲
-             │            └──────────────┴────────────────┘  検証を無効にした場合
+             ▲            │                              ▲
+             │            └──────────────────────────────┘  skip_validationをtrueにした場合
              └──────────── Blocked ◀──── 上記いずれかが失敗
 ```
 
