@@ -1,0 +1,184 @@
+# Octestra Integration Guide
+
+📖 [日本語](integration.ja.md)
+
+This guide explains how to connect implementation and validation agents to an installed Octestra instance and define task issues. For installation, updates, and maintenance, see the [README](../README.md).
+
+## Task Lifecycle
+
+Octestra creates an `AI Task Status` Issue Field in the organization. Changing a status option of this field on a task issue runs a workflow.
+
+```text
+Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human Review ──▶ Done
+             ▲            │                              ▲
+             │            └──────────────────────────────┘  when skip_validation is true
+             └──────────── Blocked ◀──── any failure above
+```
+
+| Status | Behavior |
+|---|---|
+| `Todo` | The task has been created. |
+| `Ready` | The task is ready to start a GitHub workflow. |
+| `In Progress` | `octestra-lifecycle-in-progress.yml` runs the implementation agent. |
+| `Validation` | `octestra-lifecycle-validation.yml` runs the validation agent. |
+| `Human Review` | Requests pull request review from the task owner. |
+| `Blocked` | Comments with the failure and a link to the Actions run. Move the task back to `Ready` to retry. |
+| `Done` | The task is complete. |
+
+Organize related task issues under an EPIC issue. An EPIC issue is the parent issue whose `epic-config` block supplies shared configuration for its task issues. A task issue is one unit of agent work and a sub-issue of an EPIC.
+
+## Define EPIC and Task Issues
+
+An issue-body contract is the Markdown template defining the fenced blocks in an EPIC or task issue. Create EPIC issues from `.github/octestra/issue-templates/epic.md.hbs` and task issues from `.github/octestra/issue-templates/task.md.hbs`. Do not use a different issue body format.
+
+An EPIC issue contains settings and instructions shared by all of its task issues.
+
+````markdown
+```epic-config
+id: ios-swift6            # lowercase identifier used in task branch names
+skill: swift-concurrency  # optional skill used by the implementation agent
+draft_pr: false           # whether to open each task pull request as a draft
+skip_validation: false    # when true, move directly to Human Review
+```
+
+```epic-task-prompt
+Instructions shared by every task in this EPIC.
+```
+
+```epic-validation-prompt
+Optional instructions for the validation agent shared by this EPIC's tasks.
+```
+````
+
+A task issue contains its target, task-specific implementation instructions, and validation instructions when needed.
+
+````markdown
+```task-config
+target: Sources/Feature.swift # optional file or component to change
+```
+
+```task-prompt
+Implement this task.
+```
+
+```validation-prompt
+Confirm the screen displays the expected content and responds correctly to user actions.
+```
+````
+
+`epic-validation-prompt` and `validation-prompt` are optional. Leave them empty until an individual issue needs them.
+
+## Configure Agent Workflows
+
+`octestra-lifecycle-in-progress.yml` runs the implementation agent, and `octestra-lifecycle-validation.yml` runs the validation agent. Replace the placeholders in each file with the configuration and execution steps for your agent.
+
+Installed workflows have custom regions — the lines enclosed by a matching pair of `# octestra:custom:begin <name>` and `# octestra:custom:end <name>` markers. An update carries the contents of each custom region into the new workflow and replaces everything outside it.
+
+| Custom region | Add |
+|---|---|
+| `agent-steps` | Environment setup, dependencies, agent execution, and optional artifact upload |
+| `agent-credentials` | Names and descriptions of the Actions secrets required by the steps |
+| `in-progress-secrets` | Secrets passed from the main workflow to the implementation workflow |
+| `validation-secrets` | Secrets passed from the main workflow to the validation workflow |
+
+Pass every secret declared in `agent-credentials` explicitly through the corresponding `in-progress-secrets` or `validation-secrets` region. Do not use `secrets: inherit`: it would pass every organization secret to the job that runs an agent.
+
+Inside a custom region, refer only to:
+
+- `steps.epic.outputs.*`
+- `env.OCTESTRA_AGENT_GITHUB_TOKEN`
+- `secrets`, `vars`, and `inputs` declared in the same workflow file
+
+Do not refer to workflow steps outside a custom region by ID. If an update removes or moves a step, GitHub treats the reference as an empty string and the agent runs with an incomplete configuration.
+
+## Implementation Agent
+
+`lifecycle/prepare-task` runs before the implementation agent and publishes these values:
+
+| Name | Value |
+|---|---|
+| `steps.epic.outputs.prompt` | Rendered implementation prompt |
+| `steps.epic.outputs.branch_name` | Exact branch name the agent must push |
+| `steps.epic.outputs.task_ready` | `false` when existing work prevents another run |
+| `steps.epic.outputs.draft_flag` | `--draft`, or empty |
+| `steps.epic.outputs.skip_validation` | Whether to skip validation |
+| `steps.epic.outputs.task_owner` | The person responsible for the task |
+| `steps.epic.outputs.epic_id` | EPIC identifier |
+| `steps.epic.outputs.parent_number` | EPIC issue number |
+| `steps.epic.outputs.skill_name` | Optional skill specified by the EPIC |
+| `steps.epic.outputs.target_file` | Optional task target |
+| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
+
+Example configuration for Claude Code Action:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  if: steps.epic.outputs.task_ready == 'true'
+  with:
+    github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
+    branch_prefix: ${{ steps.epic.outputs.branch_name }}
+    branch_name_template: "{{prefix}}"
+    prompt: ${{ steps.epic.outputs.prompt }}
+```
+
+The agent must push a branch with exactly the name in `branch_name` and open a pull request from that branch. Otherwise, Octestra moves the task issue to `Blocked`.
+
+## Validation Agent
+
+`lifecycle/prepare-validation` checks out the pull request branch, then publishes these values for the validation agent:
+
+| Name | Value |
+|---|---|
+| `steps.epic.outputs.prompt` | Rendered validation prompt |
+| `steps.epic.outputs.pull_number` | Pull request to validate |
+| `steps.epic.outputs.result_path` | Path where the validation result JSON must be written |
+| `steps.epic.outputs.artifact_path` | Directory for screenshots, logs, and other evidence |
+| `steps.epic.outputs.branch_name` | Checked-out task branch |
+| `steps.epic.outputs.parent_number` | EPIC issue number |
+| `steps.epic.outputs.target_file` | Optional task target |
+| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
+
+The validation agent writes JSON to `result_path`.
+
+```json
+{
+  "outcome": "passed",
+  "summary": "All checks passed.",
+  "checks": [
+    {
+      "name": "unit tests",
+      "kind": "test",
+      "result": "passed",
+      "evidence": "3 packages"
+    }
+  ],
+  "details": "Commands run and anything the reviewer should know."
+}
+```
+
+Only `outcome` and `summary` are required. To advance to `Human Review`, `outcome` must be exactly `passed`. Any other value moves the task issue to `Blocked`.
+
+## Prompt Templates
+
+Octestra manages agent prompts as Handlebars templates. The implementation template is `.github/octestra/prompts/lifecycle-in-progress.md.hbs`, and the validation template is `.github/octestra/prompts/lifecycle-validation.md.hbs`. `Prepare task lifecycle` or `Prepare validation lifecycle` renders the template and passes the result to the agent execution step as `steps.epic.outputs.prompt`.
+
+Templates can use configuration and prompts from the EPIC and task issue. The main variables are:
+
+- `epicTaskPrompt`: Combined implementation instructions from the EPIC and task issue
+- `skillName`: Skill name configured by the EPIC
+- `target`: Task target, when configured
+- `issueNumber`: Task issue number
+- `pullNumber`: Associated pull request number, when available
+- `draftFlag`: `--draft` when draft pull requests are configured
+- `resultPath`: Result path during validation; available only in the validation workflow
+- `artifactPath`: Artifact directory during validation; available only in the validation workflow
+
+## Change Configuration
+
+`.github/octestra/config.yml` configures the GitHub Actions runners, the GitHub App Octestra uses, task branch naming, and prompt template paths.
+
+After changing `github_app.client_id`, a value under `runners`, or `status.field_id`, copy the new values to the repository's Actions variables.
+
+```sh
+.github/octestra/octestra.sh vars sync
+```

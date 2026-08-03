@@ -6,287 +6,75 @@
 <img src="docs/assets/octestra-logo.png" alt="Octestra" width="200">
 </p>
 
-Octestraは、GitHub Issueを起点にAIエージェントがタスクの整理・実装・PR作成・検証までをGitHub Actions上で自動実行するためのフレームワークです。
-GitHub issue fieldsを用いてissueに記述したタスクの状態管理を行い、タスクのトリアージから人間によるレビューでPRをマージするまでに必要な仕組みを提供します。
+Octestra は、GitHub Issue を起点に、AI エージェントによるタスクの実装、プルリクエスト作成、検証までを GitHub Actions 上で実行するフレームワークです。organization の Issue Field で task issue の進行を管理し、人間によるレビューとマージまでの流れを支援します。
 
-📖 [English](README.md) · [設計メモ](docs/design.md) · [用語集](docs/glossary.md)
+📖 [English](README.md) · [実装ガイド](docs/integration.ja.md)
 
-```text
-GitHub issue
-    │
-    ▼
-In Progress ──▶ エージェント ──▶ プルリクエスト ──▶ 検証 ──▶ 人間によるレビュー ──▶ Done
-```
+各ノードは task issue の `AI Task Status`、矢印は次の status へ進める操作を表します。
+
+![Octestra のタスクライフサイクル](docs/assets/lifecycle.ja.svg)
 
 ## はじめに
 
 ### 必要なもの
 
 - GitHub organization に属するリポジトリ
-  - インストール時にカスタム issue フィールドを作成できる organization 管理者権限
+  - インストール時にカスタム Issue Field を作成できる organization 管理者権限
 - 対象リポジトリに対して認証済みの [GitHub CLI](https://cli.github.com/)
-- 対象リポジトリにインストールされた、**Contents**、**Issues**、**Pull requests** への書き込み権限を持つGitHub App
+- 対象リポジトリにインストールされた、**Contents**、**Issues**、**Pull requests** への書き込み権限を持つ GitHub App
 - GitHub Actions 上で実行できるコーディングエージェント
 
-### セットアップ
+### インストール
 
-Octestra を利用するリポジトリのルートディレクトリで次のインストーラを実行
+Octestra を利用するリポジトリのルートディレクトリでインストーラを実行します。
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/install.sh | bash
 ```
 
-インストーラは以下のファイルがコピーされます。
+インストーラは次のファイルを追加します。
 
-- octestra専用のファイル
-   - `.github/octestra/octestra.sh`
-   - `.github/octestra/config.yml`
-   - `.github/octestra/prompts/in-progress.hbs`
-   - `.github/octestra/prompts/validation.hbs`
-- Workflowのテンプレート
-   - `.github/workflows/octestra-lifecycle.yml`
-   - `.github/workflows/octestra-lifecycle-in-progress.yml`
-   - `.github/workflows/octestra-lifecycle-validation.yml`
-- タスクセットアップ用のスキル
-   - `.agents/skills/setup-migration-epic/SKILL.md`
-   - `.agents/skills/setup-migration-epic/setup_epic.rb`
+- Octestra 専用のファイル
+  - `.github/octestra/octestra.sh`
+  - `.github/octestra/config.yml`
+  - `.github/octestra/issue-templates/epic.md.hbs`
+  - `.github/octestra/issue-templates/task.md.hbs`
+  - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
+  - `.github/octestra/prompts/lifecycle-validation.md.hbs`
+- workflow のテンプレート
+  - `.github/workflows/octestra-lifecycle.yml`
+  - `.github/workflows/octestra-lifecycle-in-progress.yml`
+  - `.github/workflows/octestra-lifecycle-validation.yml`
+- task セットアップ用のスキル
+  - `.agents/skills/setup-migration-epic/SKILL.md`
+  - `.agents/skills/setup-migration-epic/setup_epic.rb`
 
-## workflowの開発
+### エージェントを設定する
 
-`octestra-lifecycle-in-progress.yml` と `octestra-lifecycle-validation.yml` にあるプレースホルダーをエージェントを実行するステップに置き換えます。
-`octestra-lifecycle-in-progress.yml`はPRを作成するためのタスク、`octestra-lifecycle-validation.yml`はPRの検証用のタスクを記述します。
+インストール直後のワークフローには、エージェントを実行するためのプレースホルダーがあります。まず [実装ガイド](docs/integration.ja.md) に従い、実装エージェントと検証エージェントを設定してください。
 
-### テンプレートエンジンによるプロンプトの組み立て
+### 最初のタスクを実行する
 
-Octestraではエージェントに渡すためのプロンプトをHandlebarsのテンプレートとして管理していて、
-`Prepare task lifecycle` stepの中で処理されてレンダリング済みのプロンプトを
-`steps.epic.outputs.prompt` からエージェントの実行stepに渡すことができます。
+1. EPIC issue とその sub-issue である task issue を、インストールされた issue-body contract から作成します。
+2. task issue の `AI Task Status` を `Ready` に変更します。
+3. 実装を開始するには `In Progress` に変更します。
+4. Octestra がプルリクエストを作成し、検証後に `Human Review` へ進めます。
 
-プロンプトのテンプレートに使える変数は以下の要素をもとに決定されます。
+EPIC と task issue の書式、各 status option の意味、エージェントへの入力は [実装ガイド](docs/integration.ja.md) を参照してください。
 
-* EPIC issueの設定と共通のプロンプト
-* sub issueごとの設定とプロンプト
+### インストールオプション
 
-実際の変数としては以下になります。
-
-- epicPrompt: combined epic and task prompts
-- skillName: configured Codex skill name
-- target: task target file, when configured
-- issueNumber: task issue number
-- pullNumber: linked pull request number, when available
-- draftFlag: `--draft` when draft pull requests are configured
-- resultPath: validation-result path, when validating
-- artifactPath: validation-artifact directory, when validating
-
-## タスク(sub-issue)のライフサイクル
-
-Octestra は organization に `AI Task Status` という GitHub Issue Field を作成します。
-Issue Field とはissue に直接追加するカスタムフィールドです。
-See: https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-and-managing-issue-fields
-
-
-この値を変更すると、タスクが次の流れで進みます。
-
-```text
-Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human Review ──▶ Done
-             ▲            │                              ▲
-             │            └──────────────────────────────┘  skip_validationをtrueにした場合
-             └──────────── Blocked ◀──── 上記いずれかが失敗
-```
-
-| ステータス | 動作 |
-|---|---|
-| `Todo` | タスクは作成済みですが、まだ実行できません。 |
-| `Ready` | 人または別の GitHub ワークフローが開始できる状態です。 |
-| `In Progress` | 実装エージェントが動き、プルリクエストを開きます。 |
-| `Validation` | 検証エージェントがプルリクエストを評価し、結果を投稿します。 |
-| `Human Review` | task issue の担当者にレビューを依頼します。 |
-| `Blocked` | 失敗内容と Actions 実行へのリンクをコメントします。`Ready` に戻すと再試行できます。 |
-| `Done` | タスクは完了です。 |
-
-関連するタスクは **EPIC issue** の下にまとめます。EPIC issue とは、本文の `epic-config` ブロックで配下の
-task issue をまとめて設定する親 issue です。各 **task issue** はエージェントが処理するひとつの作業単位で、
-EPIC の sub-issue として作成します。
-
-## OpenAI Symphony との比較
-
-[OpenAI Symphony](https://github.com/openai/symphony) は、仕様と experimental reference implementation を
-提供しています。
-サービスがプロジェクト管理ツールを繰り返し確認し、対象となる issue ごとに再利用可能な作業ディレクトリを用意して、
-作業が不要になるまで Codex を実行します。
-
-Octestra が重視するのは、GitHub 内での明示的な受け渡しです。フィールドの変更が GitHub Actions ワークフローを
-開始し、そのワークフローが設定済みの実装エージェントまたは検証エージェントを呼び出します。
-
-| | Octestra | Symphony |
-|---|---|---|
-| 主な役割 | ひとつのタスクを実装、検証、レビューへ進める | 対象タスクを選び、エージェントに継続して処理させる |
-| 実行形態 | GitHub Actions ワークフロー | 常駐サービスまたは実行ファイル |
-| 開始条件 | task issue の `AI Task Status` フィールドの変更 | サービスがトラッカーを繰り返し確認 |
-| 対応トラッカー | GitHub Issues | reference implementation では Linear、GitHub Issues、Jira Cloud、Asana、GitLab |
-| エージェント | 設定した任意の Action またはコマンド | app-server インターフェース経由の Codex |
-| 作業ディレクトリ | ワークフロー実行ごとに新しい GitHub Actions ジョブ | issue ごとのディレクトリを実行間で再利用 |
-| エージェントセッション | 実装と検証でエージェントを1回ずつ実行 | サービスが issue を処理している間に複数の Codex ターンを実行 |
-| 並列実行と再試行 | GitHub Actions が管理 | Symphony が管理 |
-| 人間によるレビュー | 組み込みの `Human Review` ステップ | トラッカーのステータスと Symphony の `WORKFLOW.md` で定義 |
-| インフラ | Octestra の常駐プロセスは不要 | 常駐プロセス、ローカルディスク、トラッカーの認証情報が必要 |
-
-**Octestra が適しているのは**、GitHub 上でイベント駆動の受け渡しを行い、任意のエージェントを使いたい場合です。
-
-**Symphony が適しているのは**、人がタスクを開始しなくてもエージェントに作業を選ばせたい場合、Codex の作業
-ディレクトリを実行間で維持したい場合、または GitHub 以外のトラッカーを使う場合です。
-
-このような受け渡しが不要で、エージェントを1回だけ実行したい場合は、そのエージェントの GitHub Action を直接
-呼び出してください。
-
-## エージェント連携
-
-Octestra はエージェント実行の前後を処理します。エージェントを実行するコマンドは利用者が設定します。
-
-インストールされるワークフローには **custom region** があります。これは
-`# octestra:custom:begin <name>` と `# octestra:custom:end <name>` の対応するマーカーに挟まれた行です。
-エージェントの設定はこの内側に記述してください。更新時には custom region の内容を新しいワークフローへ引き継ぎ、
-その外側を置き換えます。
-
-| custom region | 記述する内容 |
-|---|---|
-| `agent-steps` | 環境設定、依存関係、エージェントの実行、任意の成果物アップロード |
-| `agent-credentials` | 各ステップに必要な secret の名前と説明 |
-| `in-progress-secrets` | メインワークフローから実装ワークフローへ渡す値 |
-| `validation-secrets` | メインワークフローから検証ワークフローへ渡す値 |
-
-### 実装エージェントへの入力
-
-実装エージェントを実行する前に、Octestra の `lifecycle/prepare-task` Action が次の値を用意します。
-
-| 名前 | 値 |
-|---|---|
-| `steps.epic.outputs.prompt` | 描画済みの実装プロンプト |
-| `steps.epic.outputs.branch_name` | エージェントが push する正確なブランチ名 |
-| `steps.epic.outputs.task_ready` | 既存の作業によって新しい実行を開始できない場合は `false` |
-| `steps.epic.outputs.draft_flag` | `--draft`、または空 |
-| `steps.epic.outputs.skip_validation` | 検証を省略するかどうか |
-| `steps.epic.outputs.task_owner` | タスクを担当する人 |
-| `steps.epic.outputs.epic_id` | EPIC の識別子 |
-| `steps.epic.outputs.parent_number` | EPIC の issue 番号 |
-| `steps.epic.outputs.skill_name` | EPIC で指定された任意のスキル |
-| `steps.epic.outputs.target_file` | 任意のタスク対象 |
-| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub トークン |
-
-Claude Code Action を使う例です。
-
-```yaml
-- uses: anthropics/claude-code-action@v1
-  if: steps.epic.outputs.task_ready == 'true'
-  with:
-    github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
-    branch_prefix: ${{ steps.epic.outputs.branch_name }}
-    branch_name_template: "{{prefix}}"
-    prompt: ${{ steps.epic.outputs.prompt }}
-```
-
-エージェントは `branch_name` と完全に同じ名前のブランチを push し、そのブランチからプルリクエストを開く必要が
-あります。できなかった場合、Octestra はタスクを `Blocked` に移動します。
-
-### 検証エージェントへの入力
-
-検証エージェントを実行する前に、Octestra の `lifecycle/prepare-validation` Action がプルリクエストのブランチを
-checkout し、次の値を用意します。
-
-| 名前 | 値 |
-|---|---|
-| `steps.epic.outputs.prompt` | 描画済みの検証プロンプト |
-| `steps.epic.outputs.pull_number` | 検証対象のプルリクエスト |
-| `steps.epic.outputs.result_path` | 検証結果の JSON を書き込むパス |
-| `steps.epic.outputs.artifact_path` | スクリーンショット、ログ、その他の証跡を保存するディレクトリ |
-| `steps.epic.outputs.branch_name` | checkout 済みの task branch |
-| `steps.epic.outputs.parent_number` | EPIC の issue 番号 |
-| `steps.epic.outputs.target_file` | 任意のタスク対象 |
-| `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub トークン |
-
-検証エージェントは `result_path` に JSON を書き込みます。
-
-```json
-{
-  "outcome": "passed",
-  "summary": "すべてのチェックが通りました。",
-  "checks": [
-    {
-      "name": "unit tests",
-      "kind": "test",
-      "result": "passed",
-      "evidence": "3 packages"
-    }
-  ],
-  "details": "実行したコマンドと、レビュアーが知っておくべき内容。"
-}
-```
-
-必須なのは `outcome` と `summary` だけです。`Human Review` に進むには、`outcome` が正確に `passed` である
-必要があります。それ以外の値ではタスクが `Blocked` に移動します。
-
-custom region の中では、上記の Octestra の値と、同じワークフローファイルで宣言された `secrets`、リポジトリ
-変数、ワークフロー入力だけを使ってください。他のワークフローステップから値を直接参照しないでください。
-更新によってそのステップが置き換わると、エージェントに空の値が渡される可能性があります。
-
-## タスク設定
-
-EPIC issue は、関連するタスクをまとめる親 issue です。本文には次のブロックを記述します。
-
-````markdown
-```epic-config
-id: ios-swift6            # task branch の名前に使う小文字の識別子
-skill: swift-concurrency  # 実装エージェントが使う任意のスキル
-draft_pr: false           # 各 task pull request を draft で開くか
-skip_validation: false    # true の場合は直接 Human Review へ進める
-```
-
-```epic-prompt
-この EPIC のすべてのタスクで共有する指示。
-```
-
-```validation-prompt
-検証エージェントへの指示。
-```
-````
-
-各 task sub-issue には、変更対象となる任意のファイルやコンポーネントと、そのタスク固有の指示を追加します。
-
-````markdown
-```task-config
-target: Sources/Feature.swift # 任意の変更対象ファイルまたはコンポーネント
-```
-
-```task-prompt
-このタスクを実装してください。
-```
-````
-
-`.github/octestra/config.yml` では、ワークフローを実行する GitHub Actions runner、Octestra が使う GitHub App、
-task branch の命名規則、プロンプトテンプレートの場所を設定します。
-
-`github_app.client_id`、`runners` 配下の値、または `status.field_id` を変更したあとは、新しい値をリポジトリの
-Actions 変数へコピーします。
-
-```sh
-.github/octestra/octestra.sh vars sync
-```
-
-## インストールオプション
-
-| フラグ | 効果 |
-|---|---|
-| `--org NAME` | カスタム issue フィールドを所有する organization。既定では自動判定 |
-| `--status-field NAME` | 使用または作成するカスタム issue フィールド。既定は `AI Task Status` |
-| `--github-app-client-id ID` | GitHub App のクライアント ID |
-| `--skill-target claude\|codex\|agents` | EPIC セットアップスキルを設置するディレクトリ |
-| `--repository OWNER/REPO` | インストールされたワークフローが利用する Octestra リポジトリ |
-| `--fork` | `--repository ORGANIZATION/octestra` の短縮形 |
-| `--ref REF` | バージョンタグまたはブランチ。公式リポジトリでは既定で最新のバージョンタグ |
-| `--enable-oidc` | GitHub OIDC を使ったクラウドプロバイダーへの認証をワークフローで許可 |
-| `--yes` | 確認せずに既定値を使用 |
-
-インストーラを再実行しても、`config.yml` と各 custom region の内容は保持されます。
+| フラグ                                 | 効果                                                                       |
+|----------------------------------------|----------------------------------------------------------------------------|
+| `--org NAME`                           | カスタム Issue Field を所有する organization。既定では自動判定             |
+| `--status-field NAME`                  | 使用または作成するカスタム Issue Field。既定は `AI Task Status`            |
+| `--github-app-client-id ID`            | GitHub App のクライアント ID                                               |
+| `--skill-target claude\|codex\|agents` | EPIC セットアップスキルを設置するディレクトリ                              |
+| `--repository OWNER/REPO`              | インストールされたワークフローが利用する Octestra リポジトリ               |
+| `--fork`                               | `--repository ORGANIZATION/octestra` の短縮形                              |
+| `--ref REF`                            | バージョンタグまたはブランチ。公式リポジトリでは既定で最新のバージョンタグ |
+| `--enable-oidc`                        | GitHub OIDC を使ったクラウドプロバイダーへの認証をワークフローで許可       |
+| `--yes`                                | 確認せずに既定値を使用                                                     |
 
 ## 更新とメンテナンス
 
@@ -298,35 +86,27 @@ Actions 変数へコピーします。
 .github/octestra/octestra.sh update --latest
 ```
 
-| コマンド | 用途 |
-|---|---|
-| `doctor` | 設定、ステータスフィールド、プロンプト、ワークフローの問題を報告 |
-| `vars check` | リポジトリの Actions 変数が `config.yml` と一致するか確認 |
-| `vars sync` | `config.yml` の必要な値を Actions 変数へコピー |
-| `ref` | インストール済みワークフローが使う Octestra のリポジトリと ref を表示 |
-| `update --latest` | custom region を保ったまま最新リリースをインストール |
+| コマンド          | 用途                                                                  |
+|-------------------|-----------------------------------------------------------------------|
+| `doctor`          | 設定、status option、プロンプト、ワークフローの問題を報告             |
+| `vars check`      | リポジトリの Actions 変数が `config.yml` と一致するか確認             |
+| `vars sync`       | `config.yml` の必要な値を Actions 変数へコピー                        |
+| `ref`             | インストール済みワークフローが使う Octestra のリポジトリと ref を表示 |
+| `update --latest` | custom region を保ったまま最新リリースをインストール                  |
 
-更新後は、コミットする前に `git diff` で変更内容を確認してください。
+インストーラを再実行しても、`config.yml` と各 custom region の内容は保持されます。更新後は、コミット前に `git diff` で変更内容を確認してください。
 
 ## セキュリティ
 
 現在の Octestra は、**メンバーを信頼できるプライベートリポジトリ**を前提としています。
 
-- `AI Task Status` フィールドを変更できる人は、誰でもエージェントを開始できます。
+- `AI Task Status` Issue Field を変更できる人は、エージェントを開始できます。
 - issue の本文を編集できる人は、エージェントへの指示を変更できます。
 - エージェントには、リポジトリへの書き込み権限を持つ GitHub App トークンが渡されます。
 - エージェントと、リポジトリへの書き込み権限を持つワークフローステップは、まだ別々のジョブに分離されていません。
 - 検証結果は検証エージェント自身の主張であり、Octestra が独立して確認するものではありません。
 
-Octestra は各ワークフローで指定された secret だけを渡し、リポジトリや organization のすべての secret を
-まとめて渡すことはありません。ただし、エージェントはリポジトリや issue を更新できるステップと同じジョブで
-動きます。public リポジトリや、信頼できない issue 入力には使用しないでください。
-
-## 高度な使い方
-
-Octestra の各ステップは、[`action.yml`](action.yml) の `operation:` 入力でひとつの操作を選びます。
-インストールされるワークフローは、実装と検証の受け渡しを一括で行う操作を使います。処理の順序を変えたい場合は、
-より小さな操作を直接呼び出せます。
+Octestra は各ワークフローで指定された secret だけを渡し、リポジトリや organization のすべての secret をまとめて渡すことはありません。ただし、エージェントはリポジトリや issue を更新できるステップと同じジョブで動きます。public リポジトリや、信頼できない issue 入力には使用しないでください。
 
 ## 開発
 
@@ -337,8 +117,7 @@ make all
 
 `make all` は型チェックとテストを実行し、コミット対象の `dist/index.js` バンドルを再生成します。
 
-Octestra を変更する前に [`AGENTS.md`](AGENTS.md) を読んでください。アーキテクチャ上の判断は
-[`docs/design.md`](docs/design.md)、今後の作業は [`TODO.md`](TODO.md) に記録されています。
+Octestra を変更する前に [`AGENTS.md`](AGENTS.md) を読んでください。アーキテクチャ上の判断は [`docs/design.md`](docs/design.md)、今後の作業は [`TODO.md`](TODO.md) に記録されています。
 
 ## ライセンス
 
