@@ -636,10 +636,6 @@ customize_region "$update_in_progress" agent-credentials "      your_agent_api_k
         required: true"
 customize_region "$update_entry" in-progress-secrets \
   '      your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}'
-customize_region "$update_entry" status-jobs "  todo:
-    needs: guard
-    if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'todo'
-    uses: ./.github/workflows/octestra-lifecycle-todo.yml"
 # A managed line the consumer also changed, to prove Octestra's own content is restored.
 sed 's/timeout-minutes: 60/timeout-minutes: 5/' "$update_in_progress" >"$update_in_progress.edit"
 mv "$update_in_progress.edit" "$update_in_progress"
@@ -648,7 +644,6 @@ install_into "$update_dir" >/dev/null
 grep -q 'run: ./scripts/agent.sh' "$update_in_progress"
 grep -q 'description: API key for the task agent' "$update_in_progress"
 grep -q 'your_agent_api_key: \${{ secrets.YOUR_AGENT_API_KEY }}' "$update_entry"
-grep -q '^  todo:$' "$update_entry"
 grep -q 'timeout-minutes: 60' "$update_in_progress"
 if grep -q "Replace this step with the repository's task agent configuration" \
   "$update_in_progress"; then

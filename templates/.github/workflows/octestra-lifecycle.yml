@@ -9,9 +9,8 @@
 #     # octestra:custom:end <name>
 #
 # markers — whose contents it carries into the new version. Here they hold the secrets this file
-# passes to each workflow it calls, and the extra status jobs this repository enables. Everything
-# outside a custom region — the `guard` job, `permissions:`, and the job wiring — is replaced, so
-# edits there are lost.
+# passes to each workflow it calls. Everything outside a custom region — the `guard` job,
+# `permissions:`, and the job wiring — is replaced, so edits there are lost.
 name: Octestra Lifecycle
 on:
   issues:
@@ -107,60 +106,6 @@ jobs:
       #   your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
       # octestra:custom:end validation-secrets
       # ========================================================================
-
-  # ============================================================================
-  # CUSTOM REGION: additional status jobs
-  # ============================================================================
-  # octestra:custom:begin status-jobs
-  # Add the workflow file a job calls, then uncomment the job to enable it. An update preserves
-  # this custom region, so this repository's own status jobs belong here.
-  #
-  # todo:
-  #   needs: guard
-  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'todo'
-  #   uses: ./.github/workflows/octestra-lifecycle-todo.yml
-  #   with:
-  #     issue-number: ${{ github.event.issue.number }}
-  #   secrets:
-  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
-  #
-  # ready:
-  #   needs: guard
-  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'ready'
-  #   uses: ./.github/workflows/octestra-lifecycle-ready.yml
-  #   with:
-  #     issue-number: ${{ github.event.issue.number }}
-  #   secrets:
-  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
-  #
-  # human-review:
-  #   needs: guard
-  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'human_review'
-  #   uses: ./.github/workflows/octestra-lifecycle-human-review.yml
-  #   with:
-  #     issue-number: ${{ github.event.issue.number }}
-  #   secrets:
-  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
-  #
-  # blocked:
-  #   needs: guard
-  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'blocked'
-  #   uses: ./.github/workflows/octestra-lifecycle-blocked.yml
-  #   with:
-  #     issue-number: ${{ github.event.issue.number }}
-  #   secrets:
-  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
-  #
-  # done:
-  #   needs: guard
-  #   if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'done'
-  #   uses: ./.github/workflows/octestra-lifecycle-done.yml
-  #   with:
-  #     issue-number: ${{ github.event.issue.number }}
-  #   secrets:
-  #     github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
-  # octestra:custom:end status-jobs
-  # ============================================================================
 
   # Finalize tasks closed because their linked pull request was merged.
   merged-task-finalization:
