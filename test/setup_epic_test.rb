@@ -85,13 +85,17 @@ class EpicSetupTest < Minitest::Test
         'title' => 'Convert Objective-C to Swift',
         'skill' => 'objc-to-swift',
         'draftPr' => true,
-        'skipValidation' => false,
-        'prompt' => 'Preserve behavior.',
-        'validationPrompt' => ''
+        'skipValidation' => false
       },
       'tasks' => [
-        { 'title' => 'Convert A', 'target' => 'Sources/A.m', 'taskPrompt' => '' },
-        { 'title' => 'Create adapter', 'target' => nil, 'taskPrompt' => 'Keep the old API.' }
+        {
+          'title' => 'Convert A',
+          'target' => 'Sources/A.m'
+        },
+        {
+          'title' => 'Create adapter',
+          'target' => nil
+        }
       ]
     }
   end
@@ -139,7 +143,8 @@ class EpicSetupTest < Minitest::Test
     end
     task = issue_payloads.find { |payload| payload['title'] == 'Convert A' }
     assert_includes task.fetch('body'), 'target: "Sources/A.m"'
-    assert_includes task.fetch('body'), '```task-prompt'
+    assert_includes task.fetch('body'), "```task-prompt\n\n```"
+    assert_includes task.fetch('body'), "```validation-prompt\n\n```"
     assert_equal ['objc-to-swift'], task.fetch('labels')
   end
 
@@ -163,6 +168,8 @@ class EpicSetupTest < Minitest::Test
     assert_includes epic.fetch('body'),
                     "```epic-config\nid: objc-to-swift\nskill: objc-to-swift\n" \
                     "draft_pr: true\nskip_validation: false\n```"
+    assert_includes epic.fetch('body'), "```epic-task-prompt\n\n```"
+    assert_includes epic.fetch('body'), "```epic-validation-prompt\n\n```"
   end
 
   def test_rejects_an_empty_task_list

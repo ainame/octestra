@@ -154,11 +154,12 @@ class EpicSetup
   SUB_ISSUE_LIMIT = 100
   API_VERSION = '2026-03-10'
 
-  def initialize(manifest, github:, parallel:, state:)
+  def initialize(manifest, github:, parallel:, state:, contract_dir: default_contract_dir)
     @manifest = manifest
     @github = github
     @parallel = parallel
     @state = state
+    @contract_dir = contract_dir
     @errors = []
     validate_manifest!
   end
@@ -195,9 +196,6 @@ class EpicSetup
     @skill = non_empty_string!(@epic['skill'], 'epic.skill')
     boolean!(@epic.fetch('draftPr', false), 'epic.draftPr')
     boolean!(@epic.fetch('skipValidation', false), 'epic.skipValidation')
-    optional_string!(@epic.fetch('prompt', ''), 'epic.prompt')
-    optional_string!(@epic.fetch('validationPrompt', ''), 'epic.validationPrompt')
-
     tasks = @manifest['tasks']
     raise 'tasks must be a non-empty array' unless tasks.is_a?(Array) && !tasks.empty?
 
@@ -205,8 +203,7 @@ class EpicSetup
       object!(task, "tasks[#{index}]")
       {
         'title' => non_empty_string!(task['title'], "tasks[#{index}].title"),
-        'target' => optional_string!(task['target'], "tasks[#{index}].target"),
-        'taskPrompt' => optional_string!(task.fetch('taskPrompt', ''), "tasks[#{index}].taskPrompt")
+        'target' => optional_string!(task['target'], "tasks[#{index}].target")
       }
     end
   end
@@ -227,6 +224,14 @@ class EpicSetup
     raise "#{name} must be a string or null" unless value.nil? || value.is_a?(String)
 
     value
+  end
+
+  def self.default_contract_dir
+    File.expand_path('../../../.github/octestra/issue-templates', __dir__)
+  end
+
+  def default_contract_dir
+    self.class.default_contract_dir
   end
 
   def positive_integer!(value, name)
@@ -298,23 +303,16 @@ class EpicSetup
 
   def create_epics
     count = (@tasks.length.to_f / SUB_ISSUE_LIMIT).ceil
-    first_url = nil
     Array.new(count) do |index|
       saved = @state.epic(index)
-      if saved
-        first_url ||= saved.fetch(:url)
-        next saved
-      end
+      next saved if saved
 
       part = index + 1
-      prompt = @epic.fetch('prompt', '').to_s
-      prompt = [prompt, "Related EPIC: #{first_url}"].reject(&:empty?).join("\n\n") if first_url
       response = create_issue(
         title: epic_title(part, count),
-        body: epic_body(prompt),
+        body: epic_body,
         labels: ['octestra-epic']
       )
-      first_url ||= response.fetch('html_url')
       @state.record_epic(issue_result(response, index))
     end
   end
@@ -324,15 +322,13 @@ class EpicSetup
     count == 1 ? base : "#{base} (Part #{part})"
   end
 
-  def epic_body(prompt)
-    sections = [
-      "### Configuration\n\n```epic-config\nid: #{@skill}\nskill: #{@skill}\ndraft_pr: #{@epic.fetch('draftPr', false)}\nskip_validation: #{@epic.fetch('skipValidation', false)}\n```"
-    ]
-    unless prompt.empty?
-      sections << "### Additional information\n\n```epic-prompt\n#{prompt}\n```"
-    end
-    sections << "### Additional Validation information\n\n```validation-prompt\n#{@epic.fetch('validationPrompt', '')}\n```"
-    sections.join("\n\n")
+  def epic_body
+    render_contract('epic.md.hbs', {
+      'epicId' => @skill,
+      'skillName' => @skill,
+      'draftPr' => @epic.fetch('draftPr', false).to_s,
+      'skipValidation' => @epic.fetch('skipValidation', false).to_s
+    })
   end
 
   def add_epic_to_project(epic)
@@ -368,19 +364,24 @@ class EpicSetup
   end
 
   def task_body(task)
-    <<~BODY.strip
-      ### Task configuration
+    render_contract('task.md.hbs', {
+      'target' => JSON.generate(task['target'])
+    })
+  end
 
-      ```task-config
-      target: #{JSON.generate(task['target'])}
-      ```
+  def render_contract(name, variables)
+    path = File.join(@contract_dir, name)
+    source = File.read(path)
+    rendered = source.gsub(/\{\{([A-Za-z][A-Za-z0-9]*)\}\}/) do
+      variables.fetch(Regexp.last_match(1)) do
+        raise "Issue contract #{path} references an unknown variable #{Regexp.last_match(1)}"
+      end
+    end
+    raise "Issue contract #{path} contains an unresolved variable" if rendered.include?('{{')
 
-      ### Task prompt
-
-      ```task-prompt
-      #{task['taskPrompt']}
-      ```
-    BODY
+    rendered.strip
+  rescue Errno::ENOENT
+    raise "Issue contract #{path} was not found"
   end
 
   def issue_result(response, index)
@@ -480,14 +481,22 @@ class EpicSetup
 end
 
 if $PROGRAM_NAME == __FILE__
-  options = { parallel: 8, result: nil, state: nil }
+  options = {
+    parallel: 8,
+    result: nil,
+    state: nil,
+    contract_dir: File.join(Dir.pwd, '.github/octestra/issue-templates')
+  }
   parser = OptionParser.new do |opts|
-    opts.banner = 'Usage: ruby setup_epic.rb MANIFEST [--parallel N] [--state PATH] [--result PATH]'
+    opts.banner = 'Usage: ruby setup_epic.rb MANIFEST [--parallel N] [--state PATH] [--result PATH] [--contract-dir DIR]'
     opts.on('--parallel N', Integer, 'Maximum concurrent GitHub operations (default: 8)') do |value|
       options[:parallel] = value
     end
     opts.on('--state PATH', 'Resume from or write checkpoints to PATH') { |value| options[:state] = value }
     opts.on('--result PATH', 'Write the result JSON to PATH') { |value| options[:result] = value }
+    opts.on('--contract-dir DIR', 'Directory containing epic.md.hbs and task.md.hbs') do |value|
+      options[:contract_dir] = value
+    end
   end
   parser.parse!
 
@@ -502,7 +511,8 @@ if $PROGRAM_NAME == __FILE__
       manifest,
       github: GitHubCLI.new,
       parallel: options[:parallel],
-      state: StateStore.new(state_path, manifest)
+      state: StateStore.new(state_path, manifest),
+      contract_dir: options[:contract_dir]
     ).run
     result_path = options[:result] || "#{manifest_path}.result.json"
     File.write(result_path, JSON.pretty_generate(result) + "\n")

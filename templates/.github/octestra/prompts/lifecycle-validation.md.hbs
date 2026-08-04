@@ -5,7 +5,7 @@ This is a sample template; customize it for your repository.
 Available variables:
 - skillName: configured Codex skill name
 - target: task target file, when configured
-- epicPrompt: combined epic, task, and validation prompts
+- epicTaskPrompt: combined EPIC task and task prompts, including their validation prompts
 - issueNumber: task issue number
 - pullNumber: linked pull request number
 - draftFlag: `--draft` when draft pull requests are configured
@@ -20,7 +20,7 @@ Target file: {{target}}
 {{/if}}
 Task issue: #{{issueNumber}}
 
-{{epicPrompt}}
+{{epicTaskPrompt}}
 
 When iOS UI validation is required, run the app on Simulator and use XcodeBuildMCP to exercise
 the required UI. Save screenshots, logs, and other evidence under `{{artifactPath}}`.

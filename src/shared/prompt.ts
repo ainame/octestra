@@ -4,7 +4,7 @@ import Handlebars from "handlebars";
 export interface PromptVariables {
   skillName?: string;
   target?: string;
-  epicPrompt?: string;
+  epicTaskPrompt?: string;
   issueNumber?: number;
   pullNumber?: number | undefined;
   draftFlag?: string;

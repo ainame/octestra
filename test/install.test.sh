@@ -194,6 +194,8 @@ OCTESTRA_TEST_REPO_VIEW_FAIL=true \
 orchestrator="$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle.yml"
 test -f "$orchestrator"
 test -f "$TEMP_DIR/consumer/.github/octestra/config.yml"
+test -f "$TEMP_DIR/consumer/.github/octestra/issue-templates/epic.md.hbs"
+test -f "$TEMP_DIR/consumer/.github/octestra/issue-templates/task.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"

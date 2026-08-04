@@ -44,7 +44,7 @@ Split by *when* a value is needed, not by what it is.
 | Platform | runner labels, App client ID, status field ID | `config.yml`, mirrored to `vars` | Needed before a job starts; no file can be read then |
 | Policy | status field name, branch templates, prompt paths | `config.yml`, read at runtime | Reviewable and versioned |
 | Wiring | trigger filters, job graph, agent invocation | workflow YAML | GitHub accepts only literals here; also the consumer's customisation surface |
-| Intent | `epic-config`, `task-config` | issue body | Unchanged |
+| Intent | EPIC and task issue body blocks | issue body | Unchanged |
 
 ### Mirrored values
 

@@ -20,13 +20,13 @@ describe("renderPrompt", () => {
     const templatePath = path.join(directory, "prompt.md.hbs");
     await writeFile(
       templatePath,
-      "/{{skillName}} {{target}} {{epicPrompt}} #{{issueNumber}} {{draftFlag}}",
+      "/{{skillName}} {{target}} {{epicTaskPrompt}} #{{issueNumber}} {{draftFlag}}",
     );
 
     const result = await renderPrompt(templatePath, {
       skillName: "example",
       target: "Sources/A&B.swift",
-      epicPrompt: "Keep <API>",
+      epicTaskPrompt: "Keep <API>",
       issueNumber: 123,
       pullNumber: undefined,
       draftFlag: "--draft",

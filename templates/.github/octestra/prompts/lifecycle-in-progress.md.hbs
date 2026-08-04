@@ -5,7 +5,7 @@ This is a sample template; customize it for your repository.
 Available variables:
 - skillName: configured Codex skill name
 - target: task target file, when configured
-- epicPrompt: combined epic and task prompts
+- epicTaskPrompt: combined EPIC task and task prompts
 - issueNumber: task issue number
 - pullNumber: linked pull request number, when available
 - draftFlag: `--draft` when draft pull requests are configured
@@ -16,7 +16,7 @@ Use /{{skillName}} to complete the following task.
 Target file: {{target}}
 {{/if}}
 
-{{epicPrompt}}
+{{epicTaskPrompt}}
 
 Include the following line in the pull request description:
 Closes #{{issueNumber}}

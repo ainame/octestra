@@ -107,7 +107,7 @@ describe("prepareTask", () => {
     temporaryDirectories.push(workspace);
     await writeFile(
       path.join(workspace, "prompt.md.hbs"),
-      "{{target}}\n{{epicPrompt}}",
+      "{{target}}\n{{epicTaskPrompt}}",
     );
     const client = createClient({
       getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
@@ -122,6 +122,10 @@ describe("prepareTask", () => {
               "```task-prompt",
               "Preserve the public API.",
               "```",
+              "",
+              "```validation-prompt",
+              "Confirm the task behavior.",
+              "```",
             ].join("\n"),
           }
           : {
@@ -132,7 +136,7 @@ describe("prepareTask", () => {
               "skill: example",
               "```",
               "",
-              "```epic-prompt",
+              "```epic-task-prompt",
               "Use the existing architecture.",
               "```",
             ].join("\n"),
@@ -178,7 +182,15 @@ describe("prepareTask", () => {
         issueNumber === 123
           ? {
             title: "Task",
-            body: "```task-config\ntarget: Sources/Feature/Home.swift\n```",
+            body: [
+              "```task-config",
+              "target: Sources/Feature/Home.swift",
+              "```",
+              "",
+              "```validation-prompt",
+              "Confirm the task behavior.",
+              "```",
+            ].join("\n"),
           }
           : {
             title: "EPIC",
@@ -223,10 +235,10 @@ describe("resolveTaskBranchName", () => {
 });
 
 describe("prepareValidation", () => {
-  it("combines EPIC, task, and validation prompts", async () => {
+  it("combines EPIC, task, optional EPIC validation, and task validation prompts", async () => {
     const workspace = await mkdtemp(path.join(tmpdir(), "prepare-validation-"));
     temporaryDirectories.push(workspace);
-    await writeFile(path.join(workspace, "prompt.md.hbs"), "{{epicPrompt}}");
+    await writeFile(path.join(workspace, "prompt.md.hbs"), "{{epicTaskPrompt}}");
     const client = createClient({
       getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
         issueNumber === 123
@@ -240,6 +252,10 @@ describe("prepareValidation", () => {
               "```task-prompt",
               "Preserve the public API.",
               "```",
+              "",
+              "```validation-prompt",
+              "Confirm the adapter behavior.",
+              "```",
             ].join("\n"),
           }
           : {
@@ -250,11 +266,11 @@ describe("prepareValidation", () => {
               "skill: example",
               "```",
               "",
-              "```epic-prompt",
+              "```epic-task-prompt",
               "Use the existing architecture.",
               "```",
               "",
-              "```validation-prompt",
+              "```epic-validation-prompt",
               "Run integration tests.",
               "```",
             ].join("\n"),
@@ -275,6 +291,8 @@ describe("prepareValidation", () => {
         "Preserve the public API.",
         "",
         "Run integration tests.",
+        "",
+        "Confirm the adapter behavior.",
       ].join("\n"),
     );
     expect(setOutput).toHaveBeenCalledWith("target_file", "");
@@ -570,6 +588,10 @@ describe("prepareValidation", () => {
             body: [
               "```task-config",
               "target: Sources/Feature.swift",
+              "```",
+              "",
+              "```validation-prompt",
+              "Confirm the screen behavior.",
               "```",
             ].join("\n"),
           }

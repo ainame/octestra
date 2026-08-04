@@ -11,11 +11,11 @@ draft_pr: true
 skip_validation: true
 \`\`\`
 
-\`\`\`epic-prompt
+\`\`\`epic-task-prompt
 Keep the public API unchanged.
 \`\`\`
 
-\`\`\`validation-prompt
+\`\`\`epic-validation-prompt
 Verify that the target implementation has been migrated from Objective-C to Swift.
 \`\`\`
 `);
@@ -25,8 +25,8 @@ Verify that the target implementation has been migrated from Objective-C to Swif
       skillName: "objc-to-swift",
       draftPr: true,
       skipValidation: true,
-      epicPrompt: "Keep the public API unchanged.",
-      validationPrompt: "Verify that the target implementation has been migrated from Objective-C to Swift.",
+      epicTaskPrompt: "Keep the public API unchanged.",
+      epicValidationPrompt: "Verify that the target implementation has been migrated from Objective-C to Swift.",
     });
   });
 
@@ -40,8 +40,8 @@ skill: migrate-storyboard-uikit
 
     expect(result.draftPr).toBe(false);
     expect(result.skipValidation).toBe(false);
-    expect(result.epicPrompt).toBe("");
-    expect(result.validationPrompt).toBe("");
+    expect(result.epicTaskPrompt).toBe("");
+    expect(result.epicValidationPrompt).toBe("");
   });
 
   it("permits an EPIC without an agent skill", () => {
@@ -77,7 +77,7 @@ skip_validation: "false"
 });
 
 describe("parseTaskConfig", () => {
-  it("parses an optional target", () => {
+  it("parses an optional target and validation prompt", () => {
     expect(parseTaskConfig(`
 \`\`\`task-config
 target: Sources/Feature/Home.swift
@@ -86,9 +86,14 @@ target: Sources/Feature/Home.swift
 \`\`\`task-prompt
 Preserve the existing public API.
 \`\`\`
+
+\`\`\`validation-prompt
+Confirm the screen preserves the existing public API.
+\`\`\`
 `)).toEqual({
       target: "Sources/Feature/Home.swift",
       taskPrompt: "Preserve the existing public API.",
+      validationPrompt: "Confirm the screen preserves the existing public API.",
     });
   });
 
@@ -102,7 +107,11 @@ Preserve the existing public API.
 \`\`\`task-config
 ${configuration}
 \`\`\`
-`)).toEqual({ target: undefined, taskPrompt: "" });
+`)).toEqual({
+      target: undefined,
+      taskPrompt: "",
+      validationPrompt: "",
+    });
   });
 
   it("rejects a non-string target", () => {
@@ -114,7 +123,7 @@ target: 123
   });
 
   it("parses a task-specific prompt", () => {
-expect(parseTaskConfig(`
+    expect(parseTaskConfig(`
 \`\`\`task-config
 target: null
 \`\`\`
@@ -122,9 +131,26 @@ target: null
 \`\`\`task-prompt
 Create the adapter behind the existing interface.
 \`\`\`
+
+\`\`\`validation-prompt
+Verify the adapter behavior.
+\`\`\`
 `)).toEqual({
       target: undefined,
       taskPrompt: "Create the adapter behind the existing interface.",
+      validationPrompt: "Verify the adapter behavior.",
+    });
+  });
+
+  it("permits a task without validation instructions", () => {
+    expect(parseTaskConfig(`
+\`\`\`task-config
+target: Sources/Feature/Home.swift
+\`\`\`
+`)).toEqual({
+      target: "Sources/Feature/Home.swift",
+      taskPrompt: "",
+      validationPrompt: "",
     });
   });
 });

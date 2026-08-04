@@ -5,13 +5,14 @@ export interface EpicConfig {
   skillName?: string;
   draftPr: boolean;
   skipValidation: boolean;
-  epicPrompt: string;
-  validationPrompt: string;
+  epicTaskPrompt: string;
+  epicValidationPrompt: string;
 }
 
 export interface TaskConfig {
   target?: string;
   taskPrompt: string;
+  validationPrompt: string;
 }
 
 function extractBlock(body: string, name: string, required: boolean): string {
@@ -65,8 +66,8 @@ export function parseEpicConfig(body: string): EpicConfig {
     skillName,
     draftPr,
     skipValidation,
-    epicPrompt: extractBlock(body, "epic-prompt", false),
-    validationPrompt: extractBlock(body, "validation-prompt", false),
+    epicTaskPrompt: extractBlock(body, "epic-task-prompt", false),
+    epicValidationPrompt: extractBlock(body, "epic-validation-prompt", false),
   };
 }
 
@@ -99,5 +100,6 @@ export function parseTaskConfig(body: string): TaskConfig {
   return {
     target,
     taskPrompt: extractBlock(body, "task-prompt", false),
+    validationPrompt: extractBlock(body, "validation-prompt", false),
   };
 }

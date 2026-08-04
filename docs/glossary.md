@@ -90,9 +90,17 @@ so the credential's source can change without editing anything a consumer wrote.
 
 ### issue body blocks
 
-The fenced blocks Octestra parses out of issue bodies: `epic-config`, `epic-prompt` and
-`validation-prompt` in an EPIC, `task-config` and `task-prompt` in a task issue. Refer to them by
-their literal names.
+The fenced blocks Octestra parses out of issue bodies: `epic-config`, `epic-task-prompt`, and the
+optional `epic-validation-prompt` in an EPIC, plus `task-config`, `task-prompt`, and the optional
+`validation-prompt` in a task issue. Refer to them by their literal names.
+
+### issue-body contract
+
+The Markdown template defining the fenced blocks in an EPIC or task issue. Setup skills render
+these installed templates rather than creating their own issue-body format.
+
+> each issue-body contract — the Markdown template defining the fenced blocks in an EPIC or task
+> issue
 
 ### the maintenance CLI
 

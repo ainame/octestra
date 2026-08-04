@@ -31,8 +31,6 @@ Ask for missing values one at a time:
 | Organization Project number | Required |
 | Draft pull requests | `false` |
 | Skip agentic validation | `false` |
-| Shared migration instructions | Empty |
-| Validation instructions | Empty |
 | Excluded paths or task patterns | Empty |
 
 Infer the repository with:
@@ -54,11 +52,11 @@ Each task has:
 
 - `title`: concise, human-readable issue title.
 - `target`: repository-relative path, or `null` for work without one target file.
-- `taskPrompt`: task-specific instructions, or an empty string.
 
 File-backed tasks may default their title to the target path. Standalone tasks should
 use a descriptive title. Remove duplicates and present the final ordered list for
-confirmation. Explain that Octestra creates one EPIC per 100 tasks.
+confirmation. Explain that Octestra creates one EPIC per 100 tasks. The generated issue-body
+contracts leave optional prompts blank so the user can customize each EPIC or task afterward.
 
 Do not create anything until the user confirms the complete task list and configuration.
 
@@ -78,20 +76,16 @@ Create a temporary JSON file outside the repository unless the user requests oth
     "title": "Convert Objective-C screens to Swift",
     "skill": "objc-to-swift",
     "draftPr": false,
-    "skipValidation": false,
-    "prompt": "Preserve public behavior and existing architecture.",
-    "validationPrompt": ""
+    "skipValidation": false
   },
   "tasks": [
     {
       "title": "Convert LegacyViewController",
-      "target": "Sources/LegacyViewController.m",
-      "taskPrompt": ""
+      "target": "Sources/LegacyViewController.m"
     },
     {
       "title": "Create a Swift compatibility adapter",
-      "target": null,
-      "taskPrompt": "Keep the existing Objective-C entry point available."
+      "target": null
     }
   ]
 }
@@ -111,7 +105,8 @@ Locate this skill's directory in the active agent skill root, then run:
 ```bash
 ruby <skill-directory>/scripts/setup_epic.rb /path/to/manifest.json \
   --state /path/to/state.json \
-  --result /path/to/result.json
+  --result /path/to/result.json \
+  --contract-dir .github/octestra/issue-templates
 ```
 
 The script:

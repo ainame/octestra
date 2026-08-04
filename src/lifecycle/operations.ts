@@ -307,7 +307,7 @@ export async function buildTaskContext(
   const prompt = await renderPrompt(path.resolve(workspace, promptTemplate), {
     skillName: config.skillName ?? "",
     target: taskConfig.target,
-    epicPrompt: combinePrompts(config.epicPrompt, taskConfig.taskPrompt),
+    epicTaskPrompt: combinePrompts(config.epicTaskPrompt, taskConfig.taskPrompt),
     issueNumber: context.issueNumber,
     pullNumber: undefined,
     draftFlag,
@@ -395,10 +395,11 @@ export async function buildValidationContext(
   const prompt = await renderPrompt(path.resolve(workspace, promptTemplate), {
     skillName: config.skillName ?? "",
     target: taskConfig.target,
-    epicPrompt: combinePrompts(
-      config.epicPrompt,
+    epicTaskPrompt: combinePrompts(
+      config.epicTaskPrompt,
       taskConfig.taskPrompt,
-      config.validationPrompt,
+      config.epicValidationPrompt,
+      taskConfig.validationPrompt,
     ),
     issueNumber: context.issueNumber,
     pullNumber,
