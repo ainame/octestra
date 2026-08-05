@@ -51,6 +51,20 @@ function optionalRows(value: unknown, field: string): ProofRow[] | undefined {
   return value as ProofRow[];
 }
 
+function optionalChecks(value: unknown): ProofRow[] | undefined {
+  const checks = optionalRows(value, "checks");
+
+  if (checks === undefined) {
+    return undefined;
+  }
+
+  checks.forEach((check, index) => {
+    requireString(check.name, `checks[${index}].name`, true);
+    requireString(check.result, `checks[${index}].result`, true);
+  });
+  return checks;
+}
+
 function optionalStrings(value: unknown, field: string): string[] | undefined {
   if (value === undefined) {
     return undefined;
@@ -66,15 +80,15 @@ export function parseProofDocument(raw: unknown): ProofDocument {
     throw new Error("Proof must be a JSON object");
   }
 
-  // This is a rendering convention rather than a lifecycle contract. Validate the
-  // fields the renderer understands and deliberately ignore consumer extensions.
+  // The top-level outcome controls the lifecycle. Checks have a small structural
+  // contract for readable proof comments; consumer-specific fields remain allowed.
   const proof = raw as Record<string, unknown>;
   return {
     outcome: requireString(proof.outcome, "outcome", true)!,
     summary: requireString(proof.summary, "summary", true)!,
     details: requireString(proof.details, "details"),
     acceptance: optionalRows(proof.acceptance, "acceptance"),
-    checks: optionalRows(proof.checks, "checks"),
+    checks: optionalChecks(proof.checks),
     evidence: optionalRows(proof.evidence, "evidence"),
     artifacts: optionalRows(proof.artifacts, "artifacts"),
     knownGaps: optionalStrings(

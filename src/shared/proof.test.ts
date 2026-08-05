@@ -26,6 +26,33 @@ describe("parseProofDocument", () => {
       checks: "unit tests passed",
     })).toThrow("Proof checks must be an array of objects");
   });
+
+  it("requires a name and result for each check while allowing custom fields", () => {
+    expect(parseProofDocument({
+      outcome: "passed",
+      summary: "The task works.",
+      checks: [{
+        name: "Unit tests",
+        result: "passed",
+        customField: { packages: 3 },
+      }],
+    }).checks).toEqual([{
+      name: "Unit tests",
+      result: "passed",
+      customField: { packages: 3 },
+    }]);
+
+    expect(() => parseProofDocument({
+      outcome: "passed",
+      summary: "The task works.",
+      checks: [{ result: "passed" }],
+    })).toThrow("Proof checks[0].name must be a non-empty string");
+    expect(() => parseProofDocument({
+      outcome: "passed",
+      summary: "The task works.",
+      checks: [{ name: "Unit tests" }],
+    })).toThrow("Proof checks[0].result must be a non-empty string");
+  });
 });
 
 describe("renderProofComment", () => {
@@ -44,7 +71,7 @@ describe("renderProofComment", () => {
           name: "Goal-based UI validation",
           kind: "agentic E2E",
           scope: ["AC-1"],
-          status: "passed",
+          result: "passed",
           evidence: "recording.mp4",
         }],
         artifacts: [{

@@ -198,6 +198,9 @@ test -f "$TEMP_DIR/consumer/.github/octestra/issue-templates/epic.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/issue-templates/task.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
+test -x "$TEMP_DIR/consumer/.github/octestra/check-validation-result.sh"
+grep -q 'check-validation-result.sh "{{resultPath}}"' \
+  "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 ruby -c "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/scripts/setup_epic.rb" >/dev/null
 # An upstream repository with no tags leaves the reference on the default branch.
@@ -207,6 +210,81 @@ grep -q 'field_name: "AI Task Status"' "$TEMP_DIR/consumer/.github/octestra/conf
 # Operations address statuses by name, so no option IDs are written to config.yml.
 ! grep -q 'options:' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+
+validation_result="$TEMP_DIR/validation-result.json"
+cat > "$validation_result" <<'EOF'
+{
+  "outcome": "passed",
+  "summary": "All checks passed.",
+  "checks": [
+    {
+      "name": "unit tests",
+      "result": "passed",
+      "consumer_specific": {
+        "packages": 3
+      }
+    }
+  ]
+}
+EOF
+"$TEMP_DIR/consumer/.github/octestra/check-validation-result.sh" "$validation_result"
+
+validation_result_checker="$TEMP_DIR/consumer/.github/octestra/check-validation-result.sh"
+assert_invalid_validation_result() {
+  local name="$1"
+  local contents="$2"
+  local expected_error="$3"
+  local path="$TEMP_DIR/$name.json"
+  local output="$TEMP_DIR/$name.output"
+
+  printf '%s' "$contents" > "$path"
+  if "$validation_result_checker" "$path" >"$output" 2>&1; then
+    echo "validation result checker accepted $name" >&2
+    exit 1
+  fi
+  grep -Fq "$expected_error" "$output"
+}
+
+missing_validation_output="$TEMP_DIR/missing-validation-output"
+if "$validation_result_checker" "$TEMP_DIR/does-not-exist.json" \
+  >"$missing_validation_output" 2>&1; then
+  echo "validation result checker accepted a missing file" >&2
+  exit 1
+fi
+grep -Fq 'validation result does not exist' "$missing_validation_output"
+
+assert_invalid_validation_result \
+  invalid-json \
+  '{' \
+  'could not parse validation result'
+assert_invalid_validation_result \
+  array-root \
+  '[]' \
+  'validation result must be a JSON object'
+assert_invalid_validation_result \
+  missing-outcome \
+  '{"summary":"All checks passed."}' \
+  'validation result outcome must be a non-empty string'
+assert_invalid_validation_result \
+  empty-summary \
+  '{"outcome":"passed","summary":" "}' \
+  'validation result summary must be a non-empty string'
+assert_invalid_validation_result \
+  checks-not-array \
+  '{"outcome":"passed","summary":"All checks passed.","checks":{}}' \
+  'validation result checks must be an array of objects'
+assert_invalid_validation_result \
+  checks-with-non-object \
+  '{"outcome":"passed","summary":"All checks passed.","checks":[null]}' \
+  'validation result checks must be an array of objects'
+assert_invalid_validation_result \
+  check-without-name \
+  '{"outcome":"passed","summary":"All checks passed.","checks":[{"result":"passed"}]}' \
+  'validation result checks[0].name must be a non-empty string'
+assert_invalid_validation_result \
+  check-without-result \
+  '{"outcome":"passed","summary":"All checks passed.","checks":[{"name":"unit tests"}]}' \
+  'validation result checks[0].result must be a non-empty string'
 
 missing_option_output="$TEMP_DIR/missing-option-output"
 if PATH="$TEMP_DIR/bin:$PATH" \

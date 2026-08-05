@@ -68,3 +68,10 @@ the repository's acceptance criteria and validation approach.
 Use `failed` if you find a problem or cannot complete a required check.
 Use empty arrays when a section does not apply. Do not invent acceptance criteria that were not
 provided by the task or the repository's validation workflow.
+
+After writing the result, run the following command. If it reports an error, correct the JSON and
+run it again before finishing.
+
+```sh
+.github/octestra/check-validation-result.sh "{{resultPath}}"
+```

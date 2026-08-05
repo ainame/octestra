@@ -37,6 +37,7 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
 - Octestra 専用のファイル
   - `.github/octestra/octestra.sh`
   - `.github/octestra/config.yml`
+  - `.github/octestra/check-validation-result.sh`
   - `.github/octestra/issue-templates/epic.md.hbs`
   - `.github/octestra/issue-templates/task.md.hbs`
   - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`

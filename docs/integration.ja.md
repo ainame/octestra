@@ -147,9 +147,7 @@ Claude Code Action の設定例です。
   "checks": [
     {
       "name": "unit tests",
-      "kind": "test",
-      "result": "passed",
-      "evidence": "3 packages"
+      "result": "passed"
     }
   ],
   "details": "実行したコマンドと、レビュアーが知っておくべき内容。"
@@ -157,6 +155,12 @@ Claude Code Action の設定例です。
 ```
 
 必須なのは `outcome` と `summary` だけです。`Human Review` に進むには、`outcome` が正確に `passed` である必要があります。その他の値では task issue が `Blocked` に移動します。
+
+### 個別のチェックを記述する
+
+`checks` は任意です。指定する場合は JSON object の配列にします。各 object には空でない文字列の `name` と `result` が必須です。必要に応じて、その他の custom field を追加できます。
+
+Octestra は task issue の検証結果コメントに、check ごとに 1 行を表示します。`checks` を使うとコメントを確認しやすくなりますが、ライフサイクルを個別に制御するものではありません。Octestra が task issue を進めるか Blocked にするかは、最上位の `outcome` だけで決まります。
 
 ## プロンプトテンプレート
 

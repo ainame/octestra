@@ -147,9 +147,7 @@ The validation agent writes JSON to `result_path`.
   "checks": [
     {
       "name": "unit tests",
-      "kind": "test",
-      "result": "passed",
-      "evidence": "3 packages"
+      "result": "passed"
     }
   ],
   "details": "Commands run and anything the reviewer should know."
@@ -157,6 +155,12 @@ The validation agent writes JSON to `result_path`.
 ```
 
 Only `outcome` and `summary` are required. To advance to `Human Review`, `outcome` must be exactly `passed`. Any other value moves the task issue to `Blocked`.
+
+### Describe Individual Checks
+
+`checks` is optional. When present, it must be an array of JSON objects. Each object requires non-empty `name` and `result` strings. You can add other custom fields when needed.
+
+Octestra renders one row per check in the validation proof comment. `checks` makes the comment easier to review, but does not independently control the lifecycle: Octestra uses only the top-level `outcome` to advance or block a task.
 
 ## Prompt Templates
 
