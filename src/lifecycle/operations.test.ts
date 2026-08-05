@@ -107,7 +107,7 @@ describe("prepareTask", () => {
     temporaryDirectories.push(workspace);
     await writeFile(
       path.join(workspace, "prompt.md.hbs"),
-      "{{target}}\n{{epicTaskPrompt}}",
+      "{{target}}\n{{epicTaskPrompt}}\n{{taskPrompt}}",
     );
     const client = createClient({
       getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
@@ -162,7 +162,6 @@ describe("prepareTask", () => {
       [
         "Sources/Feature/Home.swift",
         "Use the existing architecture.",
-        "",
         "Preserve the public API.",
       ].join("\n"),
     );
@@ -235,10 +234,13 @@ describe("resolveTaskBranchName", () => {
 });
 
 describe("prepareValidation", () => {
-  it("combines EPIC, task, optional EPIC validation, and task validation prompts", async () => {
+  it("passes EPIC and task prompts to the validation template separately", async () => {
     const workspace = await mkdtemp(path.join(tmpdir(), "prepare-validation-"));
     temporaryDirectories.push(workspace);
-    await writeFile(path.join(workspace, "prompt.md.hbs"), "{{epicTaskPrompt}}");
+    await writeFile(
+      path.join(workspace, "prompt.md.hbs"),
+      "{{epicTaskPrompt}}\n{{taskPrompt}}\n{{epicValidationPrompt}}\n{{validationPrompt}}",
+    );
     const client = createClient({
       getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
         issueNumber === 123
@@ -287,11 +289,8 @@ describe("prepareValidation", () => {
       "prompt",
       [
         "Use the existing architecture.",
-        "",
         "Preserve the public API.",
-        "",
         "Run integration tests.",
-        "",
         "Confirm the adapter behavior.",
       ].join("\n"),
     );

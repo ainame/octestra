@@ -153,7 +153,10 @@ Octestra はエージェントに渡すプロンプトを Handlebars template �
 
 template では EPIC と task issue の設定・prompt を利用できます。主な変数は次のとおりです。
 
-- `epicTaskPrompt`: EPIC と task issue の実装指示を結合したもの
+- `epicTaskPrompt`: EPIC の実装指示
+- `taskPrompt`: task issue の実装指示
+- `epicValidationPrompt`: EPIC の検証指示
+- `validationPrompt`: task issue の検証指示
 - `skillName`: EPIC で設定したスキル名
 - `target`: 設定されている場合のタスク対象
 - `issueNumber`: task issue 番号

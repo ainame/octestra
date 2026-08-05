@@ -307,7 +307,10 @@ export async function buildTaskContext(
   const prompt = await renderPrompt(path.resolve(workspace, promptTemplate), {
     skillName: config.skillName ?? "",
     target: taskConfig.target,
-    epicTaskPrompt: combinePrompts(config.epicTaskPrompt, taskConfig.taskPrompt),
+    epicTaskPrompt: config.epicTaskPrompt,
+    taskPrompt: taskConfig.taskPrompt,
+    epicValidationPrompt: config.epicValidationPrompt,
+    validationPrompt: taskConfig.validationPrompt,
     issueNumber: context.issueNumber,
     pullNumber: undefined,
     draftFlag,
@@ -395,12 +398,10 @@ export async function buildValidationContext(
   const prompt = await renderPrompt(path.resolve(workspace, promptTemplate), {
     skillName: config.skillName ?? "",
     target: taskConfig.target,
-    epicTaskPrompt: combinePrompts(
-      config.epicTaskPrompt,
-      taskConfig.taskPrompt,
-      config.epicValidationPrompt,
-      taskConfig.validationPrompt,
-    ),
+    epicTaskPrompt: config.epicTaskPrompt,
+    taskPrompt: taskConfig.taskPrompt,
+    epicValidationPrompt: config.epicValidationPrompt,
+    validationPrompt: taskConfig.validationPrompt,
     issueNumber: context.issueNumber,
     pullNumber,
     draftFlag: "",
@@ -425,10 +426,6 @@ export async function prepareValidation(
   branchTemplate = defaultBranchTemplate,
 ): Promise<void> {
   await buildValidationContext(context, promptTemplate, branchTemplate);
-}
-
-function combinePrompts(...prompts: string[]): string {
-  return prompts.map((prompt) => prompt.trim()).filter(Boolean).join("\n\n");
 }
 
 export async function updateStatus(

@@ -5,18 +5,20 @@ This is a sample template; customize it for your repository.
 Available variables:
 - skillName: configured Codex skill name
 - target: task target, such as a file, class, or feature, when configured
-- epicTaskPrompt: combined EPIC task and task prompts
+- epicTaskPrompt: implementation instructions from the EPIC
+- taskPrompt: implementation instructions from this task issue
+- epicValidationPrompt: validation instructions from the EPIC
+- validationPrompt: validation instructions from this task issue
 - issueNumber: task issue number
 - pullNumber: linked pull request number, when available
 - draftFlag: `--draft` when draft pull requests are configured
 --}}
-Use /{{skillName}} to complete the following task.
-
-{{#if target}}
-Target: {{target}}
-{{/if}}
+Implement the requested change using /{{skillName}}.
+Scope: {{target}}
 
 {{epicTaskPrompt}}
+
+{{taskPrompt}}
 
 Include the following line in the pull request description:
 Closes #{{issueNumber}}

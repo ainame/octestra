@@ -162,7 +162,10 @@ Octestra manages agent prompts as Handlebars templates. The implementation templ
 
 Templates can use configuration and prompts from the EPIC and task issue. The main variables are:
 
-- `epicTaskPrompt`: Combined implementation instructions from the EPIC and task issue
+- `epicTaskPrompt`: Implementation instructions from the EPIC
+- `taskPrompt`: Implementation instructions from the task issue
+- `epicValidationPrompt`: Validation instructions from the EPIC
+- `validationPrompt`: Validation instructions from the task issue
 - `skillName`: Skill name configured by the EPIC
 - `target`: Task target, when configured
 - `issueNumber`: Task issue number

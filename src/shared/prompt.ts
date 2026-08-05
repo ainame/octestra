@@ -5,6 +5,9 @@ export interface PromptVariables {
   skillName?: string;
   target?: string;
   epicTaskPrompt?: string;
+  taskPrompt?: string;
+  epicValidationPrompt?: string;
+  validationPrompt?: string;
   issueNumber?: number;
   pullNumber?: number | undefined;
   draftFlag?: string;
