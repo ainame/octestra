@@ -80,15 +80,15 @@ Octestra は各 agent action を初回だけインストールし、以後の更
 
 | 名前                                 | 値                                                     |
 |--------------------------------------|--------------------------------------------------------|
-| `inputs.issue-number`                 | task issue の番号                        |
+| `inputs.issue_number`                 | task issue の番号                        |
 | `inputs.prompt`                       | 描画済みの実装プロンプト                 |
-| `inputs.branch-name`                  | エージェントが push する正確な branch 名 |
-| `inputs.draft-flag`                   | `--draft`、または空                      |
-| `inputs.skip-validation`              | 検証を省略するかどうか                   |
-| `inputs.task-owner`                   | タスクを担当する人                       |
-| `inputs.epic-id`                      | EPIC の識別子                            |
-| `inputs.parent-number`                | EPIC の issue 番号                       |
-| `inputs.skill-name`                   | EPIC で指定された任意のスキル            |
+| `inputs.branch_name`                  | エージェントが push する正確な branch 名 |
+| `inputs.draft_flag`                   | `--draft`、または空                      |
+| `inputs.skip_validation`              | 検証を省略するかどうか                   |
+| `inputs.task_owner`                   | タスクを担当する人                       |
+| `inputs.epic_id`                      | EPIC の識別子                            |
+| `inputs.parent_number`                | EPIC の issue 番号                       |
+| `inputs.skill_name`                   | EPIC で指定された任意のスキル            |
 | `inputs.target`                       | ファイル、クラス、機能などの任意のタスク対象 |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN`     | エージェント用の GitHub token            |
 
@@ -100,7 +100,7 @@ Claude Code Action の設定例です。
 - uses: anthropics/claude-code-action@v1
   with:
     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
-    branch_prefix: ${{ inputs.branch-name }}
+    branch_prefix: ${{ inputs.branch_name }}
     branch_name_template: "{{prefix}}"
     prompt: ${{ inputs.prompt }}
 ```
@@ -113,17 +113,17 @@ Claude Code Action の設定例です。
 
 | 名前 | 値 |
 |---|---|
-| `inputs.issue-number` | task issue の番号 |
+| `inputs.issue_number` | task issue の番号 |
 | `inputs.prompt` | 描画済みの検証プロンプト |
-| `inputs.pull-number` | 検証対象の pull request |
-| `inputs.result-path` | 検証結果の JSON を書き込むパス |
-| `inputs.artifact-path` | スクリーンショット、ログ、その他の証跡を保存するディレクトリ |
-| `inputs.branch-name` | checkout 済みの task branch |
-| `inputs.parent-number` | EPIC の issue 番号 |
+| `inputs.pull_number` | 検証対象の pull request |
+| `inputs.result_path` | 検証結果の JSON を書き込むパス |
+| `inputs.artifact_path` | スクリーンショット、ログ、その他の証跡を保存するディレクトリ |
+| `inputs.branch_name` | checkout 済みの task branch |
+| `inputs.parent_number` | EPIC の issue 番号 |
 | `inputs.target` | ファイル、クラス、機能などの任意のタスク対象 |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub token |
 
-action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済み workspace で実行されます。検証エージェントは `inputs.result-path` に JSON を書き込みます。
+action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済み workspace で実行されます。検証エージェントは `inputs.result_path` に JSON を書き込みます。
 
 ```json
 {

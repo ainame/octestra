@@ -9,25 +9,25 @@ name: Octestra task agent
 description: Repository-configured setup and agent execution for an Octestra task
 
 inputs:
-  issue-number:
+  issue_number:
     description: Task issue number
     required: true
-  parent-number:
+  parent_number:
     description: Parent EPIC issue number
     required: true
-  epic-id:
+  epic_id:
     description: Stable identifier configured by the parent EPIC
     required: true
-  skill-name:
+  skill_name:
     description: Agent skill configured by the parent EPIC, if any
     required: false
-  branch-name:
+  branch_name:
     description: Exact branch the agent must create and push
     required: true
-  draft-flag:
+  draft_flag:
     description: --draft when the task pull request should remain a draft
     required: false
-  skip-validation:
+  skip_validation:
     description: Whether the task moves directly to Human Review
     required: true
   prompt:
@@ -36,7 +36,7 @@ inputs:
   target:
     description: Configured file, class, feature, or other target, if any
     required: false
-  task-owner:
+  task_owner:
     description: Human assigned to the task issue
     required: false
 
@@ -65,9 +65,9 @@ runs:
     #     anthropic_api_key: ${{ env.YOUR_AGENT_API_KEY }}
     #     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
     #     track_progress: true
-    #     # `branch-name` is the exact branch Octestra will later finalize and validate.
+    #     # `branch_name` is the exact branch Octestra will later finalize and validate.
     #     # Passing it through `{{prefix}}` prevents Claude from adding any suffix.
-    #     branch_prefix: ${{ inputs.branch-name }}
+    #     branch_prefix: ${{ inputs.branch_name }}
     #     branch_name_template: "{{prefix}}"
     #     claude_args: >-
     #       --allowedTools

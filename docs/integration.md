@@ -85,15 +85,15 @@ are replaced in full. Inside an agent action, use its `inputs.*` for lifecycle c
 
 | Name | Value |
 |---|---|
-| `inputs.issue-number` | Task issue number |
+| `inputs.issue_number` | Task issue number |
 | `inputs.prompt` | Rendered implementation prompt |
-| `inputs.branch-name` | Exact branch name the agent must push |
-| `inputs.draft-flag` | `--draft`, or empty |
-| `inputs.skip-validation` | Whether to skip validation |
-| `inputs.task-owner` | The person responsible for the task |
-| `inputs.epic-id` | EPIC identifier |
-| `inputs.parent-number` | EPIC issue number |
-| `inputs.skill-name` | Optional skill specified by the EPIC |
+| `inputs.branch_name` | Exact branch name the agent must push |
+| `inputs.draft_flag` | `--draft`, or empty |
+| `inputs.skip_validation` | Whether to skip validation |
+| `inputs.task_owner` | The person responsible for the task |
+| `inputs.epic_id` | EPIC identifier |
+| `inputs.parent_number` | EPIC issue number |
+| `inputs.skill_name` | Optional skill specified by the EPIC |
 | `inputs.target` | Optional file, class, feature, or other task target |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
 
@@ -107,7 +107,7 @@ Example configuration for Claude Code Action:
 - uses: anthropics/claude-code-action@v1
   with:
     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
-    branch_prefix: ${{ inputs.branch-name }}
+    branch_prefix: ${{ inputs.branch_name }}
     branch_name_template: "{{prefix}}"
     prompt: ${{ inputs.prompt }}
 ```
@@ -121,18 +121,18 @@ and passes the preparation outputs to `validation-agent/action.yml` as inputs:
 
 | Name | Value |
 |---|---|
-| `inputs.issue-number` | Task issue number |
+| `inputs.issue_number` | Task issue number |
 | `inputs.prompt` | Rendered validation prompt |
-| `inputs.pull-number` | Pull request to validate |
-| `inputs.result-path` | Path where the validation result JSON must be written |
-| `inputs.artifact-path` | Directory for screenshots, logs, and other evidence |
-| `inputs.branch-name` | Checked-out task branch |
-| `inputs.parent-number` | EPIC issue number |
+| `inputs.pull_number` | Pull request to validate |
+| `inputs.result_path` | Path where the validation result JSON must be written |
+| `inputs.artifact_path` | Directory for screenshots, logs, and other evidence |
+| `inputs.branch_name` | Checked-out task branch |
+| `inputs.parent_number` | EPIC issue number |
 | `inputs.target` | Optional file, class, feature, or other task target |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
 
 The action runs in the same job, runner, and checked-out workspace as `lifecycle/prepare-validation`.
-The validation agent writes JSON to `inputs.result-path`.
+The validation agent writes JSON to `inputs.result_path`.
 
 ```json
 {

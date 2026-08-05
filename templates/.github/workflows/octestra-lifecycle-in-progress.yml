@@ -98,16 +98,16 @@ jobs:
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
-          issue-number: ${{ inputs.issue-number }}
-          parent-number: ${{ steps.epic.outputs.parent_number }}
-          epic-id: ${{ steps.epic.outputs.epic_id }}
-          skill-name: ${{ steps.epic.outputs.skill_name }}
-          branch-name: ${{ steps.epic.outputs.branch_name }}
-          draft-flag: ${{ steps.epic.outputs.draft_flag }}
-          skip-validation: ${{ steps.epic.outputs.skip_validation }}
+          issue_number: ${{ inputs.issue-number }}
+          parent_number: ${{ steps.epic.outputs.parent_number }}
+          epic_id: ${{ steps.epic.outputs.epic_id }}
+          skill_name: ${{ steps.epic.outputs.skill_name }}
+          branch_name: ${{ steps.epic.outputs.branch_name }}
+          draft_flag: ${{ steps.epic.outputs.draft_flag }}
+          skip_validation: ${{ steps.epic.outputs.skip_validation }}
           prompt: ${{ steps.epic.outputs.prompt }}
           target: ${{ steps.epic.outputs.target }}
-          task-owner: ${{ steps.epic.outputs.task_owner }}
+          task_owner: ${{ steps.epic.outputs.task_owner }}
 
       # finalize-task:
       # - Confirms the agent pushed the branch named by branch_name above.

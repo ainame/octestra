@@ -532,7 +532,7 @@ assert_validation_action_interface \
 grep -q 'operation: lifecycle/prepare-task' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
 grep -q 'uses: ./.github/octestra/actions/task-agent' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
 grep -q "if: steps.epic.outputs.task_ready == 'true'" "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
-grep -q 'branch-name: \${{ steps.epic.outputs.branch_name }}' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
+grep -q 'branch_name: \${{ steps.epic.outputs.branch_name }}' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
 grep -q 'operation: lifecycle/prepare-validation' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
 grep -q 'owner: \${{ github.repository_owner }}' "$orchestrator"
 grep -q 'repositories: \${{ github.repository }}' "$orchestrator"

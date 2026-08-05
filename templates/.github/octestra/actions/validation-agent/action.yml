@@ -9,25 +9,25 @@ name: Octestra validation agent
 description: Repository-configured setup and agent execution for Octestra validation
 
 inputs:
-  issue-number:
+  issue_number:
     description: Task issue number
     required: true
-  parent-number:
+  parent_number:
     description: Parent EPIC issue number
     required: true
-  branch-name:
+  branch_name:
     description: Checked-out task branch
     required: true
-  pull-number:
+  pull_number:
     description: Pull request being validated
     required: true
   prompt:
     description: Rendered validation instructions
     required: true
-  result-path:
+  result_path:
     description: Path where the validation result JSON must be written
     required: true
-  artifact-path:
+  artifact_path:
     description: Directory for validation evidence
     required: true
   target:
@@ -70,8 +70,8 @@ runs:
     #   if: always()
     #   uses: actions/upload-artifact@v4
     #   with:
-    #     name: octestra-validation-${{ inputs.issue-number }}
+    #     name: octestra-validation-${{ inputs.issue_number }}
     #     path: |
-    #       ${{ inputs.artifact-path }}
-    #       ${{ inputs.result-path }}
+    #       ${{ inputs.artifact_path }}
+    #       ${{ inputs.result_path }}
     #     if-no-files-found: warn

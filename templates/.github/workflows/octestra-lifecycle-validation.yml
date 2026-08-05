@@ -79,13 +79,13 @@ jobs:
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
-          issue-number: ${{ inputs.issue-number }}
-          parent-number: ${{ steps.epic.outputs.parent_number }}
-          branch-name: ${{ steps.epic.outputs.branch_name }}
-          pull-number: ${{ steps.epic.outputs.pull_number }}
+          issue_number: ${{ inputs.issue-number }}
+          parent_number: ${{ steps.epic.outputs.parent_number }}
+          branch_name: ${{ steps.epic.outputs.branch_name }}
+          pull_number: ${{ steps.epic.outputs.pull_number }}
           prompt: ${{ steps.epic.outputs.prompt }}
-          result-path: ${{ steps.epic.outputs.result_path }}
-          artifact-path: ${{ steps.epic.outputs.artifact_path }}
+          result_path: ${{ steps.epic.outputs.result_path }}
+          artifact_path: ${{ steps.epic.outputs.artifact_path }}
           target: ${{ steps.epic.outputs.target }}
 
       # finalize-validation:
