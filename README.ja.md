@@ -63,20 +63,6 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
 
 EPIC と task issue の書式、各 status option の意味、エージェントへの入力は [実装ガイド](docs/integration.ja.md) を参照してください。
 
-### インストールオプション
-
-| フラグ                                 | 効果                                                                       |
-|----------------------------------------|----------------------------------------------------------------------------|
-| `--org NAME`                           | カスタム Issue Field を所有する organization。既定では自動判定             |
-| `--status-field NAME`                  | 使用または作成するカスタム Issue Field。既定は `AI Task Status`            |
-| `--github-app-client-id ID`            | GitHub App のクライアント ID                                               |
-| `--skill-target claude\|codex\|agents` | EPIC セットアップスキルを設置するディレクトリ                              |
-| `--repository OWNER/REPO`              | インストールされたワークフローが利用する Octestra リポジトリ               |
-| `--fork`                               | `--repository ORGANIZATION/octestra` の短縮形                              |
-| `--ref REF`                            | バージョンタグまたはブランチ。公式リポジトリでは既定で最新のバージョンタグ |
-| `--enable-oidc`                        | GitHub OIDC を使ったクラウドプロバイダーへの認証をワークフローで許可       |
-| `--yes`                                | 確認せずに既定値を使用                                                     |
-
 ## 更新とメンテナンス
 
 ```sh

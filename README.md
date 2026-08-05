@@ -63,20 +63,6 @@ The installed workflows contain placeholders for running agents. Configure an im
 
 For the EPIC and task issue format, the meaning of each status option, and agent inputs, see the [integration guide](docs/integration.md).
 
-### Installation Options
-
-| Flag                                   | Effect                                                                            |
-|----------------------------------------|-----------------------------------------------------------------------------------|
-| `--org NAME`                           | Organization that owns the custom Issue Field; inferred by default                |
-| `--status-field NAME`                  | Custom Issue Field to use or create; default: `AI Task Status`                    |
-| `--github-app-client-id ID`            | GitHub App client ID                                                              |
-| `--skill-target claude\|codex\|agents` | Directory in which to install the EPIC setup skill                                |
-| `--repository OWNER/REPO`              | Octestra repository used by installed workflows                                   |
-| `--fork`                               | Short for `--repository ORGANIZATION/octestra`                                    |
-| `--ref REF`                            | Version tag or branch; the official repository defaults to the latest version tag |
-| `--enable-oidc`                        | Allow workflow steps to authenticate to a cloud provider using GitHub OIDC        |
-| `--yes`                                | Accept defaults without prompting                                                 |
-
 ## Updating and Maintenance
 
 ```sh
