@@ -183,13 +183,14 @@ chmod +x "$TEMP_DIR/bin/gh"
 PATH="$TEMP_DIR/bin:$PATH" \
 OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
 OCTESTRA_TEST_REPO_VIEW_FAIL=true \
-  bash "$ROOT/install.sh" \
+OCTESTRA_TEST_SECRETS="SOME_OTHER_SECRET" \
+bash "$ROOT/install.sh" \
     --org example-org \
     --status-field "AI Task Status" \
     --target "$TEMP_DIR/consumer" \
     --source-dir "$ROOT" \
     --skill-target codex \
-    --yes
+    --yes >"$TEMP_DIR/initial-install-output"
 
 orchestrator="$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle.yml"
 test -f "$orchestrator"
@@ -202,14 +203,22 @@ test -x "$TEMP_DIR/consumer/.github/octestra/check-validation-result.sh"
 grep -q 'check-validation-result.sh "{{resultPath}}"' \
   "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
+grep -q '.github/octestra/octestra.sh doctor' \
+  "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 ruby -c "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/scripts/setup_epic.rb" >/dev/null
 # An upstream repository with no tags leaves the reference on the default branch.
 grep -q 'uses: ainame/octestra@main' "$orchestrator"
 grep -q 'field_id: "9001"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 grep -q 'field_name: "AI Task Status"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+grep -q 'private_key_secret_key_name: "OCTESTRA_GITHUB_APP_PRIVATE_KEY"' \
+  "$TEMP_DIR/consumer/.github/octestra/config.yml"
 # Operations address statuses by name, so no option IDs are written to config.yml.
 ! grep -q 'options:' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$TEMP_DIR/consumer/.github/octestra/config.yml"
+grep -q "secrets\\[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET" "$orchestrator"
+grep -q "issue_field_value.option.name != 'Todo'" "$orchestrator"
+grep -q 'Actions secret OCTESTRA_GITHUB_APP_PRIVATE_KEY is not set' \
+  "$TEMP_DIR/initial-install-output"
 
 validation_result="$TEMP_DIR/validation-result.json"
 cat > "$validation_result" <<'EOF'
@@ -456,6 +465,12 @@ grep -q 'uses: ainame/octestra@1\.10\.0' \
 # installer says so, including for a value it was asked to write.
 rerun_output="$TEMP_DIR/rerun-output"
 printf 'runners:\n  orchestration: macos-15\n' >>"$TEMP_DIR/consumer/.github/octestra/config.yml"
+# Existing installations do not have private_key_secret_key_name. The installed maintenance CLI must use
+# the legacy secret name until the consumer explicitly adds the new config key.
+sed '/^  private_key_secret_key_name:/d' "$TEMP_DIR/consumer/.github/octestra/config.yml" \
+  > "$TEMP_DIR/consumer/.github/octestra/config.yml.legacy"
+mv "$TEMP_DIR/consumer/.github/octestra/config.yml.legacy" \
+  "$TEMP_DIR/consumer/.github/octestra/config.yml"
 PATH="$TEMP_DIR/bin:$PATH" \
 OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
 OCTESTRA_TEST_REPO_VIEW_FAIL=true \
@@ -470,6 +485,7 @@ OCTESTRA_TEST_REPO_VIEW_FAIL=true \
 grep -q 'orchestration: macos-15' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 grep -q 'kept the existing config.yml' "$rerun_output"
 grep -q 'config.yml keeps its own github_app.client_id' "$rerun_output"
+! grep -q '^  private_key_secret_key_name:' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 if grep -q 'client_id: "replacement-client-id"' \
   "$TEMP_DIR/consumer/.github/octestra/config.yml"; then
   echo "a rerun rewrote the consumer's config.yml" >&2
@@ -482,7 +498,7 @@ grep -q 'operation: lifecycle/prepare-task' "$TEMP_DIR/consumer/.github/workflow
 grep -q 'operation: lifecycle/prepare-validation' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
 grep -q 'owner: \${{ github.repository_owner }}' "$orchestrator"
 grep -q 'repositories: \${{ github.repository }}' "$orchestrator"
-for variable in OCTESTRA_GITHUB_APP_CLIENT_ID OCTESTRA_ORCHESTRATION_RUNNER OCTESTRA_AGENT_RUNNER OCTESTRA_STATUS_FIELD_ID; do
+for variable in OCTESTRA_GITHUB_APP_CLIENT_ID OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET OCTESTRA_ORCHESTRATION_RUNNER OCTESTRA_AGENT_RUNNER OCTESTRA_STATUS_FIELD_ID; do
   grep -q "$variable" "$ROOT/templates/.github/octestra/octestra.sh"
 done
 
@@ -513,6 +529,7 @@ printf 'Installer tests passed\n'
 maintenance="$TEMP_DIR/consumer-doctor/.github/octestra/octestra.sh"
 vars_log="$TEMP_DIR/vars-log"
 clean_vars="OCTESTRA_GITHUB_APP_CLIENT_ID=doctor-client-id"
+clean_vars+=" OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET=OCTESTRA_GITHUB_APP_PRIVATE_KEY"
 clean_vars+=" OCTESTRA_ORCHESTRATION_RUNNER=ubuntu-latest"
 clean_vars+=" OCTESTRA_AGENT_RUNNER=ubuntu-latest"
 clean_vars+=" OCTESTRA_STATUS_FIELD_ID=9001"
@@ -536,6 +553,7 @@ test -x "$maintenance"
 # install.sh mirrors through the script it just installed, so this log is evidence that the
 # tool a consumer will use for every later sync works.
 grep -q '^OCTESTRA_GITHUB_APP_CLIENT_ID=doctor-client-id$' "$vars_log"
+grep -q '^OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET=OCTESTRA_GITHUB_APP_PRIVATE_KEY$' "$vars_log"
 grep -q '^OCTESTRA_ORCHESTRATION_RUNNER=ubuntu-latest$' "$vars_log"
 grep -q '^OCTESTRA_AGENT_RUNNER=ubuntu-latest$' "$vars_log"
 grep -q '^OCTESTRA_STATUS_FIELD_ID=9001$' "$vars_log"
@@ -564,6 +582,23 @@ if grep -q '  fail' "$doctor_output"; then
   exit 1
 fi
 
+# The key's value remains a GitHub Actions secret, while config.yml chooses its name. Mirroring
+# the name lets every workflow reference the consumer-selected secret before it can read config.
+sed 's/OCTESTRA_GITHUB_APP_PRIVATE_KEY/CUSTOM_APP_PRIVATE_KEY/' \
+  "$TEMP_DIR/consumer-doctor/.github/octestra/config.yml" \
+  > "$TEMP_DIR/consumer-doctor/.github/octestra/config.yml.custom"
+mv "$TEMP_DIR/consumer-doctor/.github/octestra/config.yml.custom" \
+  "$TEMP_DIR/consumer-doctor/.github/octestra/config.yml"
+clean_vars="${clean_vars/=OCTESTRA_GITHUB_APP_PRIVATE_KEY/=CUSTOM_APP_PRIVATE_KEY}"
+PATH="$TEMP_DIR/bin:$PATH" \
+  OCTESTRA_TEST_VARS_LOG="$vars_log" \
+  bash "$maintenance" vars sync
+grep -q '^OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET=CUSTOM_APP_PRIVATE_KEY$' "$vars_log"
+PATH="$TEMP_DIR/bin:$PATH" \
+  OCTESTRA_TEST_VARS="$clean_vars" \
+  OCTESTRA_TEST_SECRETS="CUSTOM_APP_PRIVATE_KEY" \
+  bash "$maintenance" doctor >/dev/null
+
 # Each break doctor exists to name: an unset variable routes nothing (P3), a missing
 # private key stops every job, and a renamed field breaks every operation that looks the
 # field up by name (P1).
@@ -576,7 +611,7 @@ if PATH="$TEMP_DIR/bin:$PATH" \
   exit 1
 fi
 grep -q "OCTESTRA_STATUS_FIELD_ID is unset" "$broken_output"
-grep -q "OCTESTRA_GITHUB_APP_PRIVATE_KEY is not set" "$broken_output"
+grep -q "CUSTOM_APP_PRIVATE_KEY is not set" "$broken_output"
 grep -q "is named 'AI Task Status'" "$broken_output"
 
 # An enabled status job whose reusable workflow is absent fails a run at startup with no
@@ -586,7 +621,7 @@ mv "$TEMP_DIR/consumer-doctor/.github/workflows/octestra-lifecycle-validation.ym
 missing_callee_output="$TEMP_DIR/doctor-missing-callee-output"
 if PATH="$TEMP_DIR/bin:$PATH" \
   OCTESTRA_TEST_VARS="$clean_vars" \
-  OCTESTRA_TEST_SECRETS="OCTESTRA_GITHUB_APP_PRIVATE_KEY" \
+  OCTESTRA_TEST_SECRETS="CUSTOM_APP_PRIVATE_KEY" \
     bash "$maintenance" doctor >"$missing_callee_output" 2>&1; then
   echo "doctor accepted a status job with no reusable workflow" >&2
   exit 1
@@ -630,7 +665,7 @@ done
 mismatch_output="$TEMP_DIR/doctor-mismatch-output"
 if PATH="$TEMP_DIR/bin:$PATH" \
   OCTESTRA_TEST_VARS="$clean_vars" \
-  OCTESTRA_TEST_SECRETS="OCTESTRA_GITHUB_APP_PRIVATE_KEY" \
+  OCTESTRA_TEST_SECRETS="CUSTOM_APP_PRIVATE_KEY" \
     bash "$maintenance" doctor >"$mismatch_output" 2>&1; then
   echo "doctor accepted workflows that call a different Octestra" >&2
   exit 1
@@ -799,8 +834,8 @@ broken_regions_output="$TEMP_DIR/doctor-broken-regions-output"
 grep -v 'octestra:custom:end agent-steps' "$update_in_progress" >"$update_in_progress.edit"
 mv "$update_in_progress.edit" "$update_in_progress"
 if PATH="$TEMP_DIR/bin:$PATH" \
-  OCTESTRA_TEST_VARS="OCTESTRA_GITHUB_APP_CLIENT_ID=update-client-id OCTESTRA_ORCHESTRATION_RUNNER=ubuntu-latest OCTESTRA_AGENT_RUNNER=ubuntu-latest OCTESTRA_STATUS_FIELD_ID=9001" \
-  OCTESTRA_TEST_SECRETS="OCTESTRA_GITHUB_APP_PRIVATE_KEY" \
+  OCTESTRA_TEST_VARS="OCTESTRA_GITHUB_APP_CLIENT_ID=update-client-id OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET=CUSTOM_APP_PRIVATE_KEY OCTESTRA_ORCHESTRATION_RUNNER=ubuntu-latest OCTESTRA_AGENT_RUNNER=ubuntu-latest OCTESTRA_STATUS_FIELD_ID=9001" \
+  OCTESTRA_TEST_SECRETS="CUSTOM_APP_PRIVATE_KEY" \
     bash "$update_dir/.github/octestra/octestra.sh" doctor >"$broken_regions_output" 2>&1; then
   echo "doctor accepted unbalanced custom region markers" >&2
   exit 1

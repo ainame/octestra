@@ -119,10 +119,11 @@ renumber: `docs/design.md` cites these numbers.
 
 ## Rules
 
-**Configuration.** `.github/octestra/config.yml` is the single source of truth. Exactly four values
+**Configuration.** `.github/octestra/config.yml` is the single source of truth. Exactly five values
 are mirrored into repository variables (`OCTESTRA_GITHUB_APP_CLIENT_ID`,
-`OCTESTRA_ORCHESTRATION_RUNNER`, `OCTESTRA_AGENT_RUNNER`, `OCTESTRA_STATUS_FIELD_ID`) because they
-are needed before a job starts and no file can be read then. Adding a fifth needs a reason that
+`OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET`, `OCTESTRA_ORCHESTRATION_RUNNER`,
+`OCTESTRA_AGENT_RUNNER`, `OCTESTRA_STATUS_FIELD_ID`) because they
+are needed before a job starts and no file can be read then. Adding a sixth needs a reason that
 survives P3. Everything else is read at runtime.
 
 Config is read from the **default branch via the Contents API**, never from the checkout — jobs

@@ -22,7 +22,7 @@ set -euo pipefail
 readonly API_VERSION="2026-03-10"
 readonly CONFIG_PATH=".github/octestra/config.yml"
 readonly ENTRY_WORKFLOW=".github/workflows/octestra-lifecycle.yml"
-readonly PRIVATE_KEY_SECRET="OCTESTRA_GITHUB_APP_PRIVATE_KEY"
+readonly DEFAULT_PRIVATE_KEY_SECRET="OCTESTRA_GITHUB_APP_PRIVATE_KEY"
 readonly CLIENT_ID_PLACEHOLDER="YOUR-GITHUB-APP-CLIENT-ID"
 # The markers install.sh keys on when it updates a workflow: content between a begin and end
 # marker is carried into the new version, everything else is replaced.
@@ -32,10 +32,11 @@ readonly BACKUP_SUFFIX=".octestra-bak"
 # these from repository variables because no file can be read that early, which is why they
 # can disagree with config.yml at all.
 readonly MIRRORED_VARIABLES=(
-  "OCTESTRA_GITHUB_APP_CLIENT_ID|github_app|client_id"
-  "OCTESTRA_ORCHESTRATION_RUNNER|runners|orchestration"
-  "OCTESTRA_AGENT_RUNNER|runners|agent"
-  "OCTESTRA_STATUS_FIELD_ID|status|field_id"
+  "OCTESTRA_GITHUB_APP_CLIENT_ID|github_app|client_id|"
+  "OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET|github_app|private_key_secret_key_name|$DEFAULT_PRIVATE_KEY_SECRET"
+  "OCTESTRA_ORCHESTRATION_RUNNER|runners|orchestration|"
+  "OCTESTRA_AGENT_RUNNER|runners|agent|"
+  "OCTESTRA_STATUS_FIELD_ID|status|field_id|"
 )
 # The statuses a task moves through. Octestra sets a status by its display name, so renaming
 # one in the organization breaks this installation: doctor reports it here instead of letting
@@ -165,6 +166,35 @@ config_scalar() {
   return 1
 }
 
+mirrored_value() {
+  local entry="$1"
+  local rest="${entry#*|}"
+  local section="${rest%%|*}"
+  local key=""
+  local fallback=""
+  local value=""
+
+  rest=${rest#*|}
+  key=${rest%%|*}
+  fallback=${rest#*|}
+  value=$(config_scalar "$section" "$key" || true)
+  if [[ -n "$value" ]]; then
+    printf '%s' "$value"
+    return
+  fi
+  [[ -n "$fallback" ]] || return 1
+  printf '%s' "$fallback"
+}
+
+private_key_secret_name() {
+  local name=""
+
+  name=$(mirrored_value \
+    "OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET|github_app|private_key_secret_key_name|$DEFAULT_PRIVATE_KEY_SECRET")
+  [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+  printf '%s' "$name"
+}
+
 report() {
   local level="$1"
   shift
@@ -199,8 +229,8 @@ check_config() {
   fi
   for entry in "${MIRRORED_VARIABLES[@]}"; do
     rest="${entry#*|}"
-    if ! config_scalar "${rest%%|*}" "${rest##*|}" >/dev/null; then
-      report fail "$CONFIG_PATH has no ${rest%%|*}.${rest##*|}"
+    if ! mirrored_value "$entry" >/dev/null; then
+      report fail "$CONFIG_PATH has no ${rest%%|*}.${rest#*|}"
     fi
   done
   for entry in "status|field_name" "branch|task" "prompts|lifecycle_in_progress" \
@@ -234,8 +264,7 @@ check_variables() {
   fi
   for entry in "${MIRRORED_VARIABLES[@]}"; do
     name="${entry%%|*}"
-    rest="${entry#*|}"
-    expected=$(config_scalar "${rest%%|*}" "${rest##*|}") || continue
+    expected=$(mirrored_value "$entry") || continue
     actual=$(gh variable get "$name" 2>/dev/null || true)
     if [[ -z "$actual" ]]; then
       report fail "$name is unset; run 'octestra.sh vars sync'"
@@ -245,13 +274,17 @@ check_variables() {
     fi
   done
   if (( FAILURES == before )); then
-    report ok "the four Octestra repository variables match $CONFIG_PATH"
+    report ok "the five Octestra repository variables match $CONFIG_PATH"
   fi
 }
 
 # Checks that the secret exists by name only. Its value is never read.
 check_private_key_secret() {
   local names=""
+  local private_key_secret=""
+
+  private_key_secret=$(private_key_secret_name) ||
+    die "$CONFIG_PATH has no usable github_app.private_key_secret_key_name"
 
   names=$(
     gh api \
@@ -262,13 +295,13 @@ check_private_key_secret() {
   )
   if [[ -z "$names" ]]; then
     report warn \
-      "could not list Actions secrets; repository admin access is needed to check $PRIVATE_KEY_SECRET"
+      "could not list Actions secrets; repository admin access is needed to check $private_key_secret"
     return
   fi
-  if printf '%s\n' "$names" | grep -q -x "$PRIVATE_KEY_SECRET"; then
-    report ok "$PRIVATE_KEY_SECRET is set"
+  if printf '%s\n' "$names" | grep -q -x "$private_key_secret"; then
+    report ok "$private_key_secret is set"
   else
-    report fail "$PRIVATE_KEY_SECRET is not set; no job can mint an App token"
+    report fail "$private_key_secret is not set; no job can mint an App token"
   fi
 }
 
@@ -499,9 +532,8 @@ vars_command() {
 
   for entry in "${MIRRORED_VARIABLES[@]}"; do
     name="${entry%%|*}"
-    rest="${entry#*|}"
-    expected=$(config_scalar "${rest%%|*}" "${rest##*|}") ||
-      die "$CONFIG_PATH has no ${rest%%|*}.${rest##*|}"
+    expected=$(mirrored_value "$entry") ||
+      die "$CONFIG_PATH has no value for $name"
     if [[ "$mode" == "sync" ]]; then
       info "setting $name to '$expected' in $REPOSITORY"
       gh variable set "$name" --body "$expected"
@@ -645,7 +677,7 @@ Update $REPOSITORY from $target?
   .github/octestra/octestra.sh      replaced
   the installed agent skill         replaced
   .github/octestra/config.yml       kept as it is
-It also re-syncs the four Octestra repository variables from config.yml.
+It also re-syncs the five Octestra repository variables from config.yml.
 A custom region is the lines enclosed by '# octestra:custom:begin <name>' and its matching
 '# octestra:custom:end <name>'. Anything you changed outside one is lost, so check
 'git status' first.

@@ -31,7 +31,9 @@ permissions:
 jobs:
   # Checks the status change is one Octestra allows, and reports which status job to run.
   guard:
-    if: github.event.action == 'field_added' && format('{0}', github.event.issue_field.id) == vars.OCTESTRA_STATUS_FIELD_ID
+    # Creating a task initializes its status to Todo. Skip that event until a person or
+    # automation explicitly moves the task forward, so setup needs no App secret.
+    if: github.event.action == 'field_added' && github.event.issue_field_value.option.name != 'Todo' && format('{0}', github.event.issue_field.id) == vars.OCTESTRA_STATUS_FIELD_ID
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
     # This job only reads, so it takes less than the list above. Jobs started by
     # `uses:` are unaffected: job-level permissions apply to this job only.
@@ -48,7 +50,7 @@ jobs:
           client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.repository }}
-          private-key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+          private-key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
       - id: guard
         uses: ainame/octestra@main
         with:
@@ -73,7 +75,7 @@ jobs:
       trigger-actor: ${{ github.actor }}
       trigger-actor-type: ${{ github.event.sender.type }}
     secrets:
-      github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+      github_app_private_key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
       # ========================================================================
       # CUSTOM REGION: secrets passed to the In Progress workflow
       # ========================================================================
@@ -94,7 +96,7 @@ jobs:
     with:
       issue-number: ${{ github.event.issue.number }}
     secrets:
-      github_app_private_key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+      github_app_private_key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
       # ========================================================================
       # CUSTOM REGION: secrets passed to the Validation workflow
       # ========================================================================
@@ -123,7 +125,7 @@ jobs:
           client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.repository }}
-          private-key: ${{ secrets.OCTESTRA_GITHUB_APP_PRIVATE_KEY }}
+          private-key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
       - uses: ainame/octestra@main
         with:
           operation: lifecycle/finalize-merged-task

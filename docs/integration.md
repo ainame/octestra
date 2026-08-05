@@ -179,9 +179,9 @@ Templates can use configuration and prompts from the EPIC and task issue. The ma
 
 ## Change Configuration
 
-`.github/octestra/config.yml` configures the GitHub Actions runners, the GitHub App Octestra uses, task branch naming, and prompt template paths.
+`.github/octestra/config.yml` configures the GitHub Actions runners, the GitHub App Octestra uses, task branch naming, and prompt template paths. Set `github_app.private_key_secret_key_name` to the name of the Actions secret holding the GitHub App private key. The secret value is never written to `config.yml`.
 
-After changing `github_app.client_id`, a value under `runners`, or `status.field_id`, copy the new values to the repository's Actions variables.
+After changing `github_app.client_id`, `github_app.private_key_secret_key_name`, a value under `runners`, or `status.field_id`, copy the new values to the repository's Actions variables.
 
 ```sh
 .github/octestra/octestra.sh vars sync

@@ -41,7 +41,7 @@ Split by *when* a value is needed, not by what it is.
 
 | Tier | Examples | Lives in | Why not elsewhere |
 |---|---|---|---|
-| Platform | runner labels, App client ID, status field ID | `config.yml`, mirrored to `vars` | Needed before a job starts; no file can be read then |
+| Platform | runner labels, App client ID, private-key secret name, status field ID | `config.yml`, mirrored to `vars` | Needed before a job starts; no file can be read then |
 | Policy | status field name, branch templates, prompt paths | `config.yml`, read at runtime | Reviewable and versioned |
 | Wiring | trigger filters, job graph, agent invocation | workflow YAML | GitHub accepts only literals here; also the consumer's customisation surface |
 | Intent | EPIC and task issue body blocks | issue body | Unchanged |
@@ -51,6 +51,7 @@ Split by *when* a value is needed, not by what it is.
 | `vars` name | `config.yml` path | Used by |
 |---|---|---|
 | `OCTESTRA_GITHUB_APP_CLIENT_ID` | `github_app.client_id` | `create-github-app-token` in reusable workflows |
+| `OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET` | `github_app.private_key_secret_key_name` | the secret lookup in every App-token step |
 | `OCTESTRA_ORCHESTRATION_RUNNER` | `runners.orchestration` | `runs-on` |
 | `OCTESTRA_AGENT_RUNNER` | `runners.agent` | `runs-on` |
 | `OCTESTRA_STATUS_FIELD_ID` | `status.field_id` | the entry point's pre-runner `if` |
@@ -69,7 +70,7 @@ organization's field has all seven required options.
 
 Mirroring creates a window where `vars` and `config.yml` disagree. It is contained by:
 
-1. **A small surface.** Four values, three of which change approximately never.
+1. **A small surface.** Five values, four of which change approximately never.
 2. **No chicken-and-egg.** Runner labels have literal fallbacks (P3), so the guard can start even
    when its own variable is unset.
 3. **A local check.** `.github/octestra/octestra.sh vars check` exits non-zero on drift,
@@ -77,6 +78,6 @@ Mirroring creates a window where `vars` and `config.yml` disagree. It is contain
    `install.sh` runs that same installed script to sync at the end of installation (D12).
 
 A runtime drift check inside `lifecycle/validate-transition` was scoped but never implemented — the
-`platform-vars` input that would have carried the four values does not exist, and the local check
+`platform-vars` input that would have carried the five values does not exist, and the local check
 plus install-time sync have covered the actual failure mode in practice. If a runtime check is
 added later, it belongs in the guard job so it runs on every routed event with no extra job.

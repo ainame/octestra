@@ -124,7 +124,7 @@ it holds where it appears.
 | mechanism / policy | What Octestra owns versus what the consumer decides. Custom regions are where the line is written down. |
 | seam | A split kept deliberately for work that has not landed, such as the unused `loop/` namespace. |
 | the guard | The `guard` job, and `lifecycle/validate-transition` inside it, which decides whether a status change is legal and which status job to run. |
-| mirrored value | One of the four values copied from `config.yml` into repository variables because a job needs them before it can read a file. |
+| mirrored value | One of the five values copied from `config.yml` into repository variables because a job needs them before it can read a file. |
 | drift | A mirrored value disagreeing with `config.yml`. |
 | platform invariant | A verified GitHub behaviour, numbered `P1`–`P11` in `AGENTS.md`. Numbers are stable and never reused. |
 | decision | A design choice, numbered `D3`–`D14` in `docs/design.md`. |

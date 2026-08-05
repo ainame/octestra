@@ -4,6 +4,9 @@ version: 1
 
 github_app:
   client_id: "YOUR-GITHUB-APP-CLIENT-ID" # copied into OCTESTRA_GITHUB_APP_CLIENT_ID
+  # Name of the Actions secret holding this App's private key. This is copied into
+  # OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET; the secret value is never stored here.
+  private_key_secret_key_name: "OCTESTRA_GITHUB_APP_PRIVATE_KEY"
 
 runners: # copied into this repository's variables
   orchestration: ubuntu-latest

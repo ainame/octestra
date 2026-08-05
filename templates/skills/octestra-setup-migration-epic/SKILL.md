@@ -19,7 +19,19 @@ responsible for repository analysis, user decisions, and manifest generation.
 - The target is an organization-owned repository with Octestra installed.
 - The organization Project has its **Auto-add sub-issues to project** workflow enabled.
 
-## 1. Collect setup information
+## 1. Check the Octestra installation
+
+Before collecting setup information or creating any issue, run:
+
+```bash
+.github/octestra/octestra.sh doctor
+```
+
+Continue only when it reports no problems. If it reports a missing GitHub App secret, unset
+repository variable, or another failure, show the result to the user and stop. Do not create EPIC
+or task issues until the installation is healthy.
+
+## 2. Collect setup information
 
 Ask for missing values one at a time:
 
@@ -43,7 +55,7 @@ If inference fails, ask for `owner/repository`. The Project owner defaults to th
 repository organization. Use the Issue Field name configured in
 `.github/octestra/config.yml`; it normally defaults to `AI Task Status`.
 
-## 2. Build and confirm the task list
+## 3. Build and confirm the task list
 
 Analyze the repository using the user's discovery criteria. Exclude generated,
 vendored, and explicitly excluded files unless requested.
@@ -60,7 +72,7 @@ contracts leave optional prompts blank so the user can customize each EPIC or ta
 
 Do not create anything until the user confirms the complete task list and configuration.
 
-## 3. Write the manifest
+## 4. Write the manifest
 
 Create a temporary JSON file outside the repository unless the user requests otherwise:
 
@@ -98,7 +110,7 @@ For this migration setup skill, the script uses the selected skill name as the E
 it as the first field in every EPIC's `epic-config`; task branches use it to stay unique and
 deterministic. Other EPIC creation flows may use any lowercase slug as the ID and omit `skill`.
 
-## 4. Run the bundled setup script
+## 5. Run the bundled setup script
 
 Locate this skill's directory in the active agent skill root, then run:
 
@@ -129,7 +141,7 @@ Project addition, task creation, linking, and status initialization are skipped.
 manifest changed, the script stops instead of resuming against incompatible state. The
 state remains local and is not written into issue bodies.
 
-## 5. Report the result
+## 6. Report the result
 
 Read the result JSON and report:
 

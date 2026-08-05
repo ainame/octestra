@@ -179,9 +179,9 @@ template では EPIC と task issue の設定・prompt を利用できます。�
 
 ## 設定を変更する
 
-`.github/octestra/config.yml` では、GitHub Actions runner、Octestra が使う GitHub App、task branch の命名規則、prompt template の場所を設定します。
+`.github/octestra/config.yml` では、GitHub Actions runner、Octestra が使う GitHub App、task branch の命名規則、prompt template の場所を設定します。`github_app.private_key_secret_key_name` には、GitHub App の private key を保存する Actions secret の名前を設定します。secret の値を `config.yml` に書き込むことはありません。
 
-`github_app.client_id`、`runners` 配下の値、または `status.field_id` を変更したあとは、新しい値をリポジトリの Actions 変数へコピーしてください。
+`github_app.client_id`、`github_app.private_key_secret_key_name`、`runners` 配下の値、または `status.field_id` を変更したあとは、新しい値をリポジトリの Actions 変数へコピーしてください。
 
 ```sh
 .github/octestra/octestra.sh vars sync

@@ -856,6 +856,50 @@ copy_and_render_templates() {
   # Mirroring runs through the script that was just installed, so the tool a consumer will
   # use for every later sync is the one exercised at install time.
   (cd "$TARGET_DIR" && bash "$MAINTENANCE_SCRIPT" vars sync)
+  warn_missing_private_key_secret "$config"
+}
+
+warn_missing_private_key_secret() {
+  local config="$1"
+  local secret_name=""
+  local repository=""
+  local names=""
+
+  secret_name=$(sed -n -E \
+    's/^[[:space:]]*private_key_secret_key_name:[[:space:]]*//p' "$config" |
+    head -n 1)
+  secret_name=${secret_name%%#*}
+  secret_name=${secret_name#"${secret_name%%[![:space:]]*}"}
+  secret_name=${secret_name%"${secret_name##*[![:space:]]}"}
+  secret_name=${secret_name#\"}
+  secret_name=${secret_name%\"}
+  secret_name=${secret_name#\'}
+  secret_name=${secret_name%\'}
+  secret_name=${secret_name:-OCTESTRA_GITHUB_APP_PRIVATE_KEY}
+
+  if [[ ! "$secret_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    info "warning: github_app.private_key_secret_key_name must be an Actions secret name"
+    return
+  fi
+
+  repository=$(cd "$TARGET_DIR" &&
+    gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true)
+  if [[ -z "$repository" ]]; then
+    info "warning: could not determine the repository to check $secret_name"
+    return
+  fi
+
+  if ! names=$(gh api \
+    -H "Accept: application/vnd.github+json" \
+    "/repos/$repository/actions/secrets" \
+    --paginate \
+    --jq '.secrets[].name' 2>/dev/null); then
+    info "warning: could not check whether Actions secret $secret_name is set"
+    return
+  fi
+  if ! printf '%s\n' "$names" | grep -q -x "$secret_name"; then
+    info "warning: Actions secret $secret_name is not set; add it before moving a task to In Progress"
+  fi
 }
 
 while (( $# > 0 )); do
