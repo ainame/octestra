@@ -54,7 +54,8 @@ function createClient(overrides: Partial<OperationsClient> = {}): OperationsClie
       body: [
         "```epic-config",
         "id: example",
-        "skill: example",
+        "task_skill: example-task",
+        "validation_skill: example-validation",
         "```",
       ].join("\n"),
     }),
@@ -133,7 +134,8 @@ describe("prepareTask", () => {
             body: [
               "```epic-config",
               "id: example",
-              "skill: example",
+              "task_skill: example-task",
+              "validation_skill: example-validation",
               "```",
               "",
               "```epic-task-prompt",
@@ -169,6 +171,7 @@ describe("prepareTask", () => {
       "target",
       "Sources/Feature/Home.swift",
     );
+    expect(setOutput).toHaveBeenCalledWith("task_skill_name", "example-task");
     expect(setOutput).toHaveBeenCalledWith("task_ready", "true");
   });
 
@@ -193,7 +196,12 @@ describe("prepareTask", () => {
           }
           : {
             title: "EPIC",
-            body: "```epic-config\nid: example\n```",
+            body: [
+              "```epic-config",
+              "id: example",
+              "validation_skill: example-validation",
+              "```",
+            ].join("\n"),
           }),
       branchExists: vi.fn().mockResolvedValue(true),
       findLinkedOpenPullRequest: vi.fn().mockResolvedValue(42),
@@ -265,7 +273,8 @@ describe("prepareValidation", () => {
             body: [
               "```epic-config",
               "id: example",
-              "skill: example",
+              "task_skill: example-task",
+              "validation_skill: example-validation",
               "```",
               "",
               "```epic-task-prompt",
@@ -489,7 +498,8 @@ describe("finalizeTask", () => {
         body: [
           "```epic-config",
           "id: example",
-          "skill: example",
+          "task_skill: example-task",
+          "validation_skill:",
           "skip_validation: true",
           "```",
         ].join("\n"),
@@ -599,6 +609,7 @@ describe("prepareValidation", () => {
             body: [
               "```epic-config",
               "id: example",
+              "validation_skill: example-validation",
               "```",
             ].join("\n"),
           }),
@@ -609,6 +620,10 @@ describe("prepareValidation", () => {
     expect(core.setOutput).toHaveBeenCalledWith(
       "branch_name",
       "octestra/example/issue-123",
+    );
+    expect(core.setOutput).toHaveBeenCalledWith(
+      "validation_skill_name",
+      "example-validation",
     );
   });
 });

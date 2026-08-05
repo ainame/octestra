@@ -225,9 +225,12 @@ test -f "$TEMP_DIR/consumer/.github/octestra/issue-templates/task.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
 test -x "$TEMP_DIR/consumer/.github/octestra/check-validation-result.sh"
-grep -q 'check-validation-result.sh "{{resultPath}}"' \
+grep -q '/octestra-validation-proof' \
   "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
+test -f "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
+grep -q '.github/octestra/check-validation-result.sh "<result-path>"' \
+  "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
 grep -q '.github/octestra/octestra.sh doctor' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 ruby -c "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/scripts/setup_epic.rb" >/dev/null
@@ -482,6 +485,7 @@ git -C "$TEMP_DIR/consumer-piped" remote add origin git@github.com:example-org/c
 )
 test -f "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-setup-migration-epic/SKILL.md"
+test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-validation-proof/SKILL.md"
 # Templates are downloaded from the same ref the generated workflows call.
 grep -q '^1\.10\.0$' "$TEMP_DIR/tarball-ref"
 grep -q 'uses: ainame/octestra@1\.10\.0' \

@@ -54,8 +54,8 @@ jobs:
       # - Loads the task issue and its parent EPIC.
       # - Finds the open pull request linked to the task.
       # - Renders .github/octestra/prompts/lifecycle-validation.md.hbs.
-      # - Publishes these outputs: parent_number, branch_name, pull_number, prompt, target,
-      #   and the artifact_path and result_path the agent writes into.
+      # - Publishes these outputs: parent_number, validation_skill_name, branch_name, pull_number,
+      #   prompt, target, and the artifact_path and result_path the agent writes into.
       #
       # **Keep this step first: every step below reads `steps.epic.outputs`.**
       - name: Prepare validation lifecycle
@@ -81,6 +81,7 @@ jobs:
         with:
           issue_number: ${{ inputs.issue-number }}
           parent_number: ${{ steps.epic.outputs.parent_number }}
+          validation_skill_name: ${{ steps.epic.outputs.validation_skill_name }}
           branch_name: ${{ steps.epic.outputs.branch_name }}
           pull_number: ${{ steps.epic.outputs.pull_number }}
           prompt: ${{ steps.epic.outputs.prompt }}

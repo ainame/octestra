@@ -2,7 +2,8 @@ import { parse } from "yaml";
 
 export interface EpicConfig {
   id: string;
-  skillName?: string;
+  taskSkillName?: string;
+  validationSkillName?: string;
   draftPr: boolean;
   skipValidation: boolean;
   epicTaskPrompt: string;
@@ -42,11 +43,17 @@ export function parseEpicConfig(body: string): EpicConfig {
     throw new Error("epic-config id must be a non-empty lowercase slug");
   }
 
-  const skillValue = config.skill;
-  if (skillValue !== undefined && typeof skillValue !== "string") {
-    throw new Error("epic-config skill must be a string when provided");
+  const taskSkillValue = config.task_skill;
+  if (
+    taskSkillValue !== undefined &&
+    taskSkillValue !== null &&
+    typeof taskSkillValue !== "string"
+  ) {
+    throw new Error("epic-config task_skill must be a string or null");
   }
-  const skillName = skillValue?.trim() || undefined;
+  const taskSkillName = typeof taskSkillValue === "string"
+    ? taskSkillValue.trim() || undefined
+    : undefined;
 
   // A task PR is opened ready for review, so an EPIC has to opt in to drafts. Marking a
   // finished PR ready by hand is friction on every task, and a repository that validates
@@ -61,9 +68,27 @@ export function parseEpicConfig(body: string): EpicConfig {
     throw new Error("epic-config skip_validation must be true or false");
   }
 
+  const validationSkillValue = config.validation_skill;
+  if (
+    validationSkillValue !== undefined &&
+    validationSkillValue !== null &&
+    typeof validationSkillValue !== "string"
+  ) {
+    throw new Error("epic-config validation_skill must be a string or null");
+  }
+  const validationSkillName = typeof validationSkillValue === "string"
+    ? validationSkillValue.trim() || undefined
+    : undefined;
+  if (!skipValidation && !validationSkillName) {
+    throw new Error(
+      "epic-config validation_skill must be a non-empty string when skip_validation is false",
+    );
+  }
+
   return {
     id,
-    skillName,
+    taskSkillName,
+    validationSkillName,
     draftPr,
     skipValidation,
     epicTaskPrompt: extractBlock(body, "epic-task-prompt", false),

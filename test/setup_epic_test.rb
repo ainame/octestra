@@ -83,7 +83,8 @@ class EpicSetupTest < Minitest::Test
       'statusField' => 'AI Task Status',
       'epic' => {
         'title' => 'Convert Objective-C to Swift',
-        'skill' => 'objc-to-swift',
+        'taskSkill' => 'objc-to-swift',
+        'validationSkill' => 'migration-validation',
         'draftPr' => true,
         'skipValidation' => false
       },
@@ -148,7 +149,7 @@ class EpicSetupTest < Minitest::Test
     assert_equal ['objc-to-swift'], task.fetch('labels')
   end
 
-  def test_generated_epic_uses_skill_as_its_branch_namespace_id
+  def test_generated_epic_uses_task_skill_as_its_branch_namespace_id
     github = FakeGitHubCLI.new
 
     EpicSetup.new(
@@ -166,10 +167,56 @@ class EpicSetupTest < Minitest::Test
     end.find { |payload| payload['labels'] == ['octestra-epic'] }
 
     assert_includes epic.fetch('body'),
-                    "```epic-config\nid: objc-to-swift\nskill: objc-to-swift\n" \
+                    "```epic-config\nid: objc-to-swift\ntask_skill: objc-to-swift\n" \
+                    "validation_skill: migration-validation\n" \
                     "draft_pr: true\nskip_validation: false\n```"
     assert_includes epic.fetch('body'), "```epic-task-prompt\n\n```"
     assert_includes epic.fetch('body'), "```epic-validation-prompt\n\n```"
+  end
+
+  def test_requires_validation_skill_when_validation_runs
+    invalid = manifest.merge(
+      'epic' => manifest.fetch('epic').merge('validationSkill' => nil)
+    )
+
+    error = assert_raises(RuntimeError) do
+      EpicSetup.new(
+        invalid,
+        github: FakeGitHubCLI.new,
+        parallel: 2,
+        state: state_store(invalid)
+      )
+    end
+
+    assert_equal(
+      'epic.validationSkill must be a non-empty string when epic.skipValidation is false',
+      error.message
+    )
+  end
+
+  def test_allows_empty_validation_skill_when_validation_is_skipped
+    skipped = manifest.merge(
+      'epic' => manifest.fetch('epic').merge(
+        'validationSkill' => nil,
+        'skipValidation' => true
+      )
+    )
+    github = FakeGitHubCLI.new
+
+    EpicSetup.new(
+      skipped,
+      github: github,
+      parallel: 2,
+      state: state_store(skipped)
+    ).run
+
+    epic = github.calls.filter_map do |call|
+      next unless call[:type] == :json
+      next unless call[:arguments][1] == 'repos/example-org/example-repo/issues'
+
+      JSON.parse(call[:input])
+    end.find { |payload| payload['labels'] == ['octestra-epic'] }
+    assert_includes epic.fetch('body'), "validation_skill: \ndraft_pr: true\nskip_validation: true"
   end
 
   def test_rejects_an_empty_task_list

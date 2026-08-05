@@ -20,11 +20,12 @@ describe("renderPrompt", () => {
     const templatePath = path.join(directory, "prompt.md.hbs");
     await writeFile(
       templatePath,
-      "/{{skillName}} {{target}} {{epicTaskPrompt}} {{taskPrompt}} {{epicValidationPrompt}} {{validationPrompt}} #{{issueNumber}} {{draftFlag}}",
+      "/{{taskSkillName}} /{{validationSkillName}} {{target}} {{epicTaskPrompt}} {{taskPrompt}} {{epicValidationPrompt}} {{validationPrompt}} #{{issueNumber}} {{draftFlag}}",
     );
 
     const result = await renderPrompt(templatePath, {
-      skillName: "example",
+      taskSkillName: "example-task",
+      validationSkillName: "example-validation",
       target: "Sources/A&B.swift",
       epicTaskPrompt: "Keep <API>",
       taskPrompt: "Update the adapter.",
@@ -38,7 +39,7 @@ describe("renderPrompt", () => {
     });
 
     expect(result).toBe(
-      "/example Sources/A&B.swift Keep <API> Update the adapter. Run integration tests. Verify the migration. #123 --draft",
+      "/example-task /example-validation Sources/A&B.swift Keep <API> Update the adapter. Run integration tests. Verify the migration. #123 --draft",
     );
   });
 });

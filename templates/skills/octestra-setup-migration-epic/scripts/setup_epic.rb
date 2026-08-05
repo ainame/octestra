@@ -193,9 +193,13 @@ class EpicSetup
 
     @epic = object!(@manifest['epic'], 'epic')
     @title = non_empty_string!(@epic['title'], 'epic.title')
-    @skill = non_empty_string!(@epic['skill'], 'epic.skill')
+    @task_skill = non_empty_string!(@epic['taskSkill'], 'epic.taskSkill')
     boolean!(@epic.fetch('draftPr', false), 'epic.draftPr')
-    boolean!(@epic.fetch('skipValidation', false), 'epic.skipValidation')
+    @skip_validation = boolean!(@epic.fetch('skipValidation', false), 'epic.skipValidation')
+    @validation_skill = optional_string!(@epic['validationSkill'], 'epic.validationSkill')&.strip
+    if !@skip_validation && (@validation_skill.nil? || @validation_skill.empty?)
+      raise 'epic.validationSkill must be a non-empty string when epic.skipValidation is false'
+    end
     tasks = @manifest['tasks']
     raise 'tasks must be a non-empty array' unless tasks.is_a?(Array) && !tasks.empty?
 
@@ -280,7 +284,7 @@ class EpicSetup
   def ensure_labels!
     labels = @github.json('api', "repos/#{@repository}/labels?per_page=100").map { |label| label['name'] }
     create_label('octestra-epic', 'Octestra EPIC', 'D93F0B') unless labels.include?('octestra-epic')
-    create_label(@skill, "Skill: #{@skill}", 'BFD4F2') unless labels.include?(@skill)
+    create_label(@task_skill, "Task skill: #{@task_skill}", 'BFD4F2') unless labels.include?(@task_skill)
   end
 
   def create_label(name, description, color)
@@ -324,10 +328,11 @@ class EpicSetup
 
   def epic_body
     render_contract('epic.md.hbs', {
-      'epicId' => @skill,
-      'skillName' => @skill,
+      'epicId' => @task_skill,
+      'taskSkillName' => @task_skill,
+      'validationSkillName' => @validation_skill.to_s,
       'draftPr' => @epic.fetch('draftPr', false).to_s,
-      'skipValidation' => @epic.fetch('skipValidation', false).to_s
+      'skipValidation' => @skip_validation.to_s
     })
   end
 
@@ -349,7 +354,7 @@ class EpicSetup
     response = create_issue(
       title: task.fetch('title'),
       body: task_body(task),
-      labels: [@skill]
+      labels: [@task_skill]
     )
     result = issue_result(response, index).merge(task: task)
     @state.record_task(result)

@@ -46,9 +46,10 @@ The installer adds the following files.
   - `.github/workflows/octestra-lifecycle.yml`
   - `.github/workflows/octestra-lifecycle-in-progress.yml`
   - `.github/workflows/octestra-lifecycle-validation.yml`
-- Task setup skill
-  - `.agents/skills/setup-migration-epic/SKILL.md`
-  - `.agents/skills/setup-migration-epic/setup_epic.rb`
+- Agent skills
+  - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
+  - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
+  - `.agents/skills/octestra-validation-proof/SKILL.md`
 
 ### Configure an Agent
 

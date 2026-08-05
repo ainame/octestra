@@ -48,8 +48,10 @@ outputs:
     description: Whether the observed state transition is allowed
   parent_number:
     description: Parent EPIC issue number
-  skill_name:
+  task_skill_name:
     description: Optional task skill configured by the parent EPIC
+  validation_skill_name:
+    description: Validation skill configured by the parent EPIC
   epic_id:
     description: Stable identifier configured by the parent EPIC
   branch_name:

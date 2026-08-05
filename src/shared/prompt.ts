@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import Handlebars from "handlebars";
 
 export interface PromptVariables {
-  skillName?: string;
+  taskSkillName?: string;
+  validationSkillName?: string;
   target?: string;
   epicTaskPrompt?: string;
   taskPrompt?: string;

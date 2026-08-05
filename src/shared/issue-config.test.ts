@@ -6,7 +6,8 @@ describe("parseEpicConfig", () => {
     const result = parseEpicConfig(`
 \`\`\`epic-config
 id: objc-to-swift
-skill: objc-to-swift
+task_skill: objc-to-swift
+validation_skill:
 draft_pr: true
 skip_validation: true
 \`\`\`
@@ -22,7 +23,8 @@ Verify that the target implementation has been migrated from Objective-C to Swif
 
     expect(result).toEqual({
       id: "objc-to-swift",
-      skillName: "objc-to-swift",
+      taskSkillName: "objc-to-swift",
+      validationSkillName: undefined,
       draftPr: true,
       skipValidation: true,
       epicTaskPrompt: "Keep the public API unchanged.",
@@ -34,23 +36,56 @@ Verify that the target implementation has been migrated from Objective-C to Swif
     const result = parseEpicConfig(`
 \`\`\`epic-config
 id: migrate-storyboard-uikit
-skill: migrate-storyboard-uikit
+task_skill: migrate-storyboard-uikit
+validation_skill: ios-ui-validation
 \`\`\`
 `);
 
     expect(result.draftPr).toBe(false);
     expect(result.skipValidation).toBe(false);
+    expect(result.taskSkillName).toBe("migrate-storyboard-uikit");
+    expect(result.validationSkillName).toBe("ios-ui-validation");
     expect(result.epicTaskPrompt).toBe("");
     expect(result.epicValidationPrompt).toBe("");
   });
 
-  it("permits an EPIC without an agent skill", () => {
+  it("permits an EPIC without a task skill", () => {
     expect(parseEpicConfig(`
 \`\`\`epic-config
 id: manual-migration
+validation_skill: manual-validation
 draft_pr: true
 \`\`\`
-`)).toMatchObject({ id: "manual-migration", skillName: undefined });
+`)).toMatchObject({
+      id: "manual-migration",
+      taskSkillName: undefined,
+      validationSkillName: "manual-validation",
+    });
+  });
+
+  it("permits an empty validation skill when validation is skipped", () => {
+    expect(parseEpicConfig(`
+\`\`\`epic-config
+id: manual-migration
+task_skill:
+validation_skill:
+skip_validation: true
+\`\`\`
+`)).toMatchObject({
+      taskSkillName: undefined,
+      validationSkillName: undefined,
+      skipValidation: true,
+    });
+  });
+
+  it("requires a validation skill when validation runs", () => {
+    expect(() => parseEpicConfig(`
+\`\`\`epic-config
+id: migrate-storyboard-uikit
+task_skill: migrate-storyboard-uikit
+validation_skill:
+\`\`\`
+`)).toThrow("validation_skill must be a non-empty string");
   });
 
   it("rejects a missing ID", () => {
@@ -68,7 +103,8 @@ draft_pr: true
       parseEpicConfig(`
 \`\`\`epic-config
 id: migrate-storyboard-uikit
-skill: migrate-storyboard-uikit
+task_skill: migrate-storyboard-uikit
+validation_skill: ios-ui-validation
 skip_validation: "false"
 \`\`\`
 `),

@@ -36,7 +36,8 @@ EPIC issue には、すべての task issue で共有する設定と指示を記
 ````markdown
 ```epic-config
 id: ios-swift6            # task branch の名前に使う小文字の識別子
-skill: swift-concurrency  # 実装エージェントが使う任意のスキル
+task_skill: swift-concurrency       # task エージェントが使う任意のスキル
+validation_skill: ios-ui-validation # 検証を省略しない場合は必須
 draft_pr: false           # 各 task pull request を draft で開くか
 skip_validation: false    # true の場合は直接 Human Review へ進める
 ```
@@ -66,7 +67,9 @@ target: Sources/Feature.swift # 任意の変更対象ファイルまたはコン
 ```
 ````
 
-`epic-validation-prompt` と `validation-prompt` は任意です。空のままにしておくと、issue ごとに必要なときだけ追加できます。
+`epic-validation-prompt` と `validation-prompt` は任意です。空のままにしておくと、issue ごとに
+必要なときだけ追加できます。`validation_skill` は `skip_validation` が `true` でない限り必須です。
+検証を省略する場合は空でも構いません。
 
 ## エージェントのワークフローを設定する
 
@@ -88,7 +91,7 @@ Octestra は各 agent action を初回だけインストールし、以後の更
 | `inputs.task_owner`                   | タスクを担当する人                       |
 | `inputs.epic_id`                      | EPIC の識別子                            |
 | `inputs.parent_number`                | EPIC の issue 番号                       |
-| `inputs.skill_name`                   | EPIC で指定された任意のスキル            |
+| `inputs.task_skill_name`              | EPIC で指定された任意の task スキル       |
 | `inputs.target`                       | ファイル、クラス、機能などの任意のタスク対象 |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN`     | エージェント用の GitHub token            |
 
@@ -120,10 +123,13 @@ Claude Code Action の設定例です。
 | `inputs.artifact_path` | スクリーンショット、ログ、その他の証跡を保存するディレクトリ |
 | `inputs.branch_name` | checkout 済みの task branch |
 | `inputs.parent_number` | EPIC の issue 番号 |
+| `inputs.validation_skill_name` | EPIC で指定された検証スキル |
 | `inputs.target` | ファイル、クラス、機能などの任意のタスク対象 |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub token |
 
-action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済み workspace で実行されます。検証エージェントは `inputs.result_path` に JSON を書き込みます。
+action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済み workspace で実行されます。
+検証エージェントは、インストール済みの `octestra-validation-proof` skill を使って
+`inputs.result_path` に JSON を書き込み、その形式を検査します。
 
 ```json
 {
@@ -157,7 +163,8 @@ template では EPIC と task issue の設定・prompt を利用できます。�
 - `taskPrompt`: task issue の実装指示
 - `epicValidationPrompt`: EPIC の検証指示
 - `validationPrompt`: task issue の検証指示
-- `skillName`: EPIC で設定したスキル名
+- `taskSkillName`: EPIC で設定した task スキル名
+- `validationSkillName`: EPIC で設定した検証スキル名
 - `target`: 設定されている場合のタスク対象
 - `issueNumber`: task issue 番号
 - `pullNumber`: 存在する場合の関連 pull request 番号

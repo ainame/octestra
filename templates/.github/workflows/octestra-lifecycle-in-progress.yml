@@ -68,7 +68,7 @@ jobs:
       # - Publishes these outputs for the task agent:
       #   - parent_number: parent EPIC issue number.
       #   - epic_id: the EPIC's id, used as the task branch prefix.
-      #   - skill_name: agent skill named by the EPIC, if any.
+      #   - task_skill_name: task agent skill named by the EPIC, if any.
       #   - branch_name: the branch the steps below must use.
       #   - task_ready: `false` when an existing branch or pull request stopped this task.
       #   - draft_flag: `--draft` when the PR should be a draft.
@@ -101,7 +101,7 @@ jobs:
           issue_number: ${{ inputs.issue-number }}
           parent_number: ${{ steps.epic.outputs.parent_number }}
           epic_id: ${{ steps.epic.outputs.epic_id }}
-          skill_name: ${{ steps.epic.outputs.skill_name }}
+          task_skill_name: ${{ steps.epic.outputs.task_skill_name }}
           branch_name: ${{ steps.epic.outputs.branch_name }}
           draft_flag: ${{ steps.epic.outputs.draft_flag }}
           skip_validation: ${{ steps.epic.outputs.skip_validation }}

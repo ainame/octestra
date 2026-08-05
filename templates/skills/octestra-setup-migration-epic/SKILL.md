@@ -39,10 +39,11 @@ Ask for missing values one at a time:
 | --- | --- |
 | Migration title | Required |
 | How to discover or define tasks | Required |
-| Skill invoked for each task, such as `objc-to-swift` | Required; also becomes the EPIC ID and branch namespace |
+| Task skill invoked for each task, such as `objc-to-swift` | Required; also becomes the EPIC ID and branch namespace |
 | Organization Project number | Required |
 | Draft pull requests | `false` |
 | Skip agentic validation | `false` |
+| Validation skill invoked for each task | Required unless agentic validation is skipped |
 | Excluded paths or task patterns | Empty |
 
 Infer the repository with:
@@ -87,7 +88,8 @@ Create a temporary JSON file outside the repository unless the user requests oth
   "statusField": "AI Task Status",
   "epic": {
     "title": "Convert Objective-C screens to Swift",
-    "skill": "objc-to-swift",
+    "taskSkill": "objc-to-swift",
+    "validationSkill": "migration-validation",
     "draftPr": false,
     "skipValidation": false
   },
@@ -107,9 +109,10 @@ Create a temporary JSON file outside the repository unless the user requests oth
 Keep task order stable because tasks 1–100 belong to EPIC 1, 101–200 to EPIC 2,
 and so on.
 
-For this migration setup skill, the script uses the selected skill name as the EPIC ID and writes
-it as the first field in every EPIC's `epic-config`; task branches use it to stay unique and
-deterministic. Other EPIC creation flows may use any lowercase slug as the ID and omit `skill`.
+For this migration setup skill, the script uses the selected task skill name as the EPIC ID and
+writes it as the first field in every EPIC's `epic-config`; task branches use it to stay unique and
+deterministic. Other EPIC creation flows may use any lowercase slug as the ID and omit
+`task_skill`. `validationSkill` may be null or omitted only when `skipValidation` is `true`.
 
 ## 5. Run the bundled setup script
 

@@ -827,6 +827,6 @@ prepare_install_tree
 copy_and_render_templates
 
 info "installed boilerplate in $TARGET_DIR"
-info "installed octestra-setup-migration-epic in .$SKILL_TARGET/skills"
+info "installed Octestra skills in .$SKILL_TARGET/skills"
 info "customize runners, agent integration, secrets, and prompts before enabling the workflow"
 info "check the result with '$MAINTENANCE_SCRIPT doctor'"

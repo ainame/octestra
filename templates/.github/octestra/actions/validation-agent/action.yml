@@ -15,6 +15,9 @@ inputs:
   parent_number:
     description: Parent EPIC issue number
     required: true
+  validation_skill_name:
+    description: Validation agent skill configured by the parent EPIC
+    required: false
   branch_name:
     description: Checked-out task branch
     required: true

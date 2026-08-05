@@ -36,7 +36,8 @@ An EPIC issue contains settings and instructions shared by all of its task issue
 ````markdown
 ```epic-config
 id: ios-swift6            # lowercase identifier used in task branch names
-skill: swift-concurrency  # optional skill used by the implementation agent
+task_skill: swift-concurrency       # optional skill used by the task agent
+validation_skill: ios-ui-validation # required unless validation is skipped
 draft_pr: false           # whether to open each task pull request as a draft
 skip_validation: false    # when true, move directly to Human Review
 ```
@@ -66,7 +67,9 @@ Confirm the screen displays the expected content and responds correctly to user 
 ```
 ````
 
-`epic-validation-prompt` and `validation-prompt` are optional. Leave them empty until an individual issue needs them.
+`epic-validation-prompt` and `validation-prompt` are optional. Leave them empty until an individual
+issue needs them. `validation_skill` is required unless `skip_validation` is `true`; when
+validation is skipped, it may be empty.
 
 ## Configure Agent Workflows
 
@@ -93,7 +96,7 @@ are replaced in full. Inside an agent action, use its `inputs.*` for lifecycle c
 | `inputs.task_owner` | The person responsible for the task |
 | `inputs.epic_id` | EPIC identifier |
 | `inputs.parent_number` | EPIC issue number |
-| `inputs.skill_name` | Optional skill specified by the EPIC |
+| `inputs.task_skill_name` | Optional task skill specified by the EPIC |
 | `inputs.target` | Optional file, class, feature, or other task target |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
 
@@ -128,11 +131,13 @@ and passes the preparation outputs to `validation-agent/action.yml` as inputs:
 | `inputs.artifact_path` | Directory for screenshots, logs, and other evidence |
 | `inputs.branch_name` | Checked-out task branch |
 | `inputs.parent_number` | EPIC issue number |
+| `inputs.validation_skill_name` | Validation skill specified by the EPIC |
 | `inputs.target` | Optional file, class, feature, or other task target |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
 
 The action runs in the same job, runner, and checked-out workspace as `lifecycle/prepare-validation`.
-The validation agent writes JSON to `inputs.result_path`.
+The validation agent uses the installed `octestra-validation-proof` skill to write JSON to
+`inputs.result_path` and check its format.
 
 ```json
 {
@@ -166,7 +171,8 @@ Templates can use configuration and prompts from the EPIC and task issue. The ma
 - `taskPrompt`: Implementation instructions from the task issue
 - `epicValidationPrompt`: Validation instructions from the EPIC
 - `validationPrompt`: Validation instructions from the task issue
-- `skillName`: Skill name configured by the EPIC
+- `taskSkillName`: Task skill name configured by the EPIC
+- `validationSkillName`: Validation skill name configured by the EPIC
 - `target`: Task target, when configured
 - `issueNumber`: Task issue number
 - `pullNumber`: Associated pull request number, when available

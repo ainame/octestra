@@ -18,8 +18,8 @@ inputs:
   epic_id:
     description: Stable identifier configured by the parent EPIC
     required: true
-  skill_name:
-    description: Agent skill configured by the parent EPIC, if any
+  task_skill_name:
+    description: Task agent skill configured by the parent EPIC, if any
     required: false
   branch_name:
     description: Exact branch the agent must create and push
