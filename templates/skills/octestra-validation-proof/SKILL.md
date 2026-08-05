@@ -34,7 +34,7 @@ omitting them or reporting success.
 After writing the file, run:
 
 ```sh
-.github/octestra/check-validation-result.sh "<result-path>"
+<skill-directory>/scripts/check.sh "<result-path>"
 ```
 
 If the command reports an error, correct the JSON and run it again. Do not change a truthful

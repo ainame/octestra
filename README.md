@@ -38,7 +38,6 @@ The installer adds the following files.
 - Files specific to Octestra
   - `.github/octestra/octestra.sh`
   - `.github/octestra/config.yml`
-  - `.github/octestra/check-validation-result.sh`
   - `.github/octestra/issue-templates/epic.md.hbs`
   - `.github/octestra/issue-templates/task.md.hbs`
   - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
@@ -49,6 +48,7 @@ The installer adds the following files.
   - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
   - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
   - `.agents/skills/octestra-validation-proof/SKILL.md`
+  - `.agents/skills/octestra-validation-proof/scripts/check.sh`
 
 ### Configure an Agent
 

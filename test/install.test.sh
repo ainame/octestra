@@ -224,12 +224,12 @@ test -f "$TEMP_DIR/consumer/.github/octestra/issue-templates/epic.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/issue-templates/task.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
-test -x "$TEMP_DIR/consumer/.github/octestra/check-validation-result.sh"
 grep -q '/octestra-validation-proof' \
   "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
-grep -q '.github/octestra/check-validation-result.sh "<result-path>"' \
+test -x "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/scripts/check.sh"
+grep -q '<skill-directory>/scripts/check.sh "<result-path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
 grep -q '.github/octestra/octestra.sh doctor' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
@@ -266,9 +266,10 @@ cat > "$validation_result" <<'EOF'
   ]
 }
 EOF
-"$TEMP_DIR/consumer/.github/octestra/check-validation-result.sh" "$validation_result"
+"$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/scripts/check.sh" \
+  "$validation_result"
 
-validation_result_checker="$TEMP_DIR/consumer/.github/octestra/check-validation-result.sh"
+validation_result_checker="$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/scripts/check.sh"
 assert_invalid_validation_result() {
   local name="$1"
   local contents="$2"

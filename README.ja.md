@@ -38,16 +38,17 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
 - Octestra 専用のファイル
   - `.github/octestra/octestra.sh`
   - `.github/octestra/config.yml`
-  - `.github/octestra/check-validation-result.sh`
   - `.github/octestra/issue-templates/epic.md.hbs`
   - `.github/octestra/issue-templates/task.md.hbs`
   - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
   - `.github/octestra/prompts/lifecycle-validation.md.hbs`
 - workflow
   - `.github/workflows/octestra-lifecycle.yml`
-- task セットアップ用のスキル
-  - `.agents/skills/setup-migration-epic/SKILL.md`
-  - `.agents/skills/setup-migration-epic/setup_epic.rb`
+- エージェントスキル
+  - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
+  - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
+  - `.agents/skills/octestra-validation-proof/SKILL.md`
+  - `.agents/skills/octestra-validation-proof/scripts/check.sh`
 
 ### エージェントを設定する
 
