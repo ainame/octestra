@@ -350,19 +350,22 @@ tar -czf "$TEMP_DIR/octestra-main.tar.gz" -C "$TEMP_DIR/archive" octestra-main
 git -C "$TEMP_DIR/consumer-piped" init --quiet
 git -C "$TEMP_DIR/consumer-piped" remote add origin git@github.com:example-org/consumer-piped.git
 
-cat "$ROOT/install.sh" |
-  PATH="$TEMP_DIR/bin:$PATH" \
-  OCTESTRA_TEST_ARCHIVE="$TEMP_DIR/octestra-main.tar.gz" \
-  OCTESTRA_TEST_REPO_VIEW_FAIL=true \
-  OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
-  OCTESTRA_TEST_TAGS="1.9.0 1.10.0" \
-  OCTESTRA_TEST_TARBALL_REF="$TEMP_DIR/tarball-ref" \
-    bash -s -- \
-      --org example-org \
-      --status-field "AI Task Status" \
-      --target "$TEMP_DIR/consumer-piped" \
-      --skill-target agents \
-      --yes
+(
+  cd "$TEMP_DIR/consumer-piped"
+  cat "$ROOT/install.sh" |
+    PATH="$TEMP_DIR/bin:$PATH" \
+    OCTESTRA_TEST_ARCHIVE="$TEMP_DIR/octestra-main.tar.gz" \
+    OCTESTRA_TEST_REPO_VIEW_FAIL=true \
+    OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
+    OCTESTRA_TEST_TAGS="1.9.0 1.10.0" \
+    OCTESTRA_TEST_TARBALL_REF="$TEMP_DIR/tarball-ref" \
+      bash -s -- \
+        --org example-org \
+        --status-field "AI Task Status" \
+        --target "$TEMP_DIR/consumer-piped" \
+        --skill-target agents \
+        --yes
+)
 test -f "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-setup-migration-epic/SKILL.md"
 # Templates are downloaded from the same ref the generated workflows call.
