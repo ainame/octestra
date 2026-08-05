@@ -14,17 +14,16 @@ graph — one event, one task.
 | # | Decision | Rationale |
 |---|---|---|
 | D3 | Platform values (runner labels, App client ID, status field ID) live in repository `vars` | `vars` is available in `runs-on`, job `if`, `with`, `concurrency`, and `run-name`; `env` is available in none of them (P2). |
-| D4 | The lifecycle is two workflow layers, not three | The old middle layer existed only to convert workflow `env` into `workflow_call` inputs so `runs-on` could read it. D3 removes that need. |
+| D4 | The lifecycle is one workflow | Repository variables let each status job select its runner directly, and local composite actions now hold the consumer-owned agent policy. Separate reusable workflows add files and caller/callee wiring without preserving a useful boundary. |
 | D5 | Per-status routing keys on a `status_key` output from the transition guard, not on per-status values in workflow YAML | The guard already runs for every routed event, so this costs nothing and keeps seven values out of `vars`. |
-| D6 | `config.yml` is the source of truth and the only file `install.sh` generates — once, and never again | One reviewable, version-controlled file. Placeholder substitution collapses from many workflow files to one. Regenerating it on a rerun would reset every value the consumer edited, so an existing file is kept and contradictions are reported (D14). |
+| D6 | `config.yml` is the source of truth and the only file `install.sh` generates — once, and never again | One reviewable, version-controlled file keeps per-consumer values out of the managed workflow. Regenerating it on a rerun would reset every value the consumer edited, so an existing file is kept and contradictions are reported (D14). |
 | D7 | The status *field* is addressed by ID; a status *option* is addressed by its display name | A field rename must not break routing, and `field_id` is available to the guard through a variable. Option IDs cannot be used the same way: the write endpoint accepts a single_select value only as the option name, so an option ID would buy nothing while adding a second vocabulary. See P1 and `TODO.md` §3. |
 | D8 | Prompts live in `.github/octestra/prompts/` | Everything Octestra owns in a consumer repository sits under one directory. |
 | D9 | Operations are namespaced `lifecycle/<verb>`, `loop/<verb>`, bare for scope-neutral | Paired operations get identical names (`lifecycle/report-failure` ↔ `loop/report-failure`), verb-first naming survives inside each namespace, and `src/lifecycle/`, `src/loop/`, `src/shared/` map 1:1. The `loop/` namespace and `src/loop/` are kept unused: they return when loops do (`TODO.md` §1). |
-| D10 | Never `secrets: inherit` | It hands every repository and organization secret to a workflow that executes an agent, contradicting the trust boundary. See P7. |
-| D11 | `install.sh` rewrites the `uses:` reference in the workflows it installs: a fork tracks its own default branch, upstream is pinned to its newest version tag | A consumer who forks Octestra does so to execute only code their own organization controls, and their fork's default branch is the thing they update deliberately — pinning it to a tag would add a second step to every upgrade without adding a guarantee. An upstream install gets a tag instead, so the code a consumer runs cannot change between two installs. Templates still ship `@main` because a template must be runnable as committed, which makes this a rewrite of a valid value rather than placeholder substitution. |
+| D11 | `install.sh` rewrites the workflow's `uses:` references: a fork tracks its own default branch, upstream is pinned to its newest version tag | A consumer who forks Octestra does so to execute only code their own organization controls, and their fork's default branch is the thing they update deliberately — pinning it to a tag would add a second step to every upgrade without adding a guarantee. An upstream install gets a tag instead, so the code a consumer runs cannot change between two installs. The template still ships `@main` because it must be runnable as committed, which makes this a rewrite of a valid value rather than placeholder substitution. |
 | D12 | Maintenance lives in `.github/octestra/octestra.sh`, installed into the consumer repository, and `install.sh` uses that copy for the initial variable sync | Mirroring, drift detection and ref switching are things a consumer does *after* installation, from their own checkout — a `make` target in this repository was documented but unreachable there. Installing the tool also removes the second implementation: one script owns config → variables, and every install exercises it. It needs only `gh`, because a consumer repository is not required to have node. |
 | D13 | A finished task PR is opened ready for review, is taken out of draft before review is requested, and gets no assignee; the EPIC opts out with `draft_pr: true` and out of validation with `skip_validation: true`, both defaulting to `false` | Every default here is the state a human wants at the moment they are asked to look. Marking a PR ready by hand is friction repeated on every task, and where validation runs the work has already been checked before a human sees it — so *ready* is the honest state, and requesting review on something GitHub labels a draft is a contradiction rather than a workflow. `skip_validation` is spelled as the exception it is: the negative name (`validation_required: false`) read as the normal case while describing the opt-out, and inverting it puts "run validation" in the default. The PR assignee was dropped because it duplicates the issue assignee while adding a second mobile notification for the same person. |
-| D14 | Installed workflows are replaced in full; consumer-owned composite actions and `config.yml` are preserved in full; `octestra.sh update` drives the process by running the target version's own `install.sh` | Lifecycle workflows are mechanism that Octestra must be able to update coherently. Agent actions are policy: every line expresses how the consumer's agent runs, so there is no useful Octestra-owned remainder to merge. Keeping each file wholly on one side removes a merge protocol and makes update behavior explicit. Delegating to the downloaded `install.sh` keeps one implementation and means an update runs the new logic rather than whatever the consumer installed months ago. |
+| D14 | The installed workflow is replaced in full; consumer-owned composite actions and `config.yml` are preserved in full; `octestra.sh update` drives the process by running the target version's own `install.sh` | The lifecycle workflow is mechanism that Octestra must be able to update coherently. Agent actions are policy: every line expresses how the consumer's agent runs, so there is no useful Octestra-owned remainder to merge. Keeping each file wholly on one side removes a merge protocol and makes update behavior explicit. Delegating to the downloaded `install.sh` keeps one implementation and means an update runs the new logic rather than whatever the consumer installed months ago. |
 | D15 | Lifecycle preparation, repository-defined agent execution, and finalization share one job and runner; the repository-defined steps live in local composite actions | Preparation publishes runtime state that the agent consumes immediately, so another job would start another runner only to reconstruct the same workspace and environment. A composite action provides a boundary inside the existing job; for task execution, the workflow also checks `task_ready` once so every setup and agent step inside the action is skipped together. |
 
 ### Local composite action trade-offs
@@ -39,17 +38,15 @@ This boundary has deliberate limitations:
 
 - A composite action cannot select `runs-on` or declare job permissions, timeouts, concurrency,
   services or containers. Those remain properties of the calling workflow job.
-- A composite action cannot read the `secrets` context directly. The reusable workflow declares
-  each credential, its caller passes it explicitly, and the action call maps it to `env`.
+- A composite action cannot read the `secrets` context directly. Agent credentials therefore use
+  OIDC or come from the configured runner's environment.
 - It is an organization boundary, not a security boundary. The action shares the job's token,
   permissions, environment and writable workspace.
 - GitHub Actions displays the action as one outer workflow step. Its nested steps retain separate
   logs, but the workflow graph is less direct than listing every step inline.
-- A repository-local action exists only after checkout. Both lifecycle workflows already check out
-  the consumer repository before invoking their local action, so this adds no second clone or
-  checkout.
-- Every composite `run` step must declare its shell. A reusable workflow would avoid that detail,
-  but would require another job and runner, which contradicts D15.
+- A repository-local action exists only after checkout. Both agent jobs already check out the
+  consumer repository before invoking their local action, so this adds no second clone or checkout.
+- Every composite `run` step must declare its shell.
 - An installed composite action receives no later template improvements automatically because the
   entire file belongs to the consumer. Workflow changes must remain compatible with older action
   files; a consumer adopts action-template changes manually.
@@ -78,7 +75,7 @@ Split by *when* a value is needed, not by what it is.
 
 | `vars` name | `config.yml` path | Used by |
 |---|---|---|
-| `OCTESTRA_GITHUB_APP_CLIENT_ID` | `github_app.client_id` | `create-github-app-token` in reusable workflows |
+| `OCTESTRA_GITHUB_APP_CLIENT_ID` | `github_app.client_id` | `create-github-app-token` in the lifecycle workflow |
 | `OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET` | `github_app.private_key_secret_key_name` | the secret lookup in every App-token step |
 | `OCTESTRA_ORCHESTRATION_RUNNER` | `runners.orchestration` | `runs-on` |
 | `OCTESTRA_AGENT_RUNNER` | `runners.agent` | `runs-on` |
@@ -86,7 +83,7 @@ Split by *when* a value is needed, not by what it is.
 
 The `field_added` payload does expose `github.event.issue_field.name`, so the entry point could
 filter on the field name instead. It does not: the name would still have to come from a variable
-because workflow templates carry no placeholders — a per-consumer field name written into workflow
+because the workflow template carries no placeholders — a per-consumer field name written into workflow
 YAML would be one (D11 rewrites a valid value, which is a different thing) — so the variable count
 is unchanged, and the ID survives a field rename while the name does not (D7).
 

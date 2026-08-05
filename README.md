@@ -19,6 +19,7 @@ Each node represents the `AI Task Status` of a task issue; each arrow represents
 ### Requirements
 
 - A repository in a GitHub organization
+  - The repository is private and its members are trusted to run coding agents
   - Organization administrator permission to create a custom Issue Field during installation
 - [GitHub CLI](https://cli.github.com/) authenticated for the target repository
 - A GitHub App installed on the target repository with write access to **Contents**, **Issues**, and **Pull requests**
@@ -42,10 +43,8 @@ The installer adds the following files.
   - `.github/octestra/issue-templates/task.md.hbs`
   - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
   - `.github/octestra/prompts/lifecycle-validation.md.hbs`
-- Workflow templates
+- Workflow
   - `.github/workflows/octestra-lifecycle.yml`
-  - `.github/workflows/octestra-lifecycle-in-progress.yml`
-  - `.github/workflows/octestra-lifecycle-validation.yml`
 - Agent skills
   - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
   - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
@@ -53,7 +52,7 @@ The installer adds the following files.
 
 ### Configure an Agent
 
-The installed workflows contain placeholders for running agents. Configure an implementation agent and validation agent by following the [integration guide](docs/integration.md).
+The installed agent actions contain placeholders for running agents. Configure an implementation agent and validation agent by following the [integration guide](docs/integration.md).
 
 ### Run Your First Task
 
@@ -76,13 +75,13 @@ For the EPIC and task issue format, the meaning of each status option, and agent
 
 | Command           | Purpose                                                                    |
 |-------------------|----------------------------------------------------------------------------|
-| `doctor`          | Report problems with configuration, status options, prompts, and workflows |
+| `doctor`          | Report problems with configuration, status options, prompts, and workflow  |
 | `vars check`      | Check whether the repository's Actions variables match `config.yml`        |
 | `vars sync`       | Copy the required values from `config.yml` to Actions variables            |
-| `ref`             | Show the Octestra repository and ref used by installed workflows           |
+| `ref`             | Show the Octestra repository and ref used by the installed workflow        |
 | `update --latest` | Install the latest release while preserving agent actions and `config.yml` |
 
-Rerunning the installer replaces workflows and keeps `config.yml` and both agent actions. Review
+Rerunning the installer replaces the workflow and keeps `config.yml` and both agent actions. Review
 `git diff` before committing changes from an update.
 
 ## Security

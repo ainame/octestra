@@ -3,7 +3,7 @@
 Open work, ordered by what unblocks what. Design rationale lives in `docs/design.md`; the rules this
 work must respect live in `AGENTS.md`.
 
-The configuration restructuring has shipped: the config control plane, the two-layer lifecycle
+The configuration restructuring has shipped: the config control plane, the single-workflow lifecycle
 topology, and operation namespacing. Both loop shapes (per-issue fan-out and aggregate) were built
 but never run, and have been removed — see §1. Everything below is what remains.
 
@@ -40,10 +40,9 @@ privileged token, checks out with `persist-credentials: false`, and runs no life
 its results cross into a trusted job as a bounded, strictly validated artifact, and that job mints a
 fresh App token. Nothing implements that yet. This is the largest security gap in the repository.
 
-Octestra workflows execute a repository-configured coding agent with access to repository content,
-issue instructions, dependency output, and potentially GitHub or cloud credentials. Private
-repositories reduce who can supply malicious input but do not reduce the impact once an agent or a
-command is compromised.
+Octestra initially supports private repositories whose members are trusted to run coding agents.
+That reduces who can supply malicious input but does not reduce the impact once an agent, dependency
+or command is compromised.
 
 The target:
 
@@ -64,8 +63,6 @@ An early implementation experiment is in the git stash named
 
 ### Open decisions (need a human, not an agent)
 
-- Does Octestra support public consumer repositories, or does it document private, trusted-member
-  repositories as its initial security boundary?
 - Must the agent post comments directly, or can trusted finalization render every comment from
   agent-produced proof?
 - Should comment tokens be opt-in rather than present in generated defaults?

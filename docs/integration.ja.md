@@ -19,8 +19,8 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
 |----------------|-------------------------------------------------------------------------|
 | `Todo`         | タスクは作成済み                                                        |
 | `Ready`        | GitHub ワークフローを開始できる状態                                     |
-| `In Progress`  | `octestra-lifecycle-in-progress.yml` が実装エージェントを実行中         |
-| `Validation`   | `octestra-lifecycle-validation.yml` が検証エージェントを実行中          |
+| `In Progress`  | `octestra-lifecycle.yml` の `in-progress` job が実装エージェントを実行 |
+| `Validation`   | `octestra-lifecycle.yml` の `validation` job が検証エージェントを実行  |
 | `Human Review` | task owner にプルリクエストのレビューを依頼                             |
 | `Blocked`      | 失敗内容と Actions 実行へのリンクをコメント。`Ready` に戻すと再試行可能 |
 | `Done`         | タスクは完了                                                            |
@@ -76,6 +76,10 @@ target: Sources/Feature.swift # 任意の変更対象ファイルまたはコン
 `.github/octestra/actions/task-agent/action.yml` は実装エージェントを、`.github/octestra/actions/validation-agent/action.yml` は検証エージェントを実行します。各ファイルのプレースホルダーを、利用するエージェントの設定と実行ステップに置き換えてください。
 
 Octestra は各 agent action を初回だけインストールし、以後の更新ではファイル全体を保持します。workflow は全体が置き換えられます。agent action では lifecycle context に `inputs.*`、エージェント用 GitHub token に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。
+
+composite action は GitHub Actions の `secrets` context を直接参照できません。cloud credential
+には OIDC を使うか、選択した runner の環境から credential を渡してください。OIDC が必要な
+場合は installer に `--enable-oidc` を指定します。
 
 ## 実装エージェント
 

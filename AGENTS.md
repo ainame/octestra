@@ -17,13 +17,14 @@ One system sits on the shared control plane:
 | Lifecycle | `issues: [field_added, closed]` | `octestra-lifecycle.yml` | one task issue moving through the state graph |
 
 ```
-issues:field_added ─▶ octestra-lifecycle.yml ─┬─▶ octestra-lifecycle-in-progress.yml
-                       (guard emits status_key)└─▶ octestra-lifecycle-validation.yml
+issues:field_added ─▶ octestra-lifecycle.yml
+                       guard ─┬─▶ in-progress
+                              └─▶ validation
 ```
 
 A second system — scheduled loops sweeping many issues — is planned, not present, which is why
 the `lifecycle/<verb>` operation namespace, the `src/lifecycle/` ⁄ `src/shared/` split and the
-`lifecycle` infix in the workflow filenames are seams held open for it rather than leftovers to tidy
+`lifecycle` infix in the workflow filename are seams held open for it rather than leftovers to tidy
 away (see `TODO.md` §1).
 
 ## Layout
@@ -36,7 +37,8 @@ src/
   lifecycle/operations.ts      lifecycle/<verb> implementations
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
 templates/.github/
-  workflows/                   no placeholders; install.sh rewrites only the action ref and OIDC
+  workflows/octestra-lifecycle.yml
+                               lifecycle trigger, routing and status jobs
   octestra/actions/            consumer-owned task and validation agent composite actions
   octestra/config.yml          the ONLY file install.sh generates
   octestra/octestra.sh         installed maintenance CLI: doctor, update, vars check|sync, ref
@@ -86,37 +88,16 @@ renumber: `docs/design.md` cites these numbers.
   see `TODO.md` §3 for what was tried and why it was reverted.
 - **P2. `vars` is available where `env` is not.** `vars` works in `jobs.<id>.runs-on`,
   `jobs.<id>.if`, `jobs.<id>.with.<id>`, `concurrency`, and `run-name`; `env` works in none of them.
-  This is the reason the lifecycle is two layers instead of three.
+  This lets status jobs select their runners directly without a bootstrap job.
 - **P3. An unset `vars` evaluates to `''`**, which casts to `0` in a numeric comparison and produces
   a silent no-match. Routing comparisons must be string comparisons
   (`format('{0}', x) == vars.Y`); runner labels must carry a literal fallback
   (`${{ vars.X || 'ubuntu-latest' }}`); drift must fail loudly.
-- **P7. `secrets: inherit` is all-or-nothing.** A reusable workflow that executes an agent must not
-  inherit; it declares agent credentials under `on.workflow_call.secrets` and the caller passes them
-  explicitly.
 - **P8. Concurrency groups are repository-scoped.** Identical group strings in different workflow
-  files share a group. `octestra-lifecycle-in-progress.yml` relies on this: its
-  `octestra-<issue_number>` group with `cancel-in-progress: false` serialises work on one task issue,
-  so a repeated transition queues instead of putting a second agent on the same branch. Any workflow
-  added later that touches a task issue must reuse that group string rather than invent its own.
-- **P10. Reusable workflow nesting allows ten levels** (caller plus nine). Recorded because an
-  earlier draft claimed four and constrained the design for no reason.
-- **P11. A reusable workflow's `permissions:` block is a request, and the caller's workflow-level
-  `permissions:` is the ceiling.** If the callee declares any permission the caller does not grant
-  at workflow level, the run fails with `startup_failure` before any job is created — `jobs: []`,
-  no check-runs, no logs, no annotated line, just the top-of-page banner saying the workflow file
-  is broken. This applies to every permission, not only `id-token: write`. Consequences:
-  (a) `octestra-lifecycle.yml` declares the *union* of everything its reusable workflows request
-  (`contents: write`, `issues: write`, `pull-requests: write`), and each direct job narrows this
-  at the job level. When adding a new reusable workflow with a new permission, extend the caller's
-  workflow-level block first.
-  (b) Reusable workflows must NOT declare `id-token: write`. Permissions a callee does not name
-  are inherited from the caller, so OIDC steps inside a callee work as long as the caller has
-  `id-token: write` — and the caller having it while a callee also declares it in `permissions:`
-  is fine, but the moment a consumer toggles only one side by hand the two files drift, everyone
-  ends up on the startup_failure path, and the fix is not obvious from any log. `id-token: write`
-  therefore lives commented in exactly one place — the caller. `install.sh --enable-oidc` flips
-  that single line.
+  files share a group. The `in-progress` and `validation` jobs use the same
+  `octestra-<issue_number>` group with `cancel-in-progress: false`, so work on one task issue is
+  serialized. Any workflow added later that touches a task issue must reuse that group string rather
+  than invent its own.
 
 ## Rules
 
@@ -138,7 +119,7 @@ consumer is expected to change. `config.yml` is the only *generated* file: nothi
 `templates/.github/workflows/` may contain a placeholder, because every template must also be
 runnable as committed.
 
-`install.sh` does rewrite installed workflows, but only from one valid value to another — it
+`install.sh` does rewrite the installed workflow, but only from one valid value to another — it
 uncomments `id-token: write` for `--enable-oidc`, and `rewrite_action_references` repoints
 `uses: ainame/octestra@main` at the repository and ref that installation tracks (D11). A rewrite
 whose *input* is not valid on its own is a placeholder by another name; that value belongs in
@@ -171,11 +152,11 @@ version's** `install.sh` against the repository. Two consequences:
   are a compatibility surface with *older installed scripts*. Removing or renaming one breaks
   `update` for every installation that predates the change.
 
-Installed workflows belong to Octestra and are replaced on update. The task and validation
-composite actions belong to the consumer after their first installation, so updates preserve them
-in full. Octestra may extend the inputs passed by its workflow, but must not depend on updating an
-already-installed action to consume them. Any workflow toggle, such as `--enable-oidc`, must be
-reconstructed by `update` from the installed state or an update silently reverts it.
+The installed lifecycle workflow belongs to Octestra and is replaced on update. The task and
+validation composite actions belong to the consumer after their first installation, so updates
+preserve them in full. Octestra may extend the inputs passed by its workflow, but must not depend on
+updating an already-installed action to consume them. Any workflow toggle, such as `--enable-oidc`,
+must be reconstructed by `update` from the installed state or an update silently reverts it.
 
 **Agent execution stays with preparation.** Lifecycle preparation, agent execution and finalization
 share one job and runner instance. Do not split preparation into a producer job merely to condition
@@ -205,12 +186,13 @@ It also runs where `/bin/bash` is 3.2, which the tests cover by driving one inst
 through it. In particular `"${array[@]}"` on an empty array is a fatal error there under `set -u`;
 write `${array[@]+"${array[@]}"}`.
 
-**Trust boundary.** A job that executes an agent gets no privileged token, checks out with
-`persist-credentials: false`, and runs no lifecycle operation. Results cross into a trusted job as
-a bounded, strictly validated artifact, and that job mints a fresh App token. **No workflow
-implements this yet** — the lifecycle workflows hand the agent job an App token and run
-`finalize-task` beside the agent, which is the largest security gap in the repository (see
-`TODO.md` §2). Treat the rule as binding on anything new, and do not widen the gap while it is open.
+**Trust boundary.** Octestra initially targets private repositories whose members are trusted to
+run coding agents. The lifecycle workflow therefore favors one readable job graph over isolating
+each agent behind a separate permission boundary: agent jobs inherit the workflow's write
+permissions, receive an App token, and run finalization beside the agent. This does not protect
+against a compromised agent, dependency or command. The intended stronger boundary remains in
+`TODO.md` §2; do not add further credentials or permissions without documenting the threat and
+trade-off there.
 
 **Style.** Conventional multi-line TypeScript: one statement per line, named `function`
 declarations, no chained statements on a single line. Match `src/lifecycle/operations.ts`. The same

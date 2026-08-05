@@ -486,7 +486,7 @@ git -C "$TEMP_DIR/consumer-piped" remote add origin git@github.com:example-org/c
 test -f "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-setup-migration-epic/SKILL.md"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-validation-proof/SKILL.md"
-# Templates are downloaded from the same ref the generated workflows call.
+# Templates are downloaded from the same ref the generated workflow calls.
 grep -q '^1\.10\.0$' "$TEMP_DIR/tarball-ref"
 grep -q 'uses: ainame/octestra@1\.10\.0' \
   "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
@@ -523,21 +523,22 @@ if grep -q 'client_id: "replacement-client-id"' \
   exit 1
 fi
 
-test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
-test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
+test -f "$orchestrator"
+test ! -e "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
+test ! -e "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
 test -f "$TEMP_DIR/consumer/.github/octestra/actions/task-agent/action.yml"
 test -f "$TEMP_DIR/consumer/.github/octestra/actions/validation-agent/action.yml"
 assert_task_action_interface \
-  "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml" \
+  "$orchestrator" \
   "$TEMP_DIR/consumer/.github/octestra/actions/task-agent/action.yml"
 assert_validation_action_interface \
-  "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml" \
+  "$orchestrator" \
   "$TEMP_DIR/consumer/.github/octestra/actions/validation-agent/action.yml"
-grep -q 'operation: lifecycle/prepare-task' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
-grep -q 'uses: ./.github/octestra/actions/task-agent' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
-grep -q "if: steps.epic.outputs.task_ready == 'true'" "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
-grep -q 'branch_name: \${{ steps.epic.outputs.branch_name }}' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
-grep -q 'operation: lifecycle/prepare-validation' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
+grep -q 'operation: lifecycle/prepare-task' "$orchestrator"
+grep -q 'uses: ./.github/octestra/actions/task-agent' "$orchestrator"
+grep -q "if: steps.epic.outputs.task_ready == 'true'" "$orchestrator"
+grep -q 'branch_name: \${{ steps.epic.outputs.branch_name }}' "$orchestrator"
+grep -q 'operation: lifecycle/prepare-validation' "$orchestrator"
 grep -q 'owner: \${{ github.repository_owner }}' "$orchestrator"
 grep -q 'repositories: \${{ github.repository }}' "$orchestrator"
 for variable in OCTESTRA_GITHUB_APP_CLIENT_ID OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET OCTESTRA_ORCHESTRATION_RUNNER OCTESTRA_AGENT_RUNNER OCTESTRA_STATUS_FIELD_ID; do
@@ -617,7 +618,7 @@ PATH="$TEMP_DIR/bin:$PATH" \
   OCTESTRA_TEST_SECRETS="OCTESTRA_GITHUB_APP_PRIVATE_KEY" \
     bash "$maintenance" doctor >"$doctor_output"
 grep -q 'no problems found' "$doctor_output"
-grep -q 'workflows call ainame/octestra@main' "$doctor_output"
+grep -q 'octestra-lifecycle.yml calls ainame/octestra@main' "$doctor_output"
 if grep -q '  fail' "$doctor_output"; then
   echo "doctor reported a failure for a healthy installation" >&2
   cat "$doctor_output" >&2
@@ -656,23 +657,22 @@ grep -q "OCTESTRA_STATUS_FIELD_ID is unset" "$broken_output"
 grep -q "CUSTOM_APP_PRIVATE_KEY is not set" "$broken_output"
 grep -q "is named 'AI Task Status'" "$broken_output"
 
-# An enabled status job whose reusable workflow is absent fails a run at startup with no
-# logs, so doctor reports the missing file instead.
-mv "$TEMP_DIR/consumer-doctor/.github/workflows/octestra-lifecycle-validation.yml" \
-  "$TEMP_DIR/parked-validation.yml"
-missing_callee_output="$TEMP_DIR/doctor-missing-callee-output"
+# A missing local action fails a run before the agent starts, so doctor reports it.
+mv "$TEMP_DIR/consumer-doctor/.github/octestra/actions/validation-agent/action.yml" \
+  "$TEMP_DIR/parked-validation-action.yml"
+missing_action_output="$TEMP_DIR/doctor-missing-action-output"
 if PATH="$TEMP_DIR/bin:$PATH" \
   OCTESTRA_TEST_VARS="$clean_vars" \
   OCTESTRA_TEST_SECRETS="CUSTOM_APP_PRIVATE_KEY" \
-    bash "$maintenance" doctor >"$missing_callee_output" 2>&1; then
-  echo "doctor accepted a status job with no reusable workflow" >&2
+    bash "$maintenance" doctor >"$missing_action_output" 2>&1; then
+  echo "doctor accepted a workflow with a missing local action" >&2
   exit 1
 fi
-grep -q "octestra-lifecycle-validation.yml, which does not exist" "$missing_callee_output"
-mv "$TEMP_DIR/parked-validation.yml" \
-  "$TEMP_DIR/consumer-doctor/.github/workflows/octestra-lifecycle-validation.yml"
+grep -q ".github/octestra/actions/validation-agent, which does not exist" "$missing_action_output"
+mv "$TEMP_DIR/parked-validation-action.yml" \
+  "$TEMP_DIR/consumer-doctor/.github/octestra/actions/validation-agent/action.yml"
 
-# ref reports what the workflows call, and switching rewrites the workflows and the script
+# ref reports what the workflow calls, and switching rewrites the workflow and the script
 # itself, so the two cannot disagree afterwards.
 test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "ainame/octestra@main"
 PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref @2.0.0 >/dev/null
@@ -712,7 +712,7 @@ if PATH="$TEMP_DIR/bin:$PATH" \
   echo "doctor accepted workflows that call a different Octestra" >&2
   exit 1
 fi
-grep -q "no workflow calls example-org/octestra" "$mismatch_output"
+grep -q "octestra-lifecycle.yml does not call example-org/octestra" "$mismatch_output"
 
 malformed_ref_output="$TEMP_DIR/malformed-ref-output"
 if PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref '@main|sed-injection' \
@@ -778,9 +778,7 @@ parses_as_yaml() {
 
 update_dir="$TEMP_DIR/consumer-update"
 update_entry="$update_dir/.github/workflows/octestra-lifecycle.yml"
-update_in_progress="$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
 update_agent="$update_dir/.github/octestra/actions/task-agent/action.yml"
-update_validation="$update_dir/.github/workflows/octestra-lifecycle-validation.yml"
 update_validation_agent="$update_dir/.github/octestra/actions/validation-agent/action.yml"
 new_consumer "$update_dir"
 install_into "$update_dir" >/dev/null
@@ -788,44 +786,43 @@ install_into "$update_dir" >/dev/null
 customize_action "$update_agent" "./scripts/agent.sh"
 customize_action "$update_validation_agent" "./scripts/validation-agent.sh"
 # A managed line the consumer also changed, to prove Octestra's own content is restored.
-sed 's/timeout-minutes: 60/timeout-minutes: 5/' "$update_in_progress" >"$update_in_progress.edit"
-mv "$update_in_progress.edit" "$update_in_progress"
+sed '0,/timeout-minutes: 60/s//timeout-minutes: 5/' "$update_entry" >"$update_entry.edit"
+mv "$update_entry.edit" "$update_entry"
+# An installation from before the single-workflow migration still has these managed files.
+touch "$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
+touch "$update_dir/.github/workflows/octestra-lifecycle-validation.yml"
 
 install_into "$update_dir" >/dev/null
 grep -q 'run: ./scripts/agent.sh' "$update_agent"
 grep -q 'run: ./scripts/validation-agent.sh' "$update_validation_agent"
-grep -q 'timeout-minutes: 60' "$update_in_progress"
+grep -q 'timeout-minutes: 60' "$update_entry"
+test ! -e "$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
+test ! -e "$update_dir/.github/workflows/octestra-lifecycle-validation.yml"
 if grep -q "Replace this step with the repository's task agent configuration" \
   "$update_agent"; then
   echo "the update restored the placeholder agent step over the consumer's own" >&2
   exit 1
 fi
-parses_as_yaml "$update_in_progress"
 parses_as_yaml "$update_entry"
 parses_as_yaml "$update_agent"
-parses_as_yaml "$update_validation"
 parses_as_yaml "$update_validation_agent"
 
 # Reinstalling over a merged file must be a no-op, or every update would churn the diff.
 before_rerun=$(
   cat \
-    "$update_in_progress" \
     "$update_entry" \
     "$update_agent" \
-    "$update_validation" \
     "$update_validation_agent"
 )
 install_into "$update_dir" >/dev/null
 after_rerun=$(
   cat \
-    "$update_in_progress" \
     "$update_entry" \
     "$update_agent" \
-    "$update_validation" \
     "$update_validation_agent"
 )
 if [[ "$before_rerun" != "$after_rerun" ]]; then
-  echo "a second identical install changed the merged workflows" >&2
+  echo "a second identical install changed installed files" >&2
   exit 1
 fi
 

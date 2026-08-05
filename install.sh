@@ -55,18 +55,18 @@ Options:
   --status-field NAME    Issue Field name (default: AI Task Status)
   --skill-target TARGET  Skill directory: claude, codex, or agents
   --github-app-client-id ID
-                         GitHub App client ID for generated workflows
+                         GitHub App client ID for the generated workflow
   --target DIRECTORY     Consumer repository directory (default: current directory)
   --source-dir DIRECTORY Use a local Octestra checkout instead of downloading a release
   --repository OWNER/REPO
-                         Octestra repository the generated workflows call
+                         Octestra repository the generated workflow calls
                          (default: ainame/octestra)
   --fork                 Shorthand for --repository ORGANIZATION/octestra
-  --ref REF              Octestra ref the generated workflows call. Defaults to the
+  --ref REF              Octestra ref the generated workflow calls. Defaults to the
                          newest version tag for ainame/octestra and to main for any
                          other repository, falling back to main when untagged
   --yes                  Create a missing Issue Field without confirmation
-  --enable-oidc          Enable GitHub OIDC permissions in generated workflows
+  --enable-oidc          Enable GitHub OIDC permissions in the generated workflow
   -h, --help             Show this help
 
 Environment:
@@ -296,7 +296,7 @@ configure_action_source() {
   fi
 
   cat > /dev/tty <<EOF
-Which Octestra repository should the generated workflows call?
+Which Octestra repository should the generated workflow call?
   1) $DEFAULT_SOURCE_REPOSITORY (upstream, pinned to its newest version tag)
   2) $fork_repository (your fork, tracking its default branch)
   Choose 2 to run only code your organization controls. Fork
@@ -647,11 +647,25 @@ preserve_installed_agent_actions() {
   done
 }
 
+remove_legacy_workflows() {
+  local workflow=""
+
+  for workflow in \
+    ".github/workflows/octestra-lifecycle-in-progress.yml" \
+    ".github/workflows/octestra-lifecycle-validation.yml"; do
+    if [[ -f "$TARGET_DIR/$workflow" ]]; then
+      rm "$TARGET_DIR/$workflow"
+      info "removed obsolete $workflow"
+    fi
+  done
+}
+
 copy_and_render_templates() {
   local config="$TARGET_DIR/.github/octestra/config.yml"
 
   preserve_installed_config
   preserve_installed_agent_actions
+  remove_legacy_workflows
   (cd "$INSTALL_TREE" && tar -cf - .) | (cd "$TARGET_DIR" && tar -xf -)
   [[ -f "$config" ]] || die "Octestra config template was not installed"
   [[ -x "$TARGET_DIR/$MAINTENANCE_SCRIPT" ]] ||
@@ -809,7 +823,7 @@ configure_github_app_client_id
 configure_action_source
 resolve_source_reference
 validate_source_reference
-info "generated workflows will call $SOURCE_REPOSITORY@$SOURCE_REF"
+info "generated workflow will call $SOURCE_REPOSITORY@$SOURCE_REF"
 
 find_issue_field
 if [[ -z "$FIELD_ID" ]]; then

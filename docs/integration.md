@@ -19,8 +19,8 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
 |---|---|
 | `Todo` | The task has been created. |
 | `Ready` | The task is ready to start a GitHub workflow. |
-| `In Progress` | `octestra-lifecycle-in-progress.yml` runs the implementation agent. |
-| `Validation` | `octestra-lifecycle-validation.yml` runs the validation agent. |
+| `In Progress` | The `in-progress` job in `octestra-lifecycle.yml` runs the implementation agent. |
+| `Validation` | The `validation` job in `octestra-lifecycle.yml` runs the validation agent. |
 | `Human Review` | Requests pull request review from the task owner. |
 | `Blocked` | Comments with the failure and a link to the Actions run. Move the task back to `Ready` to retry. |
 | `Done` | The task is complete. |
@@ -80,6 +80,10 @@ placeholder in each file with the configuration and execution steps for your age
 Octestra installs each agent action once and preserves the whole file on later updates. Workflows
 are replaced in full. Inside an agent action, use its `inputs.*` for lifecycle context and
 `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token.
+
+Composite actions cannot read the GitHub Actions `secrets` context. Configure cloud credentials
+with OIDC, or provide credentials through the selected runner's environment. Run the installer with
+`--enable-oidc` when an action needs OIDC.
 
 ## Implementation Agent
 

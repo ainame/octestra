@@ -19,6 +19,7 @@ Octestra は、GitHub Issue を起点に、AI エージェントによるタス�
 ### 必要なもの
 
 - GitHub organization に属するリポジトリ
+  - private repository であり、コーディングエージェントを実行するメンバーを信頼できること
   - インストール時にカスタム Issue Field を作成できる organization 管理者権限
 - 対象リポジトリに対して認証済みの [GitHub CLI](https://cli.github.com/)
 - 対象リポジトリにインストールされた、**Contents**、**Issues**、**Pull requests** への書き込み権限を持つ GitHub App
@@ -42,17 +43,15 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
   - `.github/octestra/issue-templates/task.md.hbs`
   - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
   - `.github/octestra/prompts/lifecycle-validation.md.hbs`
-- workflow のテンプレート
+- workflow
   - `.github/workflows/octestra-lifecycle.yml`
-  - `.github/workflows/octestra-lifecycle-in-progress.yml`
-  - `.github/workflows/octestra-lifecycle-validation.yml`
 - task セットアップ用のスキル
   - `.agents/skills/setup-migration-epic/SKILL.md`
   - `.agents/skills/setup-migration-epic/setup_epic.rb`
 
 ### エージェントを設定する
 
-インストール直後のワークフローには、エージェントを実行するためのプレースホルダーがあります。まず [実装ガイド](docs/integration.ja.md) に従い、実装エージェントと検証エージェントを設定してください。
+インストール直後の agent action には、エージェントを実行するためのプレースホルダーがあります。まず [実装ガイド](docs/integration.ja.md) に従い、実装エージェントと検証エージェントを設定してください。
 
 ### 最初のタスクを実行する
 

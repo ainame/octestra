@@ -3,7 +3,7 @@
 The names Octestra invents, and the wording to introduce them with.
 
 `AGENTS.md` requires that a term existing only in this project is defined where a reader first meets
-it. Doing that consistently across three workflow templates, a README, a maintenance script and two
+it. Doing that consistently across a workflow template, a README, a maintenance script and two
 prompts fails in practice, because every author reinvents the phrasing and the wordier attempts
 drift into a chatty register. This file holds the phrasing so nobody has to invent it.
 
@@ -71,8 +71,7 @@ and reads `outcome`; it checks nothing inside `acceptance` or `checks`.
 
 ### status job
 
-A job in `octestra-lifecycle.yml` that runs when a task reaches one status option. Each one calls
-its own workflow file.
+A job in `octestra-lifecycle.yml` that runs when a task reaches one status option.
 
 ### `OCTESTRA_AGENT_GITHUB_TOKEN`
 
@@ -111,7 +110,7 @@ it holds where it appears.
 | Term | Means |
 |---|---|
 | trust boundary | The intended separation between a job running an agent and a job holding a privileged token. Not implemented; see `TODO.md` §2. |
-| control plane | `config.yml` plus the four repository variables mirrored from it. |
+| control plane | `config.yml` plus the five repository variables mirrored from it. |
 | mechanism / policy | What Octestra owns versus what the consumer decides. Workflows are mechanism; installed agent actions are policy. |
 | seam | A split kept deliberately for work that has not landed, such as the unused `loop/` namespace. |
 | the guard | The `guard` job, and `lifecycle/validate-transition` inside it, which decides whether a status change is legal and which status job to run. |

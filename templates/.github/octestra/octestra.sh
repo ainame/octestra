@@ -3,10 +3,10 @@
 # Octestra maintenance CLI for this repository.
 #
 #   .github/octestra/octestra.sh doctor       diagnose this installation
-#   .github/octestra/octestra.sh update       reinstall from the Octestra the workflows call
+#   .github/octestra/octestra.sh update       reinstall from the Octestra the workflow calls
 #   .github/octestra/octestra.sh vars check   compare config.yml with repository variables
 #   .github/octestra/octestra.sh vars sync    write config.yml values to repository variables
-#   .github/octestra/octestra.sh ref          show which Octestra the workflows call
+#   .github/octestra/octestra.sh ref          show which Octestra the workflow calls
 #   .github/octestra/octestra.sh ref SPEC     call OWNER/REPO@REF, @REF, OWNER/REPO, or --latest
 #
 # Requires the GitHub CLI, authenticated with 'gh auth login'. 'doctor' and 'vars check'
@@ -46,9 +46,9 @@ readonly REQUIRED_STATUS_OPTIONS=(
   "Blocked"
   "Done"
 )
-# The Octestra action the workflows beside this script call. install.sh rewrites this line
+# The Octestra action the workflow beside this script calls. install.sh rewrites this line
 # together with every workflow reference, and so does 'ref', so it always names the same
-# action the workflows do.
+# action the workflow does.
 readonly INSTALLED_ACTION="ainame/octestra@main"
 
 FAILURES=0
@@ -66,12 +66,12 @@ Usage:
 
 Commands:
   doctor          Report every problem this installation has (default)
-  update [SPEC]   Reinstall the workflows, prompts and skill from the Octestra the
-                  workflows call, or from SPEC (OWNER/REPO@REF, @REF, OWNER/REPO, or
+  update [SPEC]   Reinstall the workflow, prompts and skill from the Octestra the
+                  workflow calls, or from SPEC (OWNER/REPO@REF, @REF, OWNER/REPO, or
                   --latest). Keeps config.yml and the installed agent actions
   vars check      Exit non-zero when a repository variable disagrees with config.yml
   vars sync       Write the config.yml values into this repository's variables
-  ref             Show which Octestra repository and ref the workflows call
+  ref             Show which Octestra repository and ref the workflow calls
   ref SPEC        Change it. SPEC is OWNER/REPO@REF, @REF, OWNER/REPO, or --latest
   help            Show this help
 
@@ -400,36 +400,36 @@ check_workflows() {
     report fail "$ENTRY_WORKFLOW is missing; rerun install.sh"
     return
   fi
-  # A referenced reusable workflow or local action that is absent fails the run before the
-  # consumer's agent starts, so catch both file and directory forms here.
+  # A referenced local action that is absent fails the run before the consumer's agent starts,
+  # so catch both file and directory forms here.
   while IFS= read -r called; do
     if [[ ! -f "$called" && ! -f "$called/action.yml" && ! -f "$called/action.yaml" ]]; then
       report fail "a workflow references $called, which does not exist"
     fi
   done < <(
-    grep -h -o -E '^[^#]*uses: \./[^[:space:]]+' .github/workflows/octestra-*.yml |
+    grep -h -o -E '^[^#]*uses: \./[^[:space:]]+' "$ENTRY_WORKFLOW" |
       sed -E 's|.*uses: \./||' |
       sort -u
   )
-  # No match means the workflows call some other Octestra, which is a finding rather than an
+  # No match means the workflow calls some other Octestra, which is a finding rather than an
   # error: without '|| true' the failed grep would abort this script under 'set -o pipefail'.
   refs=$(
     grep -h -o -E "^[^#]*uses: $action_repository(/[^@[:space:]]+)?@[^[:space:]]+" \
-      .github/workflows/octestra-*.yml |
+      "$ENTRY_WORKFLOW" |
       sed -E 's|.*@||' |
       sort -u || true
   )
   if [[ -z "$refs" ]]; then
     report fail \
-      "no workflow calls $action_repository; this script and the workflows disagree about which Octestra runs"
+      "$ENTRY_WORKFLOW does not call $action_repository; this script and the workflow disagree about which Octestra runs"
   elif [[ $(printf '%s\n' "$refs" | wc -l | tr -d ' ') != "1" ]]; then
     report fail \
-      "workflows call $action_repository at more than one ref: $(printf '%s' "$refs" | tr '\n' ' ')"
+      "$ENTRY_WORKFLOW calls $action_repository at more than one ref: $(printf '%s' "$refs" | tr '\n' ' ')"
   elif [[ "$refs" != "$installed_ref" ]]; then
     report fail \
-      "workflows call $action_repository@$refs but this script records @$installed_ref; rerun install.sh or 'octestra.sh ref'"
+      "$ENTRY_WORKFLOW calls $action_repository@$refs but this script records @$installed_ref; rerun install.sh or 'octestra.sh ref'"
   else
-    report ok "workflows call $INSTALLED_ACTION"
+    report ok "$ENTRY_WORKFLOW calls $INSTALLED_ACTION"
     tag=$(latest_version_tag "$action_repository") || true
     if [[ -n "$tag" && "$tag" != "$installed_ref" ]]; then
       report note \
@@ -437,7 +437,7 @@ check_workflows() {
     fi
   fi
   if (( FAILURES == before )); then
-    report ok "every reusable workflow an enabled status job calls exists"
+    report ok "every local action referenced by $ENTRY_WORKFLOW exists"
   fi
 }
 
@@ -632,7 +632,7 @@ confirm_update() {
   fi
   cat > /dev/tty <<EOF
 Update $REPOSITORY from $target?
-  .github/workflows/octestra-*.yml  replaced
+  .github/workflows/octestra-lifecycle.yml  replaced
   .github/octestra/actions/         kept as they are
   .github/octestra/prompts/         replaced
   .github/octestra/octestra.sh      replaced
@@ -706,9 +706,9 @@ update_command() {
   source_dir=$(download_source "$target")
   [[ -f "$source_dir/install.sh" ]] || die "$target ships no install.sh"
 
-  # The installer that just arrived does the work: it keeps what the markers hold, rewrites
-  # the action references and syncs the variables, and this script must not hold a second
-  # copy of any of that. `${oidc[@]}` is expanded through `+` because an empty array under
+  # The installer that just arrived does the work: it preserves the agent actions, replaces the
+  # lifecycle workflow, rewrites action references and syncs the variables. This script must not
+  # hold a second copy of any of that. `${oidc[@]}` is expanded through `+` because an empty array under
   # `set -u` is a fatal error in the bash that ships with macOS.
   bash "$source_dir/install.sh" \
     --target "$PWD" \

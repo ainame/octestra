@@ -3,8 +3,8 @@
 #
 # WHAT STEPS MAY REFERENCE
 # Use `inputs.*` for task context and `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token.
-# Static credentials mapped by octestra-lifecycle-in-progress.yml are also available through `env`.
-# Composite actions cannot read the `secrets` context directly.
+# Composite actions cannot read the `secrets` context directly. Prefer OIDC or credentials already
+# available on the configured runner.
 name: Octestra task agent
 description: Repository-configured setup and agent execution for an Octestra task
 
@@ -62,8 +62,8 @@ runs:
     # - name: Run Claude Code
     #   uses: anthropics/claude-code-action@v1
     #   with:
-    #     anthropic_api_key: ${{ env.YOUR_AGENT_API_KEY }}
     #     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
+    #     use_bedrock: "true"
     #     track_progress: true
     #     # `branch_name` is the exact branch Octestra will later finalize and validate.
     #     # Passing it through `{{prefix}}` prevents Claude from adding any suffix.
