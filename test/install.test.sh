@@ -217,6 +217,8 @@ grep -q 'private_key_secret_key_name: "OCTESTRA_GITHUB_APP_PRIVATE_KEY"' \
 node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 grep -q "secrets\\[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET" "$orchestrator"
 grep -q "issue_field_value.option.name != 'Todo'" "$orchestrator"
+grep -q "issue_field_value.option.name != 'Ready'" "$orchestrator"
+grep -q "issue_field_value.option.name != 'Done'" "$orchestrator"
 grep -q 'Actions secret OCTESTRA_GITHUB_APP_PRIVATE_KEY is not set' \
   "$TEMP_DIR/initial-install-output"
 

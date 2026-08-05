@@ -31,9 +31,9 @@ permissions:
 jobs:
   # Checks the status change is one Octestra allows, and reports which status job to run.
   guard:
-    # Creating a task initializes its status to Todo. Skip that event until a person or
-    # automation explicitly moves the task forward, so setup needs no App secret.
-    if: github.event.action == 'field_added' && github.event.issue_field_value.option.name != 'Todo' && format('{0}', github.event.issue_field.id) == vars.OCTESTRA_STATUS_FIELD_ID
+    # Todo creates the task, Ready authorizes work, and Done ends it. Only workflow-managed
+    # statuses run the guard, so setup and status cleanup need no App secret.
+    if: github.event.action == 'field_added' && github.event.issue_field_value.option.name != 'Todo' && github.event.issue_field_value.option.name != 'Ready' && github.event.issue_field_value.option.name != 'Done' && format('{0}', github.event.issue_field.id) == vars.OCTESTRA_STATUS_FIELD_ID
     runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
     # This job only reads, so it takes less than the list above. Jobs started by
     # `uses:` are unaffected: job-level permissions apply to this job only.
