@@ -4,7 +4,7 @@ This is a sample template; customize it for your repository.
 
 Available variables:
 - skillName: configured Codex skill name
-- target: task target file, when configured
+- target: task target, such as a file, class, or feature, when configured
 - epicTaskPrompt: combined EPIC task and task prompts, including their validation prompts
 - issueNumber: task issue number
 - pullNumber: linked pull request number
@@ -16,7 +16,7 @@ Validate the already checked-out head of PR #{{pullNumber}} for the following ta
 Do not create, switch, or push a branch.
 
 {{#if target}}
-Target file: {{target}}
+Target: {{target}}
 {{/if}}
 Task issue: #{{issueNumber}}
 

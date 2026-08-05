@@ -4,36 +4,8 @@
 # `In Progress` AI Task Status. The agent is expected to create the task branch
 # and pull request; this workflow then advances the task to Validation or Human Review.
 #
-# UPDATING THIS FILE
-# `.github/octestra/octestra.sh update` replaces this file, except for each custom region — the
-# lines enclosed by a matching pair of
-#
-#     # octestra:custom:begin <name>
-#     # octestra:custom:end <name>
-#
-# markers — whose contents it carries into the new version. Place this repository's setup, agent
-# invocation and agent credentials inside a custom region; everything outside one is replaced, so
-# edits there are lost on the next update.
-#
-# WHAT A CUSTOM REGION MAY REFERENCE
-# An update preserves the contents of a custom region and replaces every step outside one, so a
-# custom region may reference only names that survive that. These do:
-#
-#     steps.epic.outputs.*             the outputs listed on prepare-task below
-#     env.OCTESTRA_AGENT_GITHUB_TOKEN  the agent's GitHub token
-#     secrets.*, vars.*, inputs.*      declared in this file or passed by the caller
-#
-# Do not refer to any other step by its id. If a later version removes that step, GitHub turns
-# the reference into an empty string instead of reporting an error, and the agent runs with an
-# empty value.
-#
-# Octestra's README has a section called `The contract`. It lists every name these steps publish
-# and every rule your steps have to follow, with what breaks when one is ignored.
-#
-# Leave the `Prepare task lifecycle` and `Finalize task lifecycle` steps outside the markers.
-# Octestra keeps changing them, and an installation holding an old copy breaks. If an update
-# cannot find a marker pair it expected — renamed or deleted by hand — it saves the previous
-# file as `octestra-lifecycle-in-progress.yml.octestra-bak` and says so.
+# `.github/octestra/octestra.sh update` replaces this file. Agent setup and invocation belong in
+# `.github/octestra/actions/task-agent/action.yml`, which updates preserve in full.
 name: Octestra - In Progress (Task Execution)
 
 on:
@@ -57,22 +29,6 @@ on:
       github_app_private_key:
         description: Private key for the Octestra GitHub App
         required: true
-
-      # ========================================================================
-      # CUSTOM REGION: agent credentials
-      # ========================================================================
-      # octestra:custom:begin agent-credentials
-      # 1. Store each value as a GitHub Actions secret. Never put a secret value in this file.
-      # 2. Declare only the name the agent steps use here.
-      # 3. In octestra-lifecycle.yml's `in-progress-secrets` region, pass every declared name
-      #    from the corresponding GitHub Secret. Do not use `secrets: inherit` here: it would
-      #    hand every organization secret to a job that runs an agent.
-      #
-      #   your_agent_api_key:
-      #     description: API key for the task agent
-      #     required: true
-      # octestra:custom:end agent-credentials
-      # ========================================================================
 
 permissions:
   contents: write
@@ -118,7 +74,7 @@ jobs:
       #   - draft_flag: `--draft` when the PR should be a draft.
       #   - skip_validation: whether the task goes to Human Review without validation.
       #   - prompt: rendered task instructions.
-      #   - target_file: configured target, if any.
+      #   - target: configured file, class, feature, or other target, if any.
       #   - task_owner: assigned human task owner.
       # `operation: assign-owner` and `operation: lifecycle/build-task-context` do the two halves
       # apart.
@@ -134,63 +90,24 @@ jobs:
           trigger-actor: ${{ inputs.trigger-actor }}
           trigger-actor-type: ${{ inputs.trigger-actor-type }}
 
-      # Publishes the agent's GitHub token as OCTESTRA_AGENT_GITHUB_TOKEN for the steps below.
-      # Reference that name from the custom region below rather than the token step above: an
-      # update replaces every step outside a custom region, so that step may move or disappear,
-      # while this name remains valid.
-      - name: Expose agent credentials
-        env:
-          AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          printf 'OCTESTRA_AGENT_GITHUB_TOKEN=%s\n' "$AGENT_GITHUB_TOKEN" >> "$GITHUB_ENV"
-
-      # ========================================================================
-      # CUSTOM REGION: agent steps
-      # ========================================================================
-      # octestra:custom:begin agent-steps
-      #
-      # Everything between these markers is this repository's: environment and dependency
-      # setup, credentials, and the agent invocation itself. An update carries it into the new
-      # version of this file.
-
-      - name: Configure task agent
-        id: agent
+      # The local composite action groups every repository-defined setup and agent step behind this
+      # one condition. It runs in this job, on the same runner and workspace as prepare-task.
+      - name: Run task agent
         if: steps.epic.outputs.task_ready == 'true'
-        run: |
-          echo "::error::Replace this step with the repository's task agent configuration."
-          exit 1
-
-      # Example: configure cloud credentials with GitHub OIDC.
-      #
-      # - name: Configure AWS credentials
-      #   uses: aws-actions/configure-aws-credentials@v6
-      #   with:
-      #     role-to-assume: arn:aws:iam::000000000000:role/example-role
-      #     aws-region: example-region
-      #
-      # Example: replace the placeholder step above with Claude Code Action.
-      # `steps.epic.outputs.prompt` is rendered from
-      # .github/octestra/prompts/lifecycle-in-progress.md.hbs.
-      #
-      # - name: Run Claude Code
-      #   id: agent
-      #   uses: anthropics/claude-code-action@v1
-      #   with:
-      #     anthropic_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
-      #     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
-      #     track_progress: true
-      #     # `branch_name` is the exact branch Octestra will later finalize and validate.
-      #     # Passing it through `{{prefix}}` prevents Claude from adding any suffix.
-      #     branch_prefix: ${{ steps.epic.outputs.branch_name }}
-      #     branch_name_template: "{{prefix}}"
-      #     claude_args: >-
-      #       --allowedTools
-      #       "Bash,Read,Write,Edit,Grep,Glob"
-      #     prompt: ${{ steps.epic.outputs.prompt }}
-
-      #
-      # octestra:custom:end agent-steps
-      # ========================================================================
+        uses: ./.github/octestra/actions/task-agent
+        env:
+          OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          issue-number: ${{ inputs.issue-number }}
+          parent-number: ${{ steps.epic.outputs.parent_number }}
+          epic-id: ${{ steps.epic.outputs.epic_id }}
+          skill-name: ${{ steps.epic.outputs.skill_name }}
+          branch-name: ${{ steps.epic.outputs.branch_name }}
+          draft-flag: ${{ steps.epic.outputs.draft_flag }}
+          skip-validation: ${{ steps.epic.outputs.skip_validation }}
+          prompt: ${{ steps.epic.outputs.prompt }}
+          target: ${{ steps.epic.outputs.target }}
+          task-owner: ${{ steps.epic.outputs.task_owner }}
 
       # finalize-task:
       # - Confirms the agent pushed the branch named by branch_name above.

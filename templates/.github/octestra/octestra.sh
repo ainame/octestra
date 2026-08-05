@@ -24,10 +24,6 @@ readonly CONFIG_PATH=".github/octestra/config.yml"
 readonly ENTRY_WORKFLOW=".github/workflows/octestra-lifecycle.yml"
 readonly DEFAULT_PRIVATE_KEY_SECRET="OCTESTRA_GITHUB_APP_PRIVATE_KEY"
 readonly CLIENT_ID_PLACEHOLDER="YOUR-GITHUB-APP-CLIENT-ID"
-# The markers install.sh keys on when it updates a workflow: content between a begin and end
-# marker is carried into the new version, everything else is replaced.
-readonly CUSTOM_REGION_PREFIX="# octestra:custom:"
-readonly BACKUP_SUFFIX=".octestra-bak"
 # The values Octestra needs before a job starts, as variable|section|key. A workflow reads
 # these from repository variables because no file can be read that early, which is why they
 # can disagree with config.yml at all.
@@ -72,8 +68,7 @@ Commands:
   doctor          Report every problem this installation has (default)
   update [SPEC]   Reinstall the workflows, prompts and skill from the Octestra the
                   workflows call, or from SPEC (OWNER/REPO@REF, @REF, OWNER/REPO, or
-                  --latest). Keeps config.yml and every line inside an
-                  octestra:custom: marker pair
+                  --latest). Keeps config.yml and the installed agent actions
   vars check      Exit non-zero when a repository variable disagrees with config.yml
   vars sync       Write the config.yml values into this repository's variables
   ref             Show which Octestra repository and ref the workflows call
@@ -405,11 +400,11 @@ check_workflows() {
     report fail "$ENTRY_WORKFLOW is missing; rerun install.sh"
     return
   fi
-  # A job whose workflow file is absent fails the whole run at startup, with no jobs and no
-  # logs, so a job left enabled without its file is worth catching here.
+  # A referenced reusable workflow or local action that is absent fails the run before the
+  # consumer's agent starts, so catch both file and directory forms here.
   while IFS= read -r called; do
-    if [[ ! -f "$called" ]]; then
-      report fail "a workflow calls $called, which does not exist"
+    if [[ ! -f "$called" && ! -f "$called/action.yml" && ! -f "$called/action.yaml" ]]; then
+      report fail "a workflow references $called, which does not exist"
     fi
   done < <(
     grep -h -o -E '^[^#]*uses: \./[^[:space:]]+' .github/workflows/octestra-*.yml |
@@ -441,44 +436,9 @@ check_workflows() {
         "$action_repository has a newer tag $tag; switch with 'octestra.sh ref --latest'"
     fi
   fi
-  check_custom_regions
   if (( FAILURES == before )); then
     report ok "every reusable workflow an enabled status job calls exists"
   fi
-}
-
-# install.sh carries the lines between a begin and end marker into the new workflow and
-# replaces everything else. A marker deleted or renamed by hand takes the work between the
-# pair with it on the next install, so it is reported before that happens.
-check_custom_regions() {
-  local workflow=""
-  local begins=""
-  local ends=""
-
-  for workflow in .github/workflows/octestra-*.yml; do
-    begins=$(marked_region_names "$workflow" begin)
-    ends=$(marked_region_names "$workflow" end)
-    if [[ -z "$begins" && -z "$ends" ]]; then
-      report warn \
-        "$workflow has no $CUSTOM_REGION_PREFIX markers; the next install overwrites all of it and keeps a $BACKUP_SUFFIX copy"
-      continue
-    fi
-    if [[ "$begins" != "$ends" ]]; then
-      report fail \
-        "$workflow has unbalanced custom region markers; the next install would drop the work inside them"
-    fi
-  done
-}
-
-# The names a file declares for one marker kind, sorted. A marker must be the whole comment,
-# so the indented copies in a file's header block are prose, not markers.
-marked_region_names() {
-  local file="$1"
-  local kind="$2"
-
-  sed -n -E "s|^[[:space:]]*$CUSTOM_REGION_PREFIX$kind ([^[:space:]]+)[[:space:]]*$|\\1|p" \
-    "$file" |
-    sort
 }
 
 check_prompts() {
@@ -672,15 +632,14 @@ confirm_update() {
   fi
   cat > /dev/tty <<EOF
 Update $REPOSITORY from $target?
-  .github/workflows/octestra-*.yml  replaced, except each custom region
+  .github/workflows/octestra-*.yml  replaced
+  .github/octestra/actions/         kept as they are
   .github/octestra/prompts/         replaced
   .github/octestra/octestra.sh      replaced
   the installed agent skill         replaced
   .github/octestra/config.yml       kept as it is
 It also re-syncs the five Octestra repository variables from config.yml.
-A custom region is the lines enclosed by '# octestra:custom:begin <name>' and its matching
-'# octestra:custom:end <name>'. Anything you changed outside one is lost, so check
-'git status' first.
+Workflow edits are lost, so check 'git status' first.
 EOF
   printf 'Continue? [y/N]: ' > /dev/tty
   IFS= read -r answer < /dev/tty

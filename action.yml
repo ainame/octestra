@@ -68,8 +68,8 @@ outputs:
     description: Path where the validation agent must write its result
   artifact_path:
     description: Directory where the validation agent must save artifacts
-  target_file:
-    description: Optional target from the task-config block
+  target:
+    description: Optional file, class, feature, or other target from the task-config block
   reviewer:
     description: Task owner requested to review the pull request
   task_owner:

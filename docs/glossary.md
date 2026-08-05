@@ -19,15 +19,6 @@ These appear in `templates/`, in `README.md`, or in text Octestra posts to an is
 gives the definition, and where the term needs introducing, the wording to use on first mention.
 Use the short name after that.
 
-### custom region
-
-The lines enclosed by a `# octestra:custom:begin <name>` marker and its matching
-`# octestra:custom:end <name>`. An update carries their contents into the new version of the file
-and replaces everything outside them.
-
-> each custom region — the lines enclosed by a matching pair of `# octestra:custom:begin <name>`
-> and `# octestra:custom:end <name>` markers
-
 ### AI Task Status
 
 The organization Issue Field whose value drives everything. Changing it on a task issue is what
@@ -85,8 +76,8 @@ its own workflow file.
 
 ### `OCTESTRA_AGENT_GITHUB_TOKEN`
 
-The name a custom region uses for the agent's GitHub token. A step outside the region publishes it,
-so the credential's source can change without editing anything a consumer wrote.
+The environment variable through which a lifecycle workflow passes the agent's GitHub token to its
+local composite action.
 
 ### issue body blocks
 
@@ -121,7 +112,7 @@ it holds where it appears.
 |---|---|
 | trust boundary | The intended separation between a job running an agent and a job holding a privileged token. Not implemented; see `TODO.md` §2. |
 | control plane | `config.yml` plus the four repository variables mirrored from it. |
-| mechanism / policy | What Octestra owns versus what the consumer decides. Custom regions are where the line is written down. |
+| mechanism / policy | What Octestra owns versus what the consumer decides. Workflows are mechanism; installed agent actions are policy. |
 | seam | A split kept deliberately for work that has not landed, such as the unused `loop/` namespace. |
 | the guard | The `guard` job, and `lifecycle/validate-transition` inside it, which decides whether a status change is legal and which status job to run. |
 | mirrored value | One of the five values copied from `config.yml` into repository variables because a job needs them before it can read a file. |

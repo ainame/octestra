@@ -6,37 +6,9 @@
 # triggered by an issue-field event, not a pull_request event, so it explicitly
 # checks out the resolved task branch before validation.
 #
-# UPDATING THIS FILE
-# `.github/octestra/octestra.sh update` replaces this file, except for each custom region — the
-# lines enclosed by a matching pair of
-#
-#     # octestra:custom:begin <name>
-#     # octestra:custom:end <name>
-#
-# markers — whose contents it carries into the new version. Place this repository's setup, agent
-# invocation and agent credentials inside a custom region; everything outside one is replaced, so
-# edits there are lost on the next update.
-#
-# WHAT A CUSTOM REGION MAY REFERENCE
-# An update preserves the contents of a custom region and replaces every step outside one, so a
-# custom region may reference only names that survive that. These do:
-#
-#     steps.epic.outputs.*             the outputs listed on prepare-validation below
-#     env.OCTESTRA_AGENT_GITHUB_TOKEN  the agent's GitHub token
-#     secrets.*, vars.*, inputs.*      declared in this file or passed by the caller
-#
-# Do not refer to any other step by its id. If a later version removes that step, GitHub turns
-# the reference into an empty string instead of reporting an error, and the agent runs with an
-# empty value.
-#
-# Octestra's README has a section called `The contract`. It lists every name these steps publish
-# and every rule your steps have to follow, with what breaks when one is ignored.
-#
-# Leave the `Prepare validation lifecycle` step, the checkout steps it feeds, and
-# `Finalize validation lifecycle` outside the markers. Octestra keeps changing them, and an
-# installation holding an old copy breaks. If an update cannot find a marker pair it expected
-# — renamed or deleted by hand — it saves the previous file as
-# `octestra-lifecycle-validation.yml.octestra-bak` and says so.
+# `.github/octestra/octestra.sh update` replaces this file. Agent setup, invocation and artifact
+# upload belong in `.github/octestra/actions/validation-agent/action.yml`, which updates preserve
+# in full.
 name: Octestra - Validation (Task Verification)
 
 on:
@@ -52,22 +24,6 @@ on:
       github_app_private_key:
         description: Private key for the task GitHub App
         required: true
-
-      # ========================================================================
-      # CUSTOM REGION: agent credentials
-      # ========================================================================
-      # octestra:custom:begin agent-credentials
-      # 1. Store each value as a GitHub Actions secret. Never put a secret value in this file.
-      # 2. Declare only the name the agent steps use here.
-      # 3. In octestra-lifecycle.yml's `validation-secrets` region, pass every declared name
-      #    from the corresponding GitHub Secret. Do not use `secrets: inherit` here: it would
-      #    hand every organization secret to a job that runs an agent.
-      #
-      #   your_agent_api_key:
-      #     description: API key for the validation agent
-      #     required: true
-      # octestra:custom:end agent-credentials
-      # ========================================================================
 
 permissions:
   contents: read
@@ -98,8 +54,8 @@ jobs:
       # - Loads the task issue and its parent EPIC.
       # - Finds the open pull request linked to the task.
       # - Renders .github/octestra/prompts/lifecycle-validation.md.hbs.
-      # - Publishes these outputs: parent_number, branch_name, pull_number, prompt,
-      #   target_file, and the artifact_path and result_path the agent writes into.
+      # - Publishes these outputs: parent_number, branch_name, pull_number, prompt, target,
+      #   and the artifact_path and result_path the agent writes into.
       #
       # **Keep this step first: every step below reads `steps.epic.outputs`.**
       - name: Prepare validation lifecycle
@@ -116,71 +72,21 @@ jobs:
           ref: ${{ steps.epic.outputs.branch_name }}
           token: ${{ steps.app-token.outputs.token }}
 
-      # Publishes the agent's GitHub token as OCTESTRA_AGENT_GITHUB_TOKEN for the steps below.
-      # Reference that name from the custom region below rather than the token step above: an
-      # update replaces every step outside a custom region, so that step may move or disappear,
-      # while this name remains valid. What this token is permitted to do may also narrow in a
-      # later version, so do not rely on it having write access.
-      - name: Expose agent credentials
+      # The local composite action runs in this job, on the same runner and checked-out workspace
+      # as prepare-validation.
+      - name: Run validation agent
+        uses: ./.github/octestra/actions/validation-agent
         env:
-          AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          printf 'OCTESTRA_AGENT_GITHUB_TOKEN=%s\n' "$AGENT_GITHUB_TOKEN" >> "$GITHUB_ENV"
-
-      # ========================================================================
-      # CUSTOM REGION: agent steps
-      # ========================================================================
-      # octestra:custom:begin agent-steps
-      #
-      # Everything between these markers is this repository's: environment and dependency
-      # setup, credentials, the agent invocation itself, and any artifact upload. An update
-      # carries it into the new version of this file.
-
-      - name: Configure validation agent
-        run: |
-          echo "::error::Replace this step with the repository's validation agent configuration."
-          exit 1
-
-      # Example: configure cloud credentials with GitHub OIDC.
-      #
-      # - name: Configure AWS credentials
-      #   uses: aws-actions/configure-aws-credentials@v6
-      #   with:
-      #     role-to-assume: arn:aws:iam::000000000000:role/example-role
-      #     aws-region: example-region
-      #
-      # Example: replace the placeholder step above with Claude Code Action.
-      # Do not set track_progress here: this workflow is triggered by an issue-field event.
-      # Agent mode preserves the task branch checked out above instead of creating a branch.
-      # `steps.epic.outputs.prompt` is rendered from
-      # .github/octestra/prompts/lifecycle-validation.md.hbs.
-      #
-      # - name: Run Claude Code validation
-      #   uses: anthropics/claude-code-action@v1
-      #   with:
-      #     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
-      #     use_bedrock: "true"
-      #     claude_args: >-
-      #       --model ${{ vars.BEDROCK_DEFAULT_OPUS_MODEL }}
-      #       --allowedTools "Bash,Read,Write,Edit,Grep,Glob,mcp__XcodeBuildMCP__*"
-      #     prompt: ${{ steps.epic.outputs.prompt }}
-
-      # Upload partial evidence even when the validation agent fails.
-      #
-      # - name: Upload validation artifacts
-      #   if: always()
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: octestra-validation-${{ inputs.issue-number }}
-      #     path: |
-      #       ${{ steps.epic.outputs.artifact_path }}
-      #       ${{ steps.epic.outputs.result_path }}
-      #     if-no-files-found: warn
-
-      #
-      # octestra:custom:end agent-steps
-      # ========================================================================
-
+          OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          issue-number: ${{ inputs.issue-number }}
+          parent-number: ${{ steps.epic.outputs.parent_number }}
+          branch-name: ${{ steps.epic.outputs.branch_name }}
+          pull-number: ${{ steps.epic.outputs.pull_number }}
+          prompt: ${{ steps.epic.outputs.prompt }}
+          result-path: ${{ steps.epic.outputs.result_path }}
+          artifact-path: ${{ steps.epic.outputs.artifact_path }}
+          target: ${{ steps.epic.outputs.target }}
 
       # finalize-validation:
       # - Reads the JSON file the agent wrote to result_path and posts it as a comment.

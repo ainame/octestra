@@ -1,0 +1,75 @@
+# Repository-owned setup and agent execution for an Octestra task. Octestra installs this file only
+# when it does not already exist; later updates preserve the whole file.
+#
+# WHAT STEPS MAY REFERENCE
+# Use `inputs.*` for task context and `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token.
+# Static credentials mapped by octestra-lifecycle-in-progress.yml are also available through `env`.
+# Composite actions cannot read the `secrets` context directly.
+name: Octestra task agent
+description: Repository-configured setup and agent execution for an Octestra task
+
+inputs:
+  issue-number:
+    description: Task issue number
+    required: true
+  parent-number:
+    description: Parent EPIC issue number
+    required: true
+  epic-id:
+    description: Stable identifier configured by the parent EPIC
+    required: true
+  skill-name:
+    description: Agent skill configured by the parent EPIC, if any
+    required: false
+  branch-name:
+    description: Exact branch the agent must create and push
+    required: true
+  draft-flag:
+    description: --draft when the task pull request should remain a draft
+    required: false
+  skip-validation:
+    description: Whether the task moves directly to Human Review
+    required: true
+  prompt:
+    description: Rendered task instructions
+    required: true
+  target:
+    description: Configured file, class, feature, or other target, if any
+    required: false
+  task-owner:
+    description: Human assigned to the task issue
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Configure task agent
+      shell: bash
+      run: |
+        echo "::error::Replace this step with the repository's task agent configuration."
+        exit 1
+
+    # Example: configure cloud credentials with GitHub OIDC.
+    #
+    # - name: Configure AWS credentials
+    #   uses: aws-actions/configure-aws-credentials@v6
+    #   with:
+    #     role-to-assume: arn:aws:iam::000000000000:role/example-role
+    #     aws-region: example-region
+    #
+    # Example: replace the placeholder step above with Claude Code Action.
+    #
+    # - name: Run Claude Code
+    #   uses: anthropics/claude-code-action@v1
+    #   with:
+    #     anthropic_api_key: ${{ env.YOUR_AGENT_API_KEY }}
+    #     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
+    #     track_progress: true
+    #     # `branch-name` is the exact branch Octestra will later finalize and validate.
+    #     # Passing it through `{{prefix}}` prevents Claude from adding any suffix.
+    #     branch_prefix: ${{ inputs.branch-name }}
+    #     branch_name_template: "{{prefix}}"
+    #     claude_args: >-
+    #       --allowedTools
+    #       "Bash,Read,Write,Edit,Grep,Glob"
+    #     prompt: ${{ inputs.prompt }}

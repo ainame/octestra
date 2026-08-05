@@ -167,7 +167,7 @@ describe("prepareTask", () => {
       ].join("\n"),
     );
     expect(setOutput).toHaveBeenCalledWith(
-      "target_file",
+      "target",
       "Sources/Feature/Home.swift",
     );
     expect(setOutput).toHaveBeenCalledWith("task_ready", "true");
@@ -295,7 +295,7 @@ describe("prepareValidation", () => {
         "Confirm the adapter behavior.",
       ].join("\n"),
     );
-    expect(setOutput).toHaveBeenCalledWith("target_file", "");
+    expect(setOutput).toHaveBeenCalledWith("target", "");
   });
 });
 

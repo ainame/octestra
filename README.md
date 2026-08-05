@@ -79,9 +79,10 @@ For the EPIC and task issue format, the meaning of each status option, and agent
 | `vars check`      | Check whether the repository's Actions variables match `config.yml`        |
 | `vars sync`       | Copy the required values from `config.yml` to Actions variables            |
 | `ref`             | Show the Octestra repository and ref used by installed workflows           |
-| `update --latest` | Install the latest release while preserving custom regions                 |
+| `update --latest` | Install the latest release while preserving agent actions and `config.yml` |
 
-Rerunning the installer keeps `config.yml` and the contents of every custom region. Review `git diff` before committing changes from an update.
+Rerunning the installer replaces workflows and keeps `config.yml` and both agent actions. Review
+`git diff` before committing changes from an update.
 
 ## Security
 

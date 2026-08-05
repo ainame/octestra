@@ -27,12 +27,6 @@ readonly API_VERSION="2026-03-10"
 # variable mirroring for the consumer, and this installer uses it for the initial sync
 # rather than carrying a second implementation.
 readonly MAINTENANCE_SCRIPT=".github/octestra/octestra.sh"
-# Installed files a consumer is expected to edit mark their editable parts with these
-# comments. Everything outside a marked region is replaced on a rerun; the content inside
-# one is carried across. The suffix a backup gets when nothing could be carried.
-readonly CUSTOM_REGION_PREFIX="# octestra:custom:"
-readonly BACKUP_SUFFIX=".octestra-bak"
-
 TARGET_DIR="."
 SOURCE_DIR=""
 SOURCE_REPOSITORY="${OCTESTRA_REPOSITORY:-$DEFAULT_SOURCE_REPOSITORY}"
@@ -562,10 +556,6 @@ prepare_install_tree() {
   (cd "$TEMPLATE_DIR/skills" && tar -cf - .) |
     (cd "$INSTALL_TREE/.$SKILL_TARGET/skills" && tar -xf -)
 
-  # Carry the consumer's regions over first, so their content goes through the same OIDC and
-  # action-reference rewrites as the rest of the file.
-  merge_custom_regions
-
   if [[ "$ENABLE_OIDC" == true ]]; then
     local workflow=""
     while IFS= read -r workflow; do
@@ -613,205 +603,6 @@ rewrite_action_references() {
   fi
 }
 
-# Returns the region name when a line is a `begin` or `end` marker, and non-zero otherwise.
-# The match is anchored on the whole comment, so the header block that documents the syntax
-# (`#     # octestra:custom:begin <name>`) stays prose instead of becoming a marker.
-custom_region_marker() {
-  local line="$1"
-  local kind="$2"
-  local prefix="$CUSTOM_REGION_PREFIX$kind "
-  local trimmed=""
-
-  trimmed=${line#"${line%%[![:space:]]*}"}
-  if [[ "$trimmed" != "$prefix"* ]]; then
-    return 1
-  fi
-  trimmed=${trimmed#"$prefix"}
-  printf '%s' "${trimmed%"${trimmed##*[![:space:]]}"}"
-}
-
-# Region names a file declares, in the order they appear.
-custom_region_names() {
-  local file="$1"
-  local line=""
-  local name=""
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if name=$(custom_region_marker "$line" begin); then
-      printf '%s\n' "$name"
-    fi
-  done < "$file"
-}
-
-# The lines a file has inside one region, excluding the markers themselves.
-custom_region_body() {
-  local file="$1"
-  local wanted="$2"
-  local line=""
-  local name=""
-  local inside=false
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if name=$(custom_region_marker "$line" begin) && [[ "$name" == "$wanted" ]]; then
-      inside=true
-      continue
-    fi
-    if name=$(custom_region_marker "$line" end) && [[ "$name" == "$wanted" ]]; then
-      inside=false
-      continue
-    fi
-    if [[ "$inside" == true ]]; then
-      printf '%s\n' "$line"
-    fi
-  done < "$file"
-}
-
-# Membership is tested on a captured list rather than through `grep -q`, which would exit on
-# the first match and leave the producing loop writing to a closed pipe.
-declares_custom_region() {
-  local names=""
-
-  names=$(custom_region_names "$1")
-  [[ $'\n'"$names"$'\n' == *$'\n'"$2"$'\n'* ]]
-}
-
-# A malformed marker set would make the merge silently drop content, so both files are
-# checked before anything is spliced.
-assert_valid_custom_regions() {
-  local file="$1"
-  local line=""
-  local name=""
-  local open=""
-  local duplicates=""
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if name=$(custom_region_marker "$line" begin); then
-      [[ -z "$name" ]] && die "$file has a custom region marker with no name"
-      [[ -z "$open" ]] || die "$file nests custom region '$name' inside '$open'"
-      open="$name"
-      continue
-    fi
-    if name=$(custom_region_marker "$line" end); then
-      [[ "$open" == "$name" ]] ||
-        die "$file ends custom region '$name' but '${open:-nothing}' is open"
-      open=""
-    fi
-  done < "$file"
-  [[ -z "$open" ]] || die "$file never ends custom region '$open'"
-
-  duplicates=$(custom_region_names "$file" | sort | uniq -d)
-  [[ -z "$duplicates" ]] ||
-    die "$file declares a custom region more than once: $(printf '%s' "$duplicates" | tr '\n' ' ')"
-}
-
-# Rewrites the staged template so each region carries the content the installed file has.
-splice_custom_regions() {
-  local template="$1"
-  local installed="$2"
-  local output="$3"
-  local line=""
-  local name=""
-  local body=""
-  local skipping=""
-
-  : > "$output"
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ -n "$skipping" ]]; then
-      if name=$(custom_region_marker "$line" end) && [[ "$name" == "$skipping" ]]; then
-        printf '%s\n' "$line" >> "$output"
-        skipping=""
-      fi
-      continue
-    fi
-    printf '%s\n' "$line" >> "$output"
-    if ! name=$(custom_region_marker "$line" begin); then
-      continue
-    fi
-    # A region the installed file does not have is new in this version: let the template
-    # body through untouched instead of emptying it.
-    if ! declares_custom_region "$installed" "$name"; then
-      continue
-    fi
-    skipping="$name"
-    body=$(custom_region_body "$installed" "$name")
-    if [[ -n "$body" ]]; then
-      printf '%s\n' "$body" >> "$output"
-    fi
-  done < "$template"
-}
-
-back_up_installed_file() {
-  local installed="$1"
-  local relative="$2"
-  local reason="$3"
-
-  cp "$installed" "$installed$BACKUP_SUFFIX"
-  info "saved the previous $relative as $relative$BACKUP_SUFFIX: $reason"
-  info "move anything still needed into the new file, then delete the backup"
-}
-
-merge_installed_file() {
-  local template="$1"
-  local installed="$2"
-  local relative="$3"
-  local merged="$template.octestra-merged"
-  local name=""
-  local carried=()
-  local orphans=()
-
-  assert_valid_custom_regions "$template"
-  if [[ -z "$(custom_region_names "$installed")" ]]; then
-    if ! diff -q "$template" "$installed" >/dev/null 2>&1; then
-      back_up_installed_file "$installed" "$relative" \
-        "it has no $CUSTOM_REGION_PREFIX markers, so no customization could be carried over"
-    fi
-    return
-  fi
-  assert_valid_custom_regions "$installed"
-
-  while IFS= read -r name; do
-    if declares_custom_region "$template" "$name"; then
-      carried+=("$name")
-    else
-      orphans+=("$name")
-    fi
-  done < <(custom_region_names "$installed")
-
-  if (( ${#orphans[@]} > 0 )); then
-    back_up_installed_file "$installed" "$relative" \
-      "the new version has no custom region named ${orphans[*]}"
-  fi
-
-  splice_custom_regions "$template" "$installed" "$merged"
-  mv "$merged" "$template"
-  if (( ${#carried[@]} > 0 )); then
-    info "carried custom regions into $relative: ${carried[*]}"
-  fi
-}
-
-# Consumers customize the workflows Octestra installs, and a rerun has to update Octestra's
-# own steps without discarding that work. Every staged file that marks custom regions is
-# merged with the copy already installed before anything is copied over it.
-merge_custom_regions() {
-  local template=""
-  local relative=""
-  local installed=""
-
-  while IFS= read -r template; do
-    # Only a file that declares a region takes part. Testing for the marker prefix instead
-    # would also match the maintenance script, which merely mentions it in a constant.
-    if [[ -z "$(custom_region_names "$template")" ]]; then
-      continue
-    fi
-    relative="${template#"$INSTALL_TREE"/}"
-    installed="$TARGET_DIR/$relative"
-    if [[ ! -f "$installed" ]]; then
-      continue
-    fi
-    merge_installed_file "$template" "$installed" "$relative"
-  done < <(find "$INSTALL_TREE" -type f -print)
-}
-
 # config.yml is the consumer's control plane, so a rerun must not reset the runners, branch
 # template or prompt paths they chose. Staging the file they already have makes the copy below
 # write it back unchanged; only a first installation renders the template.
@@ -839,10 +630,28 @@ preserve_installed_config() {
   fi
 }
 
+# Agent actions are the consumer's policy surface. Templates seed them on first install, but a
+# rerun must preserve each existing file in full rather than merge Octestra-owned content into it.
+preserve_installed_agent_actions() {
+  local relative=""
+  local installed=""
+
+  for relative in \
+    ".github/octestra/actions/task-agent/action.yml" \
+    ".github/octestra/actions/validation-agent/action.yml"; do
+    installed="$TARGET_DIR/$relative"
+    if [[ -f "$installed" ]]; then
+      cp "$installed" "$INSTALL_TREE/$relative"
+      info "kept the existing $relative"
+    fi
+  done
+}
+
 copy_and_render_templates() {
   local config="$TARGET_DIR/.github/octestra/config.yml"
 
   preserve_installed_config
+  preserve_installed_agent_actions
   (cd "$INSTALL_TREE" && tar -cf - .) | (cd "$TARGET_DIR" && tar -xf -)
   [[ -f "$config" ]] || die "Octestra config template was not installed"
   [[ -x "$TARGET_DIR/$MAINTENANCE_SCRIPT" ]] ||

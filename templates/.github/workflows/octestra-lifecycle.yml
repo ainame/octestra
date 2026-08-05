@@ -1,16 +1,8 @@
 # Octestra starts here: GitHub runs this workflow when a task issue's Issue Field changes,
 # and it calls the workflow for the status the task moved to.
 #
-# UPDATING THIS FILE
-# `.github/octestra/octestra.sh update` replaces this file, except for each custom region — the
-# lines enclosed by a matching pair of
-#
-#     # octestra:custom:begin <name>
-#     # octestra:custom:end <name>
-#
-# markers — whose contents it carries into the new version. Here they hold the secrets this file
-# passes to each workflow it calls. Everything outside a custom region — the `guard` job,
-# `permissions:`, and the job wiring — is replaced, so edits there are lost.
+# `.github/octestra/octestra.sh update` replaces this file. Agent setup belongs in the local
+# composite actions under `.github/octestra/actions/`, which updates preserve in full.
 name: Octestra Lifecycle
 on:
   issues:
@@ -76,17 +68,6 @@ jobs:
       trigger-actor-type: ${{ github.event.sender.type }}
     secrets:
       github_app_private_key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
-      # ========================================================================
-      # CUSTOM REGION: secrets passed to the In Progress workflow
-      # ========================================================================
-      # octestra:custom:begin in-progress-secrets
-      # For every secret octestra-lifecycle-in-progress.yml declares in `agent-credentials`,
-      # pass the same name here from a GitHub Actions secret. Never write the secret value here.
-      # The example below is inactive. After declaring the same name and creating the GitHub
-      # Secret, remove its leading `#` to pass it to the In Progress workflow:
-      #   your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
-      # octestra:custom:end in-progress-secrets
-      # ========================================================================
 
   validation:
     # Runs when a task moves to Validation.
@@ -97,17 +78,6 @@ jobs:
       issue-number: ${{ github.event.issue.number }}
     secrets:
       github_app_private_key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
-      # ========================================================================
-      # CUSTOM REGION: secrets passed to the Validation workflow
-      # ========================================================================
-      # octestra:custom:begin validation-secrets
-      # For every secret octestra-lifecycle-validation.yml declares in `agent-credentials`,
-      # pass the same name here from a GitHub Actions secret. Never write the secret value here.
-      # The example below is inactive. After declaring the same name and creating the GitHub
-      # Secret, remove its leading `#` to pass it to the Validation workflow:
-      #   your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}
-      # octestra:custom:end validation-secrets
-      # ========================================================================
 
   # Finalize tasks closed because their linked pull request was merged.
   merged-task-finalization:

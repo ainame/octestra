@@ -79,9 +79,9 @@ EPIC と task issue の書式、各 status option の意味、エージェント
 | `vars check`      | リポジトリの Actions 変数が `config.yml` と一致するか確認             |
 | `vars sync`       | `config.yml` の必要な値を Actions 変数へコピー                        |
 | `ref`             | インストール済みワークフローが使う Octestra のリポジトリと ref を表示 |
-| `update --latest` | custom region を保ったまま最新リリースをインストール                  |
+| `update --latest` | agent action と `config.yml` を保ったまま最新リリースをインストール |
 
-インストーラを再実行しても、`config.yml` と各 custom region の内容は保持されます。更新後は、コミット前に `git diff` で変更内容を確認してください。
+インストーラを再実行すると workflow は置き換えられ、`config.yml` と両方の agent action は保持されます。更新後は、コミット前に `git diff` で変更内容を確認してください。
 
 ## セキュリティ
 

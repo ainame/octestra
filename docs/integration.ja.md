@@ -70,75 +70,60 @@ target: Sources/Feature.swift # 任意の変更対象ファイルまたはコン
 
 ## エージェントのワークフローを設定する
 
-`octestra-lifecycle-in-progress.yml` は実装エージェントを、`octestra-lifecycle-validation.yml` は検証エージェントを実行します。各ファイルのプレースホルダーを、利用するエージェントの設定と実行ステップに置き換えてください。
+`.github/octestra/actions/task-agent/action.yml` は実装エージェントを、`.github/octestra/actions/validation-agent/action.yml` は検証エージェントを実行します。各ファイルのプレースホルダーを、利用するエージェントの設定と実行ステップに置き換えてください。
 
-インストールされるワークフローには、**custom region** があります。custom region は、対応する `# octestra:custom:begin <name>` と `# octestra:custom:end <name>` のマーカーに挟まれた行です。更新時には custom region の内容だけが新しいワークフローに引き継がれ、外側の内容は置き換えられます。
-
-| custom region         | 記述する内容                                                     |
-|-----------------------|------------------------------------------------------------------|
-| `agent-steps`         | 環境設定、依存関係、エージェントの実行、任意の成果物アップロード |
-| `agent-credentials`   | 各ステップに必要な Actions secret の名前と説明                   |
-| `in-progress-secrets` | メインワークフローから実装ワークフローへ渡す secret              |
-| `validation-secrets`  | メインワークフローから検証ワークフローへ渡す secret              |
-
-`agent-credentials` で宣言した secret は、対応する `in-progress-secrets` または `validation-secrets` から明示的に渡します。`secrets: inherit` は使用しないでください。実行エージェントに organization のすべての secret が渡されてしまいます。
-
-custom region の中では、次だけを参照してください。
-
-- `steps.epic.outputs.*`
-- `env.OCTESTRA_AGENT_GITHUB_TOKEN`
-- 同じワークフローファイルで宣言された `secrets`、`vars`、`inputs`
-
-custom region の外にあるワークフローステップを ID で参照してはいけません。更新でそのステップが削除または移動すると、GitHub は参照を空文字列として扱い、エージェントは不完全な設定で実行されます。
+Octestra は各 agent action を初回だけインストールし、以後の更新ではファイル全体を保持します。workflow は全体が置き換えられます。agent action では lifecycle context に `inputs.*`、エージェント用 GitHub token に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。
 
 ## 実装エージェント
 
-`lifecycle/prepare-task` は実装エージェントの前に実行され、次の値を公開します。
+`lifecycle/prepare-task` は実装エージェントの前に実行され、その出力は input として `task-agent/action.yml` に渡されます。
 
 | 名前                                 | 値                                                     |
 |--------------------------------------|--------------------------------------------------------|
-| `steps.epic.outputs.prompt`          | 描画済みの実装プロンプト                               |
-| `steps.epic.outputs.branch_name`     | エージェントが push する正確な branch 名               |
-| `steps.epic.outputs.task_ready`      | 既存の作業により新しい実行を開始できない場合は `false` |
-| `steps.epic.outputs.draft_flag`      | `--draft`、または空                                    |
-| `steps.epic.outputs.skip_validation` | 検証を省略するかどうか                                 |
-| `steps.epic.outputs.task_owner`      | タスクを担当する人                                     |
-| `steps.epic.outputs.epic_id`         | EPIC の識別子                                          |
-| `steps.epic.outputs.parent_number`   | EPIC の issue 番号                                     |
-| `steps.epic.outputs.skill_name`      | EPIC で指定された任意のスキル                          |
-| `steps.epic.outputs.target_file`     | 任意のタスク対象                                       |
-| `env.OCTESTRA_AGENT_GITHUB_TOKEN`    | エージェント用の GitHub token                          |
+| `inputs.issue-number`                 | task issue の番号                        |
+| `inputs.prompt`                       | 描画済みの実装プロンプト                 |
+| `inputs.branch-name`                  | エージェントが push する正確な branch 名 |
+| `inputs.draft-flag`                   | `--draft`、または空                      |
+| `inputs.skip-validation`              | 検証を省略するかどうか                   |
+| `inputs.task-owner`                   | タスクを担当する人                       |
+| `inputs.epic-id`                      | EPIC の識別子                            |
+| `inputs.parent-number`                | EPIC の issue 番号                       |
+| `inputs.skill-name`                   | EPIC で指定された任意のスキル            |
+| `inputs.target`                       | ファイル、クラス、機能などの任意のタスク対象 |
+| `env.OCTESTRA_AGENT_GITHUB_TOKEN`     | エージェント用の GitHub token            |
+
+ワークフローは composite action の呼び出し前に `task_ready` を確認します。action 内の各ステップで同じ条件を繰り返す必要はなく、`lifecycle/prepare-task` と同じ job、runner、workspace で実行されます。
 
 Claude Code Action の設定例です。
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
-  if: steps.epic.outputs.task_ready == 'true'
   with:
     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
-    branch_prefix: ${{ steps.epic.outputs.branch_name }}
+    branch_prefix: ${{ inputs.branch-name }}
     branch_name_template: "{{prefix}}"
-    prompt: ${{ steps.epic.outputs.prompt }}
+    prompt: ${{ inputs.prompt }}
 ```
 
 エージェントは `branch_name` と完全に同じ名前の branch を push し、その branch から pull request を開く必要があります。できなかった場合、Octestra は task issue を `Blocked` に移動します。
 
 ## 検証エージェント
 
-`lifecycle/prepare-validation` は pull request の branch を checkout してから、検証エージェントに次の値を公開します。
+`lifecycle/prepare-validation` は pull request の branch を解決します。ワークフローはその branch を checkout し、準備処理の出力を input として `validation-agent/action.yml` に渡します。
 
 | 名前 | 値 |
 |---|---|
-| `steps.epic.outputs.prompt` | 描画済みの検証プロンプト |
-| `steps.epic.outputs.pull_number` | 検証対象の pull request |
-| `steps.epic.outputs.result_path` | 検証結果の JSON を書き込むパス |
-| `steps.epic.outputs.artifact_path` | スクリーンショット、ログ、その他の証跡を保存するディレクトリ |
-| `steps.epic.outputs.branch_name` | checkout 済みの task branch |
-| `steps.epic.outputs.parent_number` | EPIC の issue 番号 |
-| `steps.epic.outputs.target_file` | 任意のタスク対象 |
+| `inputs.issue-number` | task issue の番号 |
+| `inputs.prompt` | 描画済みの検証プロンプト |
+| `inputs.pull-number` | 検証対象の pull request |
+| `inputs.result-path` | 検証結果の JSON を書き込むパス |
+| `inputs.artifact-path` | スクリーンショット、ログ、その他の証跡を保存するディレクトリ |
+| `inputs.branch-name` | checkout 済みの task branch |
+| `inputs.parent-number` | EPIC の issue 番号 |
+| `inputs.target` | ファイル、クラス、機能などの任意のタスク対象 |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub token |
 
-検証エージェントは `result_path` に JSON を書き込みます。
+action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済み workspace で実行されます。検証エージェントは `inputs.result-path` に JSON を書き込みます。
 
 ```json
 {

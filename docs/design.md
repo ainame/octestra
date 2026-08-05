@@ -24,7 +24,35 @@ graph — one event, one task.
 | D11 | `install.sh` rewrites the `uses:` reference in the workflows it installs: a fork tracks its own default branch, upstream is pinned to its newest version tag | A consumer who forks Octestra does so to execute only code their own organization controls, and their fork's default branch is the thing they update deliberately — pinning it to a tag would add a second step to every upgrade without adding a guarantee. An upstream install gets a tag instead, so the code a consumer runs cannot change between two installs. Templates still ship `@main` because a template must be runnable as committed, which makes this a rewrite of a valid value rather than placeholder substitution. |
 | D12 | Maintenance lives in `.github/octestra/octestra.sh`, installed into the consumer repository, and `install.sh` uses that copy for the initial variable sync | Mirroring, drift detection and ref switching are things a consumer does *after* installation, from their own checkout — a `make` target in this repository was documented but unreachable there. Installing the tool also removes the second implementation: one script owns config → variables, and every install exercises it. It needs only `gh`, because a consumer repository is not required to have node. |
 | D13 | A finished task PR is opened ready for review, is taken out of draft before review is requested, and gets no assignee; the EPIC opts out with `draft_pr: true` and out of validation with `skip_validation: true`, both defaulting to `false` | Every default here is the state a human wants at the moment they are asked to look. Marking a PR ready by hand is friction repeated on every task, and where validation runs the work has already been checked before a human sees it — so *ready* is the honest state, and requesting review on something GitHub labels a draft is a contradiction rather than a workflow. `skip_validation` is spelled as the exception it is: the negative name (`validation_required: false`) read as the normal case while describing the opt-out, and inverting it puts "run validation" in the default. The PR assignee was dropped because it duplicates the issue assignee while adding a second mobile notification for the same person. |
-| D14 | An installed workflow is updated by replacing everything outside its marked `octestra:custom:` regions and carrying the marked contents across; `octestra.sh update` drives it by running the target version's own `install.sh` | Rerunning the installer used to overwrite the agent wiring a consumer had written, so in practice an installation never took a newer Octestra. The alternatives were worse: a three-way merge needs the ancestor version, which nothing stores; leaving the workflows alone forever strands every consumer on the version they installed. Marking the customization surface makes the mechanism/policy split (`AGENTS.md`) machine-readable, and it is the same split the file's comments already described to humans. When a region cannot be carried — no markers, or a region the new version dropped — the installer keeps the previous file as `.octestra-bak` and says so, because the failure mode to avoid is silent loss, not manual work. Delegating to the downloaded `install.sh` keeps one implementation of the merge and means an update runs the new logic rather than whatever the consumer installed months ago. `config.yml` is exempt from the whole mechanism: it is rendered once and then belongs to the consumer, so an update reports contradictions instead of overwriting the runners and prompt paths they chose. |
+| D14 | Installed workflows are replaced in full; consumer-owned composite actions and `config.yml` are preserved in full; `octestra.sh update` drives the process by running the target version's own `install.sh` | Lifecycle workflows are mechanism that Octestra must be able to update coherently. Agent actions are policy: every line expresses how the consumer's agent runs, so there is no useful Octestra-owned remainder to merge. Keeping each file wholly on one side removes a merge protocol and makes update behavior explicit. Delegating to the downloaded `install.sh` keeps one implementation and means an update runs the new logic rather than whatever the consumer installed months ago. |
+| D15 | Lifecycle preparation, repository-defined agent execution, and finalization share one job and runner; the repository-defined steps live in local composite actions | Preparation publishes runtime state that the agent consumes immediately, so another job would start another runner only to reconstruct the same workspace and environment. A composite action provides a boundary inside the existing job; for task execution, the workflow also checks `task_ready` once so every setup and agent step inside the action is skipped together. |
+
+### Local composite action trade-offs
+
+The task and validation composite actions run as ordinary steps in their calling job. They therefore
+share its runner instance, operating system, workspace and environment. Consumer-owned actions may
+perform runner-specific setup such as selecting Xcode, installing Homebrew packages or configuring
+Ruby, and may branch on `runner.os`. The parent job still chooses the runner through
+`OCTESTRA_AGENT_RUNNER`.
+
+This boundary has deliberate limitations:
+
+- A composite action cannot select `runs-on` or declare job permissions, timeouts, concurrency,
+  services or containers. Those remain properties of the calling workflow job.
+- A composite action cannot read the `secrets` context directly. The reusable workflow declares
+  each credential, its caller passes it explicitly, and the action call maps it to `env`.
+- It is an organization boundary, not a security boundary. The action shares the job's token,
+  permissions, environment and writable workspace.
+- GitHub Actions displays the action as one outer workflow step. Its nested steps retain separate
+  logs, but the workflow graph is less direct than listing every step inline.
+- A repository-local action exists only after checkout. Both lifecycle workflows already check out
+  the consumer repository before invoking their local action, so this adds no second clone or
+  checkout.
+- Every composite `run` step must declare its shell. A reusable workflow would avoid that detail,
+  but would require another job and runner, which contradicts D15.
+- An installed composite action receives no later template improvements automatically because the
+  entire file belongs to the consumer. Workflow changes must remain compatible with older action
+  files; a consumer adopts action-template changes manually.
 
 ### Rejected alternatives
 

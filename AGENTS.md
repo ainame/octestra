@@ -37,6 +37,7 @@ src/
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
 templates/.github/
   workflows/                   no placeholders; install.sh rewrites only the action ref and OIDC
+  octestra/actions/            consumer-owned task and validation agent composite actions
   octestra/config.yml          the ONLY file install.sh generates
   octestra/octestra.sh         installed maintenance CLI: doctor, update, vars check|sync, ref
   octestra/prompts/            handlebars prompts, read from the consumer's checkout
@@ -149,14 +150,6 @@ unrewritten.
 by someone who has never seen this repository, so they must not lean on its vocabulary. Name the
 thing, not the concept: "the step that creates the App token", not "the trust boundary".
 
-A term that exists only here is *defined where the reader first meets it, and used normally after
-that*. Octestra's own nouns are the trap, because they read as ordinary English — nothing warns a
-consumer that *custom region* is a term. So introduce it: "each custom region — the lines enclosed
-by a matching pair of `# octestra:custom:begin <name>` and `# octestra:custom:end <name>` markers".
-Do not instead avoid the term. Circumlocution costs more words at every recurrence and drifts into
-a chatty register ("what you wrote between…"), which is the wrong voice for a file someone edits in
-their production repository.
-
 `docs/glossary.md` carries that first-mention wording for every term, and separates the terms a
 consumer reads from the ones only a contributor may use. Take the phrasing from there rather than
 inventing one, and add a new term there before it reaches a template.
@@ -167,45 +160,28 @@ verify nor act on it, and the sentence rots on its own. `AGENTS.md`, `docs/desig
 `TODO.md` are the opposite. They are written for people building Octestra, so the internal
 vocabulary, the invariant numbers and the roadmap belong there and only there.
 
-**Custom regions are the update contract (D14).** A rerun of `install.sh` replaces an installed
-workflow except for the parts between `# octestra:custom:begin <name>` and
-`# octestra:custom:end <name>`, whose contents it carries into the new version. So the line between
-mechanism and policy is now written into the templates themselves, and it cuts both ways:
-
-- Content a consumer is expected to write goes **inside** a region. If it is outside one, every
-  update silently discards it.
-- Content Octestra needs to keep updating — `prepare-*`, `finalize-*`, the guard, the permissions
-  ceiling (P11) — stays **outside**. Anything you put inside a region freezes at the version each
-  consumer installed, and you cannot fix it for them later.
-
-Give a region the narrowest scope that holds one decision (`agent-credentials`, not `the whole
-job`). Never rename or drop a region without accepting that every installation that used it gets a
-`.octestra-bak` file and a manual migration. Every template that declares a region also documents
-it in the file's header comment, because that comment is where a consumer looks first.
-
-A region has an *interface*, and it is as binding as the region name. Carried-over content may
-reference only `steps.epic.outputs.*`, `env.OCTESTRA_*`, and the `secrets`/`vars`/`inputs` the
-template declares — never another step's id. A `steps.<id>` naming something outside the region
-couples content you cannot edit to a step you must be free to move, and the failure is silent
-rather than loud: GitHub resolves a reference to an absent step to `''`, so the update succeeds,
-`doctor` passes, and the agent runs with an empty value. Anything a region needs from Octestra is
-therefore published under a stable `OCTESTRA_*` name by a step outside it — which is what
-`OCTESTRA_AGENT_GITHUB_TOKEN` exists for. `test/install.test.sh` fails when a template breaks this.
-
 The consumer's entry point is `octestra.sh update`, which downloads a reference and runs **that
 version's** `install.sh` against the repository. Two consequences:
 
-- The merge, the action-reference rewrite and the variable sync live in `install.sh` only. Do not
+- The workflow replacement, action preservation, action-reference rewrite and variable sync live in
+  `install.sh` only. Do not
   reimplement any of them in `octestra.sh`; an update is meant to run the new logic, not the old.
 - The flags `update` passes — `--target`, `--source-dir`, `--org`, `--status-field`,
   `--skill-target`, `--github-app-client-id`, `--repository`, `--ref`, `--yes`, `--enable-oidc` —
   are a compatibility surface with *older installed scripts*. Removing or renaming one breaks
   `update` for every installation that predates the change.
 
-Anything that lives outside a custom region and that a consumer can still toggle must be
-reconstructed by `update` from the installed state, the way `--enable-oidc` is recovered by looking
-for an uncommented `id-token: write`. A new toggle of that kind needs the same treatment or an
-update silently reverts it.
+Installed workflows belong to Octestra and are replaced on update. The task and validation
+composite actions belong to the consumer after their first installation, so updates preserve them
+in full. Octestra may extend the inputs passed by its workflow, but must not depend on updating an
+already-installed action to consume them. Any workflow toggle, such as `--enable-oidc`, must be
+reconstructed by `update` from the installed state or an update silently reverts it.
+
+**Agent execution stays with preparation.** Lifecycle preparation, agent execution and finalization
+share one job and runner instance. Do not split preparation into a producer job merely to condition
+the agent job: that starts another runner and loses the workspace and process environment
+preparation just established. The local task and validation composite actions are the boundaries
+for repository-owned setup and execution steps.
 
 **config.yml survives an update.** `install.sh` renders it only when the file does not exist; a
 rerun keeps the consumer's copy and reports any value it resolved that the file contradicts. So a

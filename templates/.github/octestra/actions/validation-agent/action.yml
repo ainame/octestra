@@ -1,0 +1,77 @@
+# Repository-owned setup and agent execution for Octestra validation. Octestra installs this file
+# only when it does not already exist; later updates preserve the whole file.
+#
+# WHAT STEPS MAY REFERENCE
+# Use `inputs.*` for validation context and `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub
+# token. Static credentials mapped by octestra-lifecycle-validation.yml are also available through
+# `env`. Composite actions cannot read the `secrets` context directly.
+name: Octestra validation agent
+description: Repository-configured setup and agent execution for Octestra validation
+
+inputs:
+  issue-number:
+    description: Task issue number
+    required: true
+  parent-number:
+    description: Parent EPIC issue number
+    required: true
+  branch-name:
+    description: Checked-out task branch
+    required: true
+  pull-number:
+    description: Pull request being validated
+    required: true
+  prompt:
+    description: Rendered validation instructions
+    required: true
+  result-path:
+    description: Path where the validation result JSON must be written
+    required: true
+  artifact-path:
+    description: Directory for validation evidence
+    required: true
+  target:
+    description: Configured file, class, feature, or other target, if any
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Configure validation agent
+      shell: bash
+      run: |
+        echo "::error::Replace this step with the repository's validation agent configuration."
+        exit 1
+
+    # Example: configure cloud credentials with GitHub OIDC.
+    #
+    # - name: Configure AWS credentials
+    #   uses: aws-actions/configure-aws-credentials@v6
+    #   with:
+    #     role-to-assume: arn:aws:iam::000000000000:role/example-role
+    #     aws-region: example-region
+    #
+    # Example: replace the placeholder step above with Claude Code Action.
+    # Do not set track_progress: validation starts from an issue-field event.
+    #
+    # - name: Run Claude Code validation
+    #   uses: anthropics/claude-code-action@v1
+    #   with:
+    #     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
+    #     use_bedrock: "true"
+    #     claude_args: >-
+    #       --model ${{ env.BEDROCK_DEFAULT_OPUS_MODEL }}
+    #       --allowedTools "Bash,Read,Write,Edit,Grep,Glob,mcp__XcodeBuildMCP__*"
+    #     prompt: ${{ inputs.prompt }}
+
+    # Upload partial evidence even when the validation agent fails.
+    #
+    # - name: Upload validation artifacts
+    #   if: always()
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: octestra-validation-${{ inputs.issue-number }}
+    #     path: |
+    #       ${{ inputs.artifact-path }}
+    #       ${{ inputs.result-path }}
+    #     if-no-files-found: warn

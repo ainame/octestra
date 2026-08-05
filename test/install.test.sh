@@ -13,43 +13,68 @@ count_references() {
   { grep -R -o -- "$pattern" "$path" || true; } | wc -l | tr -d ' '
 }
 
-# A region's contents are carried across updates verbatim, so they may name only the symbols
-# Octestra keeps stable. A reference to any other step survives into a version where that step is
-# gone, and GitHub resolves it to an empty string instead of failing — the breakage would be
-# silent. Credentials reach a region through env.OCTESTRA_AGENT_GITHUB_TOKEN for that reason.
-#
-# The marker match is anchored exactly as `custom_region_marker` in install.sh anchors it, so a
-# comment that merely quotes a marker name stays prose here too. Loosen one side only and this
-# check reports lines the merge never treated as a region.
-assert_region_interface() {
-  local template="$1"
-  local offenders
+assert_task_action_interface() {
+  local workflow="$1"
+  local action="$2"
 
-  offenders=$(awk '
-    /^[[:space:]]*# octestra:custom:begin / { inside = 1; next }
-    /^[[:space:]]*# octestra:custom:end /   { inside = 0; next }
-    inside {
-      line = $0
-      while (match(line, /steps\.[A-Za-z0-9_-]+/)) {
-        symbol = substr(line, RSTART, RLENGTH)
-        if (symbol != "steps.epic") {
-          printf "  line %d: %s\n", NR, symbol
-        }
-        line = substr(line, RSTART + RLENGTH)
-      }
-    }
-  ' "$template")
+  node - "$workflow" "$action" <<'NODE'
+const fs = require("fs");
+const yaml = require("yaml");
 
-  if [[ -n "$offenders" ]]; then
-    printf 'custom region in %s references a symbol outside the documented interface:\n%s' \
-      "${template#"$ROOT"/}" "$offenders" >&2
-    exit 1
-  fi
+const workflow = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
+const action = yaml.parse(fs.readFileSync(process.argv[3], "utf8"));
+const step = workflow.jobs["in-progress"].steps.find(
+  (candidate) => candidate.uses === "./.github/octestra/actions/task-agent",
+);
+if (!step) {
+  throw new Error("task workflow does not call the local task-agent action");
+}
+if (step.if !== "steps.epic.outputs.task_ready == 'true'") {
+  throw new Error("task-agent action is not guarded by task_ready");
+}
+const declared = Object.keys(action.inputs).sort();
+const passed = Object.keys(step.with).sort();
+if (JSON.stringify(declared) !== JSON.stringify(passed)) {
+  throw new Error(`task-agent inputs differ: declared=${declared} passed=${passed}`);
+}
+if (step.env.OCTESTRA_AGENT_GITHUB_TOKEN !== "${{ steps.app-token.outputs.token }}") {
+  throw new Error("task-agent GitHub token is not passed through its stable environment name");
+}
+if (action.runs.using !== "composite") {
+  throw new Error("task-agent action is not composite");
+}
+NODE
 }
 
-for workflow_template in "$ROOT"/templates/.github/workflows/*.yml; do
-  assert_region_interface "$workflow_template"
-done
+assert_validation_action_interface() {
+  local workflow="$1"
+  local action="$2"
+
+  node - "$workflow" "$action" <<'NODE'
+const fs = require("fs");
+const yaml = require("yaml");
+
+const workflow = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
+const action = yaml.parse(fs.readFileSync(process.argv[3], "utf8"));
+const step = workflow.jobs.validation.steps.find(
+  (candidate) => candidate.uses === "./.github/octestra/actions/validation-agent",
+);
+if (!step) {
+  throw new Error("validation workflow does not call the local validation-agent action");
+}
+const declared = Object.keys(action.inputs).sort();
+const passed = Object.keys(step.with).sort();
+if (JSON.stringify(declared) !== JSON.stringify(passed)) {
+  throw new Error(`validation-agent inputs differ: declared=${declared} passed=${passed}`);
+}
+if (step.env.OCTESTRA_AGENT_GITHUB_TOKEN !== "${{ steps.app-token.outputs.token }}") {
+  throw new Error("validation-agent GitHub token is not passed through its stable environment name");
+}
+if (action.runs.using !== "composite") {
+  throw new Error("validation-agent action is not composite");
+}
+NODE
+}
 
 mkdir -p "$TEMP_DIR/bin" "$TEMP_DIR/consumer"
 git -C "$TEMP_DIR/consumer" init --quiet
@@ -496,7 +521,18 @@ fi
 
 test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
 test -f "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
+test -f "$TEMP_DIR/consumer/.github/octestra/actions/task-agent/action.yml"
+test -f "$TEMP_DIR/consumer/.github/octestra/actions/validation-agent/action.yml"
+assert_task_action_interface \
+  "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml" \
+  "$TEMP_DIR/consumer/.github/octestra/actions/task-agent/action.yml"
+assert_validation_action_interface \
+  "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml" \
+  "$TEMP_DIR/consumer/.github/octestra/actions/validation-agent/action.yml"
 grep -q 'operation: lifecycle/prepare-task' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
+grep -q 'uses: ./.github/octestra/actions/task-agent' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
+grep -q "if: steps.epic.outputs.task_ready == 'true'" "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
+grep -q 'branch-name: \${{ steps.epic.outputs.branch_name }}' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-in-progress.yml"
 grep -q 'operation: lifecycle/prepare-validation' "$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle-validation.yml"
 grep -q 'owner: \${{ github.repository_owner }}' "$orchestrator"
 grep -q 'repositories: \${{ github.repository }}' "$orchestrator"
@@ -685,7 +721,7 @@ grep -q "must be a git ref" "$malformed_ref_output"
 printf 'Maintenance script tests passed\n'
 
 # ---------------------------------------------------------------------------
-# Updating an installation: marked custom regions survive, everything else does not.
+# Updating an installation: workflows are replaced and agent actions are preserved.
 # ---------------------------------------------------------------------------
 new_consumer() {
   local target="$1"
@@ -712,31 +748,24 @@ install_into() {
         --yes "$@"
 }
 
-# Replaces the body of one custom region, the way a consumer editing the file would.
-customize_region() {
+customize_action() {
   local file="$1"
-  local region="$2"
-  local content="$3"
-  local output="$file.customized"
-  local line=""
-  local inside=false
+  local command="$2"
 
-  : > "$output"
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ "$line" == *"octestra:custom:begin $region" ]]; then
-      printf '%s\n%s\n' "$line" "$content" >> "$output"
-      inside=true
-      continue
-    fi
-    if [[ "$line" == *"octestra:custom:end $region" ]]; then
-      inside=false
-    fi
-    if [[ "$inside" == true ]]; then
-      continue
-    fi
-    printf '%s\n' "$line" >> "$output"
-  done < "$file"
-  mv "$output" "$file"
+  node - "$file" "$command" <<'NODE'
+const fs = require("fs");
+const yaml = require("yaml");
+
+const file = process.argv[2];
+const command = process.argv[3];
+const action = yaml.parse(fs.readFileSync(file, "utf8"));
+action.runs.steps = [{
+  name: "Run the repository agent",
+  shell: "bash",
+  run: command,
+}];
+fs.writeFileSync(file, yaml.stringify(action));
+NODE
 }
 
 parses_as_yaml() {
@@ -746,111 +775,55 @@ parses_as_yaml() {
 update_dir="$TEMP_DIR/consumer-update"
 update_entry="$update_dir/.github/workflows/octestra-lifecycle.yml"
 update_in_progress="$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
+update_agent="$update_dir/.github/octestra/actions/task-agent/action.yml"
+update_validation="$update_dir/.github/workflows/octestra-lifecycle-validation.yml"
+update_validation_agent="$update_dir/.github/octestra/actions/validation-agent/action.yml"
 new_consumer "$update_dir"
 install_into "$update_dir" >/dev/null
 
-customize_region "$update_in_progress" agent-steps "      - name: Run the repository agent
-        run: ./scripts/agent.sh"
-customize_region "$update_in_progress" agent-credentials "      your_agent_api_key:
-        description: API key for the task agent
-        required: true"
-customize_region "$update_entry" in-progress-secrets \
-  '      your_agent_api_key: ${{ secrets.YOUR_AGENT_API_KEY }}'
+customize_action "$update_agent" "./scripts/agent.sh"
+customize_action "$update_validation_agent" "./scripts/validation-agent.sh"
 # A managed line the consumer also changed, to prove Octestra's own content is restored.
 sed 's/timeout-minutes: 60/timeout-minutes: 5/' "$update_in_progress" >"$update_in_progress.edit"
 mv "$update_in_progress.edit" "$update_in_progress"
 
 install_into "$update_dir" >/dev/null
-grep -q 'run: ./scripts/agent.sh' "$update_in_progress"
-grep -q 'description: API key for the task agent' "$update_in_progress"
-grep -q 'your_agent_api_key: \${{ secrets.YOUR_AGENT_API_KEY }}' "$update_entry"
+grep -q 'run: ./scripts/agent.sh' "$update_agent"
+grep -q 'run: ./scripts/validation-agent.sh' "$update_validation_agent"
 grep -q 'timeout-minutes: 60' "$update_in_progress"
 if grep -q "Replace this step with the repository's task agent configuration" \
-  "$update_in_progress"; then
+  "$update_agent"; then
   echo "the update restored the placeholder agent step over the consumer's own" >&2
-  exit 1
-fi
-# Anywhere under .github, not only the workflows: the maintenance script mentions the marker
-# prefix in a constant without declaring a region, and must not be mistaken for one.
-if [[ -n "$(find "$update_dir/.github" -name "*.octestra-bak" -print)" ]]; then
-  echo "a mergeable update still left a backup:" >&2
-  find "$update_dir/.github" -name "*.octestra-bak" -print >&2
   exit 1
 fi
 parses_as_yaml "$update_in_progress"
 parses_as_yaml "$update_entry"
+parses_as_yaml "$update_agent"
+parses_as_yaml "$update_validation"
+parses_as_yaml "$update_validation_agent"
 
 # Reinstalling over a merged file must be a no-op, or every update would churn the diff.
-before_rerun=$(cat "$update_in_progress" "$update_entry")
+before_rerun=$(
+  cat \
+    "$update_in_progress" \
+    "$update_entry" \
+    "$update_agent" \
+    "$update_validation" \
+    "$update_validation_agent"
+)
 install_into "$update_dir" >/dev/null
-if [[ "$before_rerun" != "$(cat "$update_in_progress" "$update_entry")" ]]; then
+after_rerun=$(
+  cat \
+    "$update_in_progress" \
+    "$update_entry" \
+    "$update_agent" \
+    "$update_validation" \
+    "$update_validation_agent"
+)
+if [[ "$before_rerun" != "$after_rerun" ]]; then
   echo "a second identical install changed the merged workflows" >&2
   exit 1
 fi
-
-# An installation from before custom regions existed cannot be merged. The file is replaced
-# and the previous one kept beside it, because dropping it would discard the agent wiring.
-legacy_dir="$TEMP_DIR/consumer-legacy"
-legacy_in_progress="$legacy_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
-new_consumer "$legacy_dir"
-install_into "$legacy_dir" >/dev/null
-customize_region "$legacy_in_progress" agent-steps "      - name: Run the repository agent
-        run: ./scripts/legacy-agent.sh"
-grep -v 'octestra:custom:' "$legacy_in_progress" >"$legacy_in_progress.edit"
-mv "$legacy_in_progress.edit" "$legacy_in_progress"
-legacy_output="$TEMP_DIR/legacy-install-output"
-install_into "$legacy_dir" >"$legacy_output"
-grep -q 'has no # octestra:custom: markers' "$legacy_output"
-test -f "$legacy_in_progress.octestra-bak"
-grep -q 'run: ./scripts/legacy-agent.sh' "$legacy_in_progress.octestra-bak"
-grep -q 'octestra:custom:begin agent-steps' "$legacy_in_progress"
-if grep -q 'run: ./scripts/legacy-agent.sh' "$legacy_in_progress"; then
-  echo "an unmergeable file was silently kept instead of replaced" >&2
-  exit 1
-fi
-
-# A region the new version no longer has: carry over what still matches, keep a copy of the
-# rest, and let the new region's own body through.
-orphan_dir="$TEMP_DIR/consumer-orphan"
-orphan_in_progress="$orphan_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
-new_consumer "$orphan_dir"
-install_into "$orphan_dir" >/dev/null
-customize_region "$orphan_in_progress" agent-steps "      - name: Run the repository agent
-        run: ./scripts/orphan-agent.sh"
-customize_region "$orphan_in_progress" agent-credentials "      kept_api_key:
-        required: true"
-sed 's/agent-steps/legacy-agent-steps/g' "$orphan_in_progress" >"$orphan_in_progress.edit"
-mv "$orphan_in_progress.edit" "$orphan_in_progress"
-orphan_output="$TEMP_DIR/orphan-install-output"
-install_into "$orphan_dir" >"$orphan_output"
-grep -q 'has no custom region named legacy-agent-steps' "$orphan_output"
-test -f "$orphan_in_progress.octestra-bak"
-grep -q 'kept_api_key:' "$orphan_in_progress"
-grep -q "Replace this step with the repository's task agent configuration" \
-  "$orphan_in_progress"
-grep -q 'run: ./scripts/orphan-agent.sh' "$orphan_in_progress.octestra-bak"
-parses_as_yaml "$orphan_in_progress"
-
-# doctor reports markers a hand edit broke, before the next install acts on them.
-broken_regions_output="$TEMP_DIR/doctor-broken-regions-output"
-grep -v 'octestra:custom:end agent-steps' "$update_in_progress" >"$update_in_progress.edit"
-mv "$update_in_progress.edit" "$update_in_progress"
-if PATH="$TEMP_DIR/bin:$PATH" \
-  OCTESTRA_TEST_VARS="OCTESTRA_GITHUB_APP_CLIENT_ID=update-client-id OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET=CUSTOM_APP_PRIVATE_KEY OCTESTRA_ORCHESTRATION_RUNNER=ubuntu-latest OCTESTRA_AGENT_RUNNER=ubuntu-latest OCTESTRA_STATUS_FIELD_ID=9001" \
-  OCTESTRA_TEST_SECRETS="CUSTOM_APP_PRIVATE_KEY" \
-    bash "$update_dir/.github/octestra/octestra.sh" doctor >"$broken_regions_output" 2>&1; then
-  echo "doctor accepted unbalanced custom region markers" >&2
-  exit 1
-fi
-grep -q 'unbalanced custom region markers' "$broken_regions_output"
-
-# An install must refuse to guess at those markers rather than drop the region's contents.
-unbalanced_output="$TEMP_DIR/unbalanced-install-output"
-if install_into "$update_dir" >"$unbalanced_output" 2>&1; then
-  echo "the installer merged a file with unbalanced markers" >&2
-  exit 1
-fi
-grep -q 'never ends custom region' "$unbalanced_output"
 
 # ---------------------------------------------------------------------------
 # octestra.sh update: the same merge, driven from the consumer's own repository.
@@ -874,23 +847,22 @@ run_update() {
 
 cli_dir="$TEMP_DIR/consumer-cli-update"
 cli_entry="$cli_dir/.github/workflows/octestra-lifecycle.yml"
-cli_in_progress="$cli_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
+cli_agent="$cli_dir/.github/octestra/actions/task-agent/action.yml"
 cli_config="$cli_dir/.github/octestra/config.yml"
 new_consumer "$cli_dir"
 install_into "$cli_dir" --enable-oidc >/dev/null
-customize_region "$cli_in_progress" agent-steps "      - name: Run the repository agent
-        run: ./scripts/cli-agent.sh"
+customize_action "$cli_agent" "./scripts/cli-agent.sh"
 printf 'runners:\n  agent: macos-15\n' >>"$cli_config"
 # Something Octestra owns, to prove the update really reinstalled it.
 rm "$cli_dir/.github/octestra/prompts/lifecycle-validation.md.hbs"
 
 cli_output="$TEMP_DIR/cli-update-output"
 run_update "$cli_dir" bash >"$cli_output"
-grep -q 'run: ./scripts/cli-agent.sh' "$cli_in_progress"
+grep -q 'run: ./scripts/cli-agent.sh' "$cli_agent"
 grep -q 'agent: macos-15' "$cli_config"
 test -f "$cli_dir/.github/octestra/prompts/lifecycle-validation.md.hbs"
 grep -q "updated to ainame/octestra@main" "$cli_output"
-# OIDC lives on a line outside every custom region, so only an explicit flag preserves it.
+# OIDC is reconstructed from the installed workflow by update.
 if grep -q '^  # id-token: write$' "$cli_entry"; then
   echo "update reverted the OIDC permission" >&2
   exit 1
@@ -904,13 +876,13 @@ grep -q '^9\.9\.9$' "$TEMP_DIR/update-tarball-ref"
 grep -q 'uses: ainame/octestra@9\.9\.9' "$cli_entry"
 test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$cli_dir/.github/octestra/octestra.sh" ref)" = \
   "ainame/octestra@9.9.9"
-grep -q 'run: ./scripts/cli-agent.sh' "$cli_in_progress"
+grep -q 'run: ./scripts/cli-agent.sh' "$cli_agent"
 
 # install.sh and octestra.sh run on consumer machines, where /bin/bash may be 3.2. An empty
 # array expanded under `set -u` is fatal there, so one update runs through it end to end.
 if [[ -x /bin/bash ]]; then
   run_update "$cli_dir" /bin/bash >/dev/null
-  grep -q 'run: ./scripts/cli-agent.sh' "$cli_in_progress"
+  grep -q 'run: ./scripts/cli-agent.sh' "$cli_agent"
 fi
 
 printf 'Workflow update tests passed\n'

@@ -328,7 +328,7 @@ export async function buildTaskContext(
   core.setOutput("draft_flag", draftFlag);
   core.setOutput("skip_validation", String(config.skipValidation));
   core.setOutput("prompt", prompt);
-  core.setOutput("target_file", taskConfig.target ?? "");
+  core.setOutput("target", taskConfig.target ?? "");
   core.setOutput("task_owner", taskOwner);
 }
 
@@ -414,7 +414,7 @@ export async function buildValidationContext(
   core.setOutput("pull_number", pullNumber);
   core.setOutput("result_path", path.join(runnerTemp, "task-validation-result.json"));
   core.setOutput("artifact_path", path.join(runnerTemp, "octestra-validation-artifacts"));
-  core.setOutput("target_file", taskConfig.target ?? "");
+  core.setOutput("target", taskConfig.target ?? "");
 }
 
 // This boundary is intentionally an aggregate even though preparation is currently

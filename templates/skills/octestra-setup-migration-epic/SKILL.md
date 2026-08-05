@@ -63,10 +63,11 @@ vendored, and explicitly excluded files unless requested.
 Each task has:
 
 - `title`: concise, human-readable issue title.
-- `target`: repository-relative path, or `null` for work without one target file.
+- `target`: file, class, feature, or other concise description of the work target; use `null` when
+  the task has no single target.
 
-File-backed tasks may default their title to the target path. Standalone tasks should
-use a descriptive title. Remove duplicates and present the final ordered list for
+Tasks may default their title to a concise target. Tasks without one should use a descriptive
+title. Remove duplicates and present the final ordered list for
 confirmation. Explain that Octestra creates one EPIC per 100 tasks. The generated issue-body
 contracts leave optional prompts blank so the user can customize each EPIC or task afterward.
 
