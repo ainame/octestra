@@ -1,6 +1,6 @@
 {
   "name": "@ainame/octestra-action",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Octestra GitHub Action for issue-driven migrations",
   "main": "dist/index.js",

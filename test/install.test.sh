@@ -398,16 +398,15 @@ if [[ "$leftover_references" != "0" ]]; then
   exit 1
 fi
 
-# An upstream install pins the newest plain version tag: 1.10 outranks 1.9, a release
-# candidate is not a plain version, and the moving major tag that release.yml force-pushes
-# beside each release loses to the exact version it points at.
+# An upstream install pins the newest stable version tag: v1.11.0 outranks both the legacy
+# unprefixed 1.10.0 tag and moving v1 tag, while release candidates remain ineligible.
 mkdir -p "$TEMP_DIR/consumer-tagged"
 git -C "$TEMP_DIR/consumer-tagged" init --quiet
 git -C "$TEMP_DIR/consumer-tagged" remote add origin git@github.com:example-org/consumer-tagged.git
 PATH="$TEMP_DIR/bin:$PATH" \
   OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
   OCTESTRA_TEST_REPO_VIEW_FAIL=true \
-  OCTESTRA_TEST_TAGS="1 1.9.0 1.10.0 v1.11.0 01.12.0 1.11.0-rc1 nightly" \
+  OCTESTRA_TEST_TAGS="1 1.9.0 1.10.0 v1 1.11.0 v1.11.0 01.12.0 v1.11.0-rc1 nightly" \
   bash "$ROOT/install.sh" \
     --org example-org \
     --status-field "AI Task Status" \
@@ -415,7 +414,7 @@ PATH="$TEMP_DIR/bin:$PATH" \
     --source-dir "$ROOT" \
     --skill-target codex \
     --yes
-tagged_references=$(count_references 'ainame/octestra@1\.10\.0' "$TEMP_DIR/consumer-tagged/.github")
+tagged_references=$(count_references 'ainame/octestra@v1\.11\.0' "$TEMP_DIR/consumer-tagged/.github")
 if [[ "$tagged_references" != "$template_references" ]]; then
   echo "tagged install pinned $tagged_references of $template_references action references" >&2
   exit 1
@@ -424,6 +423,26 @@ if grep -R 'ainame/octestra@main' "$TEMP_DIR/consumer-tagged/.github" >/dev/null
   echo "tagged install left an unpinned action reference" >&2
   exit 1
 fi
+
+# Existing installations may have only an unprefixed release tag. Keep resolving it until every
+# maintained source repository has published a prefixed release.
+mkdir -p "$TEMP_DIR/consumer-legacy-tagged"
+git -C "$TEMP_DIR/consumer-legacy-tagged" init --quiet
+git -C "$TEMP_DIR/consumer-legacy-tagged" remote add origin \
+  git@github.com:example-org/consumer-legacy-tagged.git
+PATH="$TEMP_DIR/bin:$PATH" \
+  OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
+  OCTESTRA_TEST_REPO_VIEW_FAIL=true \
+  OCTESTRA_TEST_TAGS="0.0.1 0.0.2" \
+  bash "$ROOT/install.sh" \
+    --org example-org \
+    --status-field "AI Task Status" \
+    --target "$TEMP_DIR/consumer-legacy-tagged" \
+    --source-dir "$ROOT" \
+    --skill-target codex \
+    --yes
+grep -q 'uses: ainame/octestra@0\.0\.2' \
+  "$TEMP_DIR/consumer-legacy-tagged/.github/workflows/octestra-lifecycle.yml"
 
 # An explicit --repository/--ref pair wins over both defaults, tags included.
 mkdir -p "$TEMP_DIR/consumer-pinned"
@@ -475,7 +494,7 @@ git -C "$TEMP_DIR/consumer-piped" remote add origin git@github.com:example-org/c
     OCTESTRA_TEST_ARCHIVE="$TEMP_DIR/octestra-main.tar.gz" \
     OCTESTRA_TEST_REPO_VIEW_FAIL=true \
     OCTESTRA_TEST_STATE="$TEMP_DIR/field-created" \
-    OCTESTRA_TEST_TAGS="1.9.0 1.10.0" \
+    OCTESTRA_TEST_TAGS="1.9.0 v1.10.0" \
     OCTESTRA_TEST_TARBALL_REF="$TEMP_DIR/tarball-ref" \
       bash -s -- \
         --org example-org \
@@ -488,8 +507,8 @@ test -f "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-setup-migration-epic/SKILL.md"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-validation-proof/SKILL.md"
 # Templates are downloaded from the same ref the generated workflow calls.
-grep -q '^1\.10\.0$' "$TEMP_DIR/tarball-ref"
-grep -q 'uses: ainame/octestra@1\.10\.0' \
+grep -q '^v1\.10\.0$' "$TEMP_DIR/tarball-ref"
+grep -q 'uses: ainame/octestra@v1\.10\.0' \
   "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 
 # config.yml is the consumer's control plane, so a rerun keeps the file they have: rendering
@@ -695,14 +714,14 @@ if [[ "$switched_references" != "$template_references" ]]; then
   exit 1
 fi
 
-PATH="$TEMP_DIR/bin:$PATH" OCTESTRA_TEST_TAGS="1.9.0 1.10.0" \
+PATH="$TEMP_DIR/bin:$PATH" OCTESTRA_TEST_TAGS="1.9.0 v1.10.0" \
   bash "$maintenance" ref --latest >/dev/null
-test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "example-org/octestra@1.10.0"
+test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "example-org/octestra@v1.10.0"
 
 # Workflows that call a different Octestra than the script records — a hand edit on one side
 # — are a finding doctor must name rather than an error it dies on.
 for workflow in "$TEMP_DIR/consumer-doctor"/.github/workflows/octestra-*.yml; do
-  sed 's|example-org/octestra@1\.10\.0|other-org/octestra@main|g' "$workflow" > "$workflow.new"
+  sed 's|example-org/octestra@v1\.10\.0|other-org/octestra@main|g' "$workflow" > "$workflow.new"
   mv "$workflow.new" "$workflow"
 done
 mismatch_output="$TEMP_DIR/doctor-mismatch-output"

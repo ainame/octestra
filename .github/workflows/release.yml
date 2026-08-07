@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version from package.json (for example, 0.0.1)
+        description: Version from package.json (for example, 0.1.0)
         required: true
         type: string
 
@@ -52,29 +52,31 @@ jobs:
             exit 1
           fi
 
-          major_version=$(bash scripts/release-version.sh "$VERSION")
-          echo "major_version=$major_version" >> "$GITHUB_OUTPUT"
+          major_tag=$(bash scripts/release-version.sh "$VERSION")
+          version_tag="v$VERSION"
+          echo "major_tag=$major_tag" >> "$GITHUB_OUTPUT"
+          echo "version_tag=$version_tag" >> "$GITHUB_OUTPUT"
 
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "release already exists: $VERSION" >&2
+          if gh release view "$version_tag" >/dev/null 2>&1; then
+            echo "release already exists: $version_tag" >&2
             exit 1
           fi
 
-          existing_commit=$(git rev-parse --verify "refs/tags/$VERSION^{commit}" 2>/dev/null || true)
+          existing_commit=$(git rev-parse --verify "refs/tags/$version_tag^{commit}" 2>/dev/null || true)
           if [[ -n "$existing_commit" && "$existing_commit" != "$GITHUB_SHA" ]]; then
-            echo "tag $VERSION points at $existing_commit, not $GITHUB_SHA" >&2
+            echo "tag $version_tag points at $existing_commit, not $GITHUB_SHA" >&2
             exit 1
           fi
-          if [[ -n "$existing_commit" && "$(git cat-file -t "refs/tags/$VERSION")" != "tag" ]]; then
-            echo "existing release tag $VERSION is not annotated" >&2
+          if [[ -n "$existing_commit" && "$(git cat-file -t "refs/tags/$version_tag")" != "tag" ]]; then
+            echo "existing release tag $version_tag is not annotated" >&2
             exit 1
           fi
 
           latest_version=$(
             { git tag --list |
-              grep -E '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || true; } |
-              sort -V |
-              tail -n 1
+            sed -nE 's/^v?((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$/\1/p' || true; } |
+            sort -V |
+            tail -n 1
           )
           if [[ -n "$latest_version" && "$latest_version" != "$VERSION" ]]; then
             newest=$(printf '%s\n%s\n' "$latest_version" "$VERSION" | sort -V | tail -n 1)
@@ -95,8 +97,8 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
-          MAJOR_VERSION: ${{ steps.release.outputs.major_version }}
-          VERSION: ${{ inputs.version }}
+          MAJOR_TAG: ${{ steps.release.outputs.major_tag }}
+          VERSION_TAG: ${{ steps.release.outputs.version_tag }}
         run: |
           git fetch origin "$DEFAULT_BRANCH" --tags --force
           default_sha=$(git rev-parse "origin/$DEFAULT_BRANCH")
@@ -107,16 +109,16 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git show-ref --verify --quiet "refs/tags/$VERSION"; then
-            git tag -a "$VERSION" -m "Release $VERSION" "$GITHUB_SHA"
+          if ! git show-ref --verify --quiet "refs/tags/$VERSION_TAG"; then
+            git tag -a "$VERSION_TAG" -m "Release $VERSION_TAG" "$GITHUB_SHA"
           fi
-          git push origin "refs/tags/$VERSION"
+          git push origin "refs/tags/$VERSION_TAG"
 
-          git tag -fa "$MAJOR_VERSION" -m "Update $MAJOR_VERSION to $VERSION" "$GITHUB_SHA"
-          git push origin "refs/tags/$MAJOR_VERSION" --force
+          git tag -fa "$MAJOR_TAG" -m "Update $MAJOR_TAG to $VERSION_TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$MAJOR_TAG" --force
 
-          gh release create "$VERSION" \
+          gh release create "$VERSION_TAG" \
             --generate-notes \
             --latest \
-            --title "$VERSION" \
+            --title "$VERSION_TAG" \
             --verify-tag

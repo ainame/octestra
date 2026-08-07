@@ -2,11 +2,12 @@
 
 Octestra releases are published by `.github/workflows/release.yml`. A release has two tags:
 
-- An immutable, annotated `MAJOR.MINOR.PATCH` tag, such as `0.0.1`.
-- A moving `MAJOR` tag, such as `0`, for consumers that deliberately follow compatible releases.
+- An immutable, annotated `vMAJOR.MINOR.PATCH` tag, such as `v0.1.0`.
+- A moving `vMAJOR` tag, such as `v0`, for consumers that deliberately follow compatible releases.
 
-Neither tag has a `v` prefix. The installer and installed maintenance script consider only numeric
-tags when they resolve the newest release.
+The installer and installed maintenance script resolve the newest stable `vMAJOR.MINOR.PATCH` tag.
+They continue to recognize older unprefixed tags during this migration, but new releases use the
+`v` prefix.
 
 ## Prepare
 
@@ -23,7 +24,7 @@ branch commit.
 Run the workflow from the default branch with the same version:
 
 ```sh
-gh workflow run release.yml --ref main -f version=0.0.1
+gh workflow run release.yml --ref main -f version=0.1.0
 ```
 
 The workflow runs `make all` again, checks that the build left no uncommitted changes, creates the

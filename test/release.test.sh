@@ -4,9 +4,9 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 VERSION=$(node -p "require('$ROOT/package.json').version")
-MAJOR_VERSION=${VERSION%%.*}
+MAJOR_TAG="v${VERSION%%.*}"
 
-test "$(bash "$ROOT/scripts/release-version.sh" "$VERSION")" = "$MAJOR_VERSION"
+test "$(bash "$ROOT/scripts/release-version.sh" "$VERSION")" = "$MAJOR_TAG"
 
 for invalid in "v$VERSION" "${VERSION}.0" "01.2.3" "1.02.3" "1.2.03" "1.2" ""; do
   if bash "$ROOT/scripts/release-version.sh" "$invalid" >/dev/null 2>&1; then
