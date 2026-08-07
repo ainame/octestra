@@ -16,6 +16,9 @@ responsible for repository analysis, user decisions, and manifest generation.
 
 - `gh` is installed and authenticated.
 - Ruby is available. No gems are required.
+- When a command reads or writes non-ASCII content, first confirm that its locale uses UTF-8. If it
+  does not, run that command with `LANG=en_US.UTF-8`; the bundled Ruby script is the important case
+  because it reads the manifest and writes issue titles and bodies.
 - The target is an organization-owned repository with Octestra installed.
 - The organization Project has its **Auto-add sub-issues to project** workflow enabled.
 
@@ -119,7 +122,7 @@ deterministic. Other EPIC creation flows may use any lowercase slug as the ID an
 Locate this skill's directory in the active agent skill root, then run:
 
 ```bash
-ruby <skill-directory>/scripts/setup_epic.rb /path/to/manifest.json \
+LANG=en_US.UTF-8 ruby <skill-directory>/scripts/setup_epic.rb /path/to/manifest.json \
   --state /path/to/state.json \
   --result /path/to/result.json \
   --contract-dir .github/octestra/issue-templates
