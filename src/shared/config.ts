@@ -4,7 +4,7 @@ export interface OctestraConfig {
   version: 1;
   github_app: { client_id: string };
   runners: { orchestration: string; agent: string };
-  status: { field_name: string; field_id: string };
+  status: { field_name: string; field_id: number };
   branch: { task: string };
   prompts: { lifecycle_in_progress: string; lifecycle_validation: string };
 }
@@ -16,6 +16,13 @@ function mapping(value: unknown, name: string): Record<string, unknown> {
 function requiredString(value: unknown, name: string): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`config.yml ${name} must be a non-empty string`);
   return value.trim();
+}
+function requiredPositiveInteger(value: unknown, name: string): number {
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number <= 0) {
+    throw new Error(`config.yml ${name} must be a positive integer`);
+  }
+  return number;
 }
 export function parseOctestraConfig(raw: string): OctestraConfig {
   const root = mapping(parse(raw), "root");
@@ -29,7 +36,10 @@ export function parseOctestraConfig(raw: string): OctestraConfig {
     version: 1,
     github_app: { client_id: requiredString(app.client_id, "github_app.client_id") },
     runners: { orchestration: requiredString(runners.orchestration, "runners.orchestration"), agent: requiredString(runners.agent, "runners.agent") },
-    status: { field_name: requiredString(status.field_name, "status.field_name"), field_id: requiredString(status.field_id, "status.field_id") },
+    status: {
+      field_name: requiredString(status.field_name, "status.field_name"),
+      field_id: requiredPositiveInteger(status.field_id, "status.field_id"),
+    },
     branch: { task: requiredString(branch.task, "branch.task") },
     prompts: { lifecycle_in_progress: requiredString(prompts.lifecycle_in_progress, "prompts.lifecycle_in_progress"), lifecycle_validation: requiredString(prompts.lifecycle_validation, "prompts.lifecycle_validation") },
   };

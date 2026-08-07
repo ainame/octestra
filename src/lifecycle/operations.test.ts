@@ -80,7 +80,7 @@ function createContext(client: OperationsClient): OperationContext {
   return {
     client,
     issueNumber: 123,
-    statusFieldName: "AI Task Status",
+    statusFieldId: 456,
   };
 }
 
@@ -212,7 +212,7 @@ describe("prepareTask", () => {
 
     await prepareTask(createContext(client), "prompt.md.hbs", "task-owner", "User");
 
-    expect(client.updateStatus).toHaveBeenCalledWith(123, "AI Task Status", "Blocked");
+    expect(client.updateStatus).toHaveBeenCalledWith(123, 456, "Blocked");
     expect(client.comment).toHaveBeenCalledWith(
       123,
       expect.stringContaining("@task-owner"),
@@ -442,7 +442,7 @@ describe("finalizeMergedTask", () => {
 
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      "AI Task Status",
+      456,
       "Done",
     );
   });
@@ -455,7 +455,7 @@ describe("finalizeMergedTask", () => {
 
     await finalizeMergedTask(createContext(client));
 
-    expect(client.getStatus).toHaveBeenCalledWith(123, "AI Task Status");
+    expect(client.getStatus).toHaveBeenCalledWith(123, 456);
     expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
@@ -486,7 +486,7 @@ describe("finalizeTask", () => {
     expect(client.requestReviewer).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      "AI Task Status",
+      456,
       "Validation",
     );
   });
@@ -512,7 +512,7 @@ describe("finalizeTask", () => {
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      "AI Task Status",
+      456,
       "Human Review",
     );
   });
@@ -527,7 +527,7 @@ describe("finalizeTask", () => {
     expect(client.findOpenPullRequest).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      "AI Task Status",
+      456,
       "Blocked",
     );
   });
@@ -707,7 +707,7 @@ describe("finalizeValidation", () => {
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      "AI Task Status",
+      456,
       "Human Review",
     );
   });
@@ -727,7 +727,7 @@ describe("finalizeValidation", () => {
     expect(client.requestReviewer).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      "AI Task Status",
+      456,
       "Blocked",
     );
   });
@@ -745,7 +745,7 @@ describe("reportFailure", () => {
 
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
-      "AI Task Status",
+      456,
       "Blocked",
     );
   });

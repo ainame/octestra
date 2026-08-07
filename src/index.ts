@@ -47,10 +47,22 @@ export async function run(): Promise<void> {
   const client = new GitHubClient(token);
   const config = await loadOctestraConfig(client, core.getInput("config-ref"));
   function lifecycleOperationContext(): OperationContext {
+    const statusFieldName = core.getInput("status-field-name");
+    const statusFieldId = core.getInput("status-field-id");
+    if (statusFieldName || statusFieldId) {
+      if (!statusFieldName || !statusFieldId) {
+        throw new Error("status-field-name and status-field-id must be provided together");
+      }
+      return {
+        client,
+        issueNumber: requiredNumber("issue-number"),
+        statusFieldId: positiveInteger("status-field-id", statusFieldId),
+      };
+    }
     return {
       client,
       issueNumber: requiredNumber("issue-number"),
-      statusFieldName: core.getInput("status-field-name") || config.status.field_name,
+      statusFieldId: config.status.field_id,
     };
   }
 

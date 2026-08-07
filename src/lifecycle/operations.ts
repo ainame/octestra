@@ -26,7 +26,7 @@ export interface ProofContext {
 }
 
 export interface OperationContext extends ProofContext {
-  statusFieldName: string;
+  statusFieldId: number;
 }
 
 export interface OperationsClient {
@@ -45,8 +45,8 @@ export interface OperationsClient {
   markPullRequestReadyForReview(pullNumber: number): Promise<void>;
   requestReviewer(pullNumber: number, reviewer: string): Promise<void>;
   comment(issueNumber: number, body: string): Promise<void>;
-  getStatus(issueNumber: number, fieldName: string): Promise<string | undefined>;
-  updateStatus(issueNumber: number, fieldName: string, status: string): Promise<void>;
+  getStatus(issueNumber: number, fieldId: number): Promise<string | undefined>;
+  updateStatus(issueNumber: number, fieldId: number, status: string): Promise<void>;
 }
 
 interface ActivityReport {
@@ -152,7 +152,7 @@ export async function validateTransition(
 ): Promise<boolean> {
   const liveStatus = await context.client.getStatus(
     context.issueNumber,
-    context.statusFieldName,
+    context.statusFieldId,
   );
   if ((liveStatus ?? "") !== currentStatus) {
     core.setOutput("transition_valid", "false");
@@ -191,7 +191,7 @@ export async function validateTransition(
 export async function finalizeMergedTask(context: OperationContext): Promise<void> {
   const currentStatus = await context.client.getStatus(
     context.issueNumber,
-    context.statusFieldName,
+    context.statusFieldId,
   );
   if (currentStatus !== "Human Review") {
     core.info(
@@ -210,7 +210,7 @@ export async function finalizeMergedTask(context: OperationContext): Promise<voi
   // Updating status can trigger the next workflow, so all Octestra work must finish first.
   await context.client.updateStatus(
     context.issueNumber,
-    context.statusFieldName,
+    context.statusFieldId,
     "Done",
   );
 }
@@ -295,7 +295,7 @@ export async function buildTaskContext(
       });
       await context.client.updateStatus(
         context.issueNumber,
-        context.statusFieldName,
+        context.statusFieldId,
         "Blocked",
       );
       core.setOutput("branch_name", branchName);
@@ -440,7 +440,7 @@ export async function updateStatus(
   }
   await context.client.updateStatus(
     context.issueNumber,
-    context.statusFieldName,
+    context.statusFieldId,
     nextStatus,
   );
 }
@@ -557,7 +557,7 @@ export async function finalizeTask(
     // Updating status can trigger the next workflow, so all Octestra work must finish first.
     await context.client.updateStatus(
       context.issueNumber,
-      context.statusFieldName,
+      context.statusFieldId,
       failureStatus,
     );
     return;
@@ -584,7 +584,7 @@ export async function finalizeTask(
   // Updating status can trigger the next workflow, so all Octestra work must finish first.
   await context.client.updateStatus(
     context.issueNumber,
-    context.statusFieldName,
+    context.statusFieldId,
     nextStatus,
   );
 }
@@ -630,7 +630,7 @@ export async function reportFailure(
   // Updating status can trigger the next workflow, so all Octestra work must finish first.
   await context.client.updateStatus(
     context.issueNumber,
-    context.statusFieldName,
+    context.statusFieldId,
     failureStatus,
   );
 }

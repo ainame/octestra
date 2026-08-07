@@ -39,7 +39,10 @@ inputs:
     description: Status used by the individual update-status operation
     required: false
   status-field-name:
-    description: Organization issue field override; default comes from config.yml
+    description: Organization issue field name override; must be paired with status-field-id
+    required: false
+  status-field-id:
+    description: Organization issue field ID override; must be paired with status-field-name
     required: false
 outputs:
   status_key:

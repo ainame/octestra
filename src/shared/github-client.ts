@@ -1,18 +1,12 @@
 import { getOctokit } from "@actions/github";
 
-interface IssueField {
-  id: number;
-  name: string;
-  data_type: string;
-}
-
 interface IssueFieldValue {
   field_id: number;
   value: string;
 }
 
 interface CurrentIssueFieldValue {
-  issue_field_name?: string;
+  issue_field_id?: number;
   single_select_option?: {
     name?: string;
   } | null;
@@ -48,7 +42,6 @@ function isNotFound(error: unknown): boolean {
 export class GitHubClient {
   private readonly octokit: ReturnType<typeof getOctokit>;
   private readonly assignedUsers = new Map<number, { login: string | undefined }>();
-  private readonly singleSelectFields = new Map<string, IssueField>();
   readonly owner: string;
   readonly repo: string;
 
@@ -333,9 +326,8 @@ export class GitHubClient {
     }
   }
 
-  async updateStatus(issueNumber: number, fieldName: string, status: string): Promise<void> {
-    const field = await this.getSingleSelectField(fieldName);
-    const issueFieldValues: IssueFieldValue[] = [{ field_id: field.id, value: status }];
+  async updateStatus(issueNumber: number, fieldId: number, status: string): Promise<void> {
+    const issueFieldValues: IssueFieldValue[] = [{ field_id: fieldId, value: status }];
     await this.octokit.request(
       "POST /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values",
       {
@@ -350,7 +342,7 @@ export class GitHubClient {
     );
   }
 
-  async getStatus(issueNumber: number, fieldName: string): Promise<string | undefined> {
+  async getStatus(issueNumber: number, fieldId: number): Promise<string | undefined> {
     const response = await this.octokit.request(
       "GET /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values",
       {
@@ -363,33 +355,8 @@ export class GitHubClient {
       },
     );
     const values = response.data as CurrentIssueFieldValue[];
-    return values.find((value) => value.issue_field_name === fieldName)
+    return values.find((value) => value.issue_field_id === fieldId)
       ?.single_select_option
       ?.name;
-  }
-
-  // Lists the organization's fields, because there is no endpoint for a single one.
-  // Memoized because one action step is one process, so a step that writes status
-  // more than once pays for this lookup only on the first write.
-  private async getSingleSelectField(fieldName: string): Promise<IssueField> {
-    const cached = this.singleSelectFields.get(fieldName);
-    if (cached) {
-      return cached;
-    }
-    const fieldsResponse = await this.octokit.request("GET /orgs/{org}/issue-fields", {
-      org: this.owner,
-      headers: {
-        "X-GitHub-Api-Version": "2026-03-10",
-      },
-    });
-    const fields = fieldsResponse.data as IssueField[];
-    const field = fields.find(
-      (candidate) => candidate.name === fieldName && candidate.data_type === "single_select",
-    );
-    if (!field) {
-      throw new Error(`Single-select issue field not found: ${fieldName}`);
-    }
-    this.singleSelectFields.set(fieldName, field);
-    return field;
   }
 }
