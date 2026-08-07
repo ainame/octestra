@@ -1,37 +1,46 @@
 # Releasing Octestra
 
-Octestra releases are published by `.github/workflows/release.yml`. A release has two tags:
+Octestra releases are managed by [Release Please](https://github.com/googleapis/release-please).
+It opens a release pull request after a releasable commit reaches `main`. Merging that pull request
+updates `package.json`, `package-lock.json`, and the versioned entries in `CHANGELOG.md`, then creates
+the GitHub Release.
+
+Enable **Allow GitHub Actions to create and approve pull requests** in the repository's Actions
+settings. Without it, the workflow cannot create the release pull request.
+
+A release has two tags:
 
 - An immutable, annotated `vMAJOR.MINOR.PATCH` tag, such as `v0.1.0`.
 - A moving `vMAJOR` tag, such as `v0`, for consumers that deliberately follow compatible releases.
 
 The installer and installed maintenance script resolve the newest stable `vMAJOR.MINOR.PATCH` tag.
-They continue to recognize older unprefixed tags during this migration, but new releases use the
-`v` prefix.
+They continue to recognize older unprefixed tags during this migration, but Release Please creates
+new releases with the `v` prefix.
 
-## Prepare
+## Create a release
 
-1. Change the version in `package.json` and `package-lock.json` in the release pull request.
-2. Run `make all` and commit the rebuilt `dist/index.js` if it changed.
-3. Merge the pull request and wait for CI on the default branch to pass.
+1. Merge a [Conventional Commit](https://www.conventionalcommits.org/) to `main`. Use `fix:` for a
+   patch release, `feat:` for a minor release, and `!` or a `BREAKING CHANGE:` footer for a major
+   release.
+2. Release Please opens or updates its release pull request. Review its version changes and generated
+   release notes.
+3. Merge the release pull request. Release Please publishes the immutable version tag and GitHub
+   Release, then the workflow updates the moving major tag.
 
-The workflow refuses a version that does not exactly match `package.json`, a version that is not
-newer than the latest release tag, or a run dispatched from anything except the latest default
-branch commit.
+For the first release, this repository is configured with the initial version `0.1.0`. Its first
+release pull request will publish `v0.1.0` and set `v0` to that same commit.
 
-## Publish
+## Set a specific version
 
-Run the workflow from the default branch with the same version:
+Add a `Release-As` footer to a Conventional Commit when the normal commit type does not express the
+desired version:
 
-```sh
-gh workflow run release.yml --ref main -f version=0.1.0
+```text
+chore: prepare a compatibility release
+
+Release-As: 0.2.0
 ```
 
-The workflow runs `make all` again, checks that the build left no uncommitted changes, creates the
-annotated version tag, moves the major tag, and publishes a GitHub release with generated notes.
-No npm package or separate archive is published; GitHub supplies source archives for the release,
-and the committed `dist/index.js` is the executable action bundle.
-
-If the workflow stops after pushing the tags but before publishing the GitHub release, rerun the
-same version. It may reuse an annotated version tag only when that tag points to the same commit and
-no release exists. Once the GitHub release exists, the workflow refuses to publish it again.
+Release Please writes the version; do not manually change `package.json` or dispatch a release
+workflow. No npm package or separate archive is published. GitHub supplies the source archives for
+the release, and the committed `dist/index.js` is the executable action bundle.

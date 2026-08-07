@@ -2,7 +2,7 @@
 
 All notable changes to Octestra are documented in this file.
 
-## [v0.1.0]
+## Initial capabilities
 
 ### Added
 
