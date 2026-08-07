@@ -3,8 +3,8 @@ Octestra task agent prompt.
 This is a sample template; customize it for your repository.
 
 Available variables:
-- taskSkillName: configured task skill name
-- validationSkillName: configured validation skill name
+- taskSkill: configured task skill name
+- validationSkill: configured validation skill name
 - target: task target, such as a file, class, or feature, when configured
 - epicTaskPrompt: implementation instructions from the EPIC
 - taskPrompt: implementation instructions from this task issue
@@ -14,8 +14,8 @@ Available variables:
 - pullNumber: linked pull request number, when available
 - draftFlag: `--draft` when draft pull requests are configured
 --}}
-{{#if taskSkillName}}
-Implement the requested change using /{{taskSkillName}}.
+{{#if taskSkill}}
+Implement the requested change using /{{taskSkill}}.
 {{else}}
 Implement the requested change.
 {{/if}}

@@ -18,7 +18,7 @@ inputs:
   epic_id:
     description: Stable identifier configured by the parent EPIC
     required: true
-  task_skill_name:
+  task_skill:
     description: Task agent skill configured by the parent EPIC, if any
     required: false
   branch_name:

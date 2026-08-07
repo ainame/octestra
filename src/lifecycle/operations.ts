@@ -305,8 +305,8 @@ export async function buildTaskContext(
   }
   const draftFlag = config.draftPr ? "--draft" : "";
   const prompt = await renderPrompt(path.resolve(workspace, promptTemplate), {
-    taskSkillName: config.taskSkillName ?? "",
-    validationSkillName: config.validationSkillName ?? "",
+    taskSkill: config.taskSkill ?? "",
+    validationSkill: config.validationSkill ?? "",
     target: taskConfig.target,
     epicTaskPrompt: config.epicTaskPrompt,
     taskPrompt: taskConfig.taskPrompt,
@@ -323,7 +323,7 @@ export async function buildTaskContext(
 
   core.setOutput("parent_number", parentNumber);
   core.setOutput("epic_id", config.id);
-  core.setOutput("task_skill_name", config.taskSkillName ?? "");
+  core.setOutput("task_skill", config.taskSkill ?? "");
   core.setOutput(
     "branch_name",
     branchName,
@@ -397,8 +397,8 @@ export async function buildValidationContext(
     throw new Error("No linked open task PR found in the issue activity");
   }
   const prompt = await renderPrompt(path.resolve(workspace, promptTemplate), {
-    taskSkillName: config.taskSkillName ?? "",
-    validationSkillName: config.validationSkillName ?? "",
+    taskSkill: config.taskSkill ?? "",
+    validationSkill: config.validationSkill ?? "",
     target: taskConfig.target,
     epicTaskPrompt: config.epicTaskPrompt,
     taskPrompt: taskConfig.taskPrompt,
@@ -412,7 +412,7 @@ export async function buildValidationContext(
   });
 
   core.setOutput("parent_number", parentNumber);
-  core.setOutput("validation_skill_name", config.validationSkillName ?? "");
+  core.setOutput("validation_skill", config.validationSkill ?? "");
   core.setOutput("branch_name", branchName);
   core.setOutput("prompt", prompt);
   core.setOutput("pull_number", pullNumber);

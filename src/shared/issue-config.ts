@@ -2,8 +2,8 @@ import { parse } from "yaml";
 
 export interface EpicConfig {
   id: string;
-  taskSkillName?: string;
-  validationSkillName?: string;
+  taskSkill?: string;
+  validationSkill?: string;
   draftPr: boolean;
   skipValidation: boolean;
   epicTaskPrompt: string;
@@ -51,7 +51,7 @@ export function parseEpicConfig(body: string): EpicConfig {
   ) {
     throw new Error("epic-config task_skill must be a string or null");
   }
-  const taskSkillName = typeof taskSkillValue === "string"
+  const taskSkill = typeof taskSkillValue === "string"
     ? taskSkillValue.trim() || undefined
     : undefined;
 
@@ -76,10 +76,10 @@ export function parseEpicConfig(body: string): EpicConfig {
   ) {
     throw new Error("epic-config validation_skill must be a string or null");
   }
-  const validationSkillName = typeof validationSkillValue === "string"
+  const validationSkill = typeof validationSkillValue === "string"
     ? validationSkillValue.trim() || undefined
     : undefined;
-  if (!skipValidation && !validationSkillName) {
+  if (!skipValidation && !validationSkill) {
     throw new Error(
       "epic-config validation_skill must be a non-empty string when skip_validation is false",
     );
@@ -87,8 +87,8 @@ export function parseEpicConfig(body: string): EpicConfig {
 
   return {
     id,
-    taskSkillName,
-    validationSkillName,
+    taskSkill,
+    validationSkill,
     draftPr,
     skipValidation,
     epicTaskPrompt: extractBlock(body, "epic-task-prompt", false),

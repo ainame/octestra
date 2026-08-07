@@ -100,7 +100,7 @@ with OIDC, or provide credentials through the selected runner's environment. Run
 | `inputs.task_owner` | The person responsible for the task |
 | `inputs.epic_id` | EPIC identifier |
 | `inputs.parent_number` | EPIC issue number |
-| `inputs.task_skill_name` | Optional task skill specified by the EPIC |
+| `inputs.task_skill` | Optional task skill specified by the EPIC |
 | `inputs.target` | Optional file, class, feature, or other task target |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
 
@@ -135,7 +135,7 @@ and passes the preparation outputs to `validation-agent/action.yml` as inputs:
 | `inputs.artifact_path` | Directory for screenshots, logs, and other evidence |
 | `inputs.branch_name` | Checked-out task branch |
 | `inputs.parent_number` | EPIC issue number |
-| `inputs.validation_skill_name` | Validation skill specified by the EPIC |
+| `inputs.validation_skill` | Validation skill specified by the EPIC |
 | `inputs.target` | Optional file, class, feature, or other task target |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
 
@@ -175,8 +175,8 @@ Templates can use configuration and prompts from the EPIC and task issue. The ma
 - `taskPrompt`: Implementation instructions from the task issue
 - `epicValidationPrompt`: Validation instructions from the EPIC
 - `validationPrompt`: Validation instructions from the task issue
-- `taskSkillName`: Task skill name configured by the EPIC
-- `validationSkillName`: Validation skill name configured by the EPIC
+- `taskSkill`: Task skill configured by the EPIC
+- `validationSkill`: Validation skill configured by the EPIC
 - `target`: Task target, when configured
 - `issueNumber`: Task issue number
 - `pullNumber`: Associated pull request number, when available

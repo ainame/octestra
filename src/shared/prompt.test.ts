@@ -20,12 +20,12 @@ describe("renderPrompt", () => {
     const templatePath = path.join(directory, "prompt.md.hbs");
     await writeFile(
       templatePath,
-      "/{{taskSkillName}} /{{validationSkillName}} {{target}} {{epicTaskPrompt}} {{taskPrompt}} {{epicValidationPrompt}} {{validationPrompt}} #{{issueNumber}} {{draftFlag}}",
+      "/{{taskSkill}} /{{validationSkill}} {{target}} {{epicTaskPrompt}} {{taskPrompt}} {{epicValidationPrompt}} {{validationPrompt}} #{{issueNumber}} {{draftFlag}}",
     );
 
     const result = await renderPrompt(templatePath, {
-      taskSkillName: "example-task",
-      validationSkillName: "example-validation",
+      taskSkill: "example-task",
+      validationSkill: "example-validation",
       target: "Sources/A&B.swift",
       epicTaskPrompt: "Keep <API>",
       taskPrompt: "Update the adapter.",

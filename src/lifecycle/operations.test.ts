@@ -171,7 +171,7 @@ describe("prepareTask", () => {
       "target",
       "Sources/Feature/Home.swift",
     );
-    expect(setOutput).toHaveBeenCalledWith("task_skill_name", "example-task");
+    expect(setOutput).toHaveBeenCalledWith("task_skill", "example-task");
     expect(setOutput).toHaveBeenCalledWith("task_ready", "true");
   });
 
@@ -622,7 +622,7 @@ describe("prepareValidation", () => {
       "octestra/example/issue-123",
     );
     expect(core.setOutput).toHaveBeenCalledWith(
-      "validation_skill_name",
+      "validation_skill",
       "example-validation",
     );
   });

@@ -23,8 +23,8 @@ Verify that the target implementation has been migrated from Objective-C to Swif
 
     expect(result).toEqual({
       id: "objc-to-swift",
-      taskSkillName: "objc-to-swift",
-      validationSkillName: undefined,
+      taskSkill: "objc-to-swift",
+      validationSkill: undefined,
       draftPr: true,
       skipValidation: true,
       epicTaskPrompt: "Keep the public API unchanged.",
@@ -43,8 +43,8 @@ validation_skill: ios-ui-validation
 
     expect(result.draftPr).toBe(false);
     expect(result.skipValidation).toBe(false);
-    expect(result.taskSkillName).toBe("migrate-storyboard-uikit");
-    expect(result.validationSkillName).toBe("ios-ui-validation");
+    expect(result.taskSkill).toBe("migrate-storyboard-uikit");
+    expect(result.validationSkill).toBe("ios-ui-validation");
     expect(result.epicTaskPrompt).toBe("");
     expect(result.epicValidationPrompt).toBe("");
   });
@@ -58,8 +58,8 @@ draft_pr: true
 \`\`\`
 `)).toMatchObject({
       id: "manual-migration",
-      taskSkillName: undefined,
-      validationSkillName: "manual-validation",
+      taskSkill: undefined,
+      validationSkill: "manual-validation",
     });
   });
 
@@ -72,8 +72,8 @@ validation_skill:
 skip_validation: true
 \`\`\`
 `)).toMatchObject({
-      taskSkillName: undefined,
-      validationSkillName: undefined,
+      taskSkill: undefined,
+      validationSkill: undefined,
       skipValidation: true,
     });
   });

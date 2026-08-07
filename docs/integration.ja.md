@@ -95,7 +95,7 @@ composite action は GitHub Actions の `secrets` context を直接参照でき�
 | `inputs.task_owner`                   | タスクを担当する人                       |
 | `inputs.epic_id`                      | EPIC の識別子                            |
 | `inputs.parent_number`                | EPIC の issue 番号                       |
-| `inputs.task_skill_name`              | EPIC で指定された任意の task スキル       |
+| `inputs.task_skill`                   | EPIC で指定された任意の task スキル       |
 | `inputs.target`                       | ファイル、クラス、機能などの任意のタスク対象 |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN`     | エージェント用の GitHub token            |
 
@@ -127,7 +127,7 @@ Claude Code Action の設定例です。
 | `inputs.artifact_path` | スクリーンショット、ログ、その他の証跡を保存するディレクトリ |
 | `inputs.branch_name` | checkout 済みの task branch |
 | `inputs.parent_number` | EPIC の issue 番号 |
-| `inputs.validation_skill_name` | EPIC で指定された検証スキル |
+| `inputs.validation_skill` | EPIC で指定された検証スキル |
 | `inputs.target` | ファイル、クラス、機能などの任意のタスク対象 |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub token |
 
@@ -167,8 +167,8 @@ template では EPIC と task issue の設定・prompt を利用できます。�
 - `taskPrompt`: task issue の実装指示
 - `epicValidationPrompt`: EPIC の検証指示
 - `validationPrompt`: task issue の検証指示
-- `taskSkillName`: EPIC で設定した task スキル名
-- `validationSkillName`: EPIC で設定した検証スキル名
+- `taskSkill`: EPIC で設定した task スキル
+- `validationSkill`: EPIC で設定した検証スキル
 - `target`: 設定されている場合のタスク対象
 - `issueNumber`: task issue 番号
 - `pullNumber`: 存在する場合の関連 pull request 番号

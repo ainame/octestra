@@ -329,8 +329,8 @@ class EpicSetup
   def epic_body
     render_contract('epic.md.hbs', {
       'epicId' => @task_skill,
-      'taskSkillName' => @task_skill,
-      'validationSkillName' => @validation_skill.to_s,
+      'taskSkill' => @task_skill,
+      'validationSkill' => @validation_skill.to_s,
       'draftPr' => @epic.fetch('draftPr', false).to_s,
       'skipValidation' => @skip_validation.to_s
     })

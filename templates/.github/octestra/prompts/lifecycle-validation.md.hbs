@@ -3,8 +3,8 @@ Octestra validation agent prompt.
 This is a sample template; customize it for your repository.
 
 Available variables:
-- taskSkillName: configured task skill name
-- validationSkillName: configured validation skill name
+- taskSkill: configured task skill name
+- validationSkill: configured validation skill name
 - target: task target, such as a file, class, or feature, when configured
 - epicTaskPrompt: implementation instructions from the EPIC
 - taskPrompt: implementation instructions from this task issue
@@ -18,8 +18,8 @@ Available variables:
 --}}
 Validate the already checked-out head of PR #{{pullNumber}} for the following task.
 Do not create, switch, or push a branch.
-{{#if validationSkillName}}
-Use /{{validationSkillName}} to perform the validation.
+{{#if validationSkill}}
+Use /{{validationSkill}} to perform the validation.
 {{/if}}
 
 Target: {{target}}

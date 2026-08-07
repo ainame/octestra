@@ -84,7 +84,7 @@ jobs:
       # - Publishes these outputs for the task agent:
       #   - parent_number: parent EPIC issue number.
       #   - epic_id: the EPIC's id, used as the task branch prefix.
-      #   - task_skill_name: task agent skill named by the EPIC, if any.
+      #   - task_skill: task agent skill named by the EPIC, if any.
       #   - branch_name: the branch the steps below must use.
       #   - task_ready: `false` when an existing branch or pull request stopped this task.
       #   - draft_flag: `--draft` when the PR should be a draft.
@@ -117,7 +117,7 @@ jobs:
           issue_number: ${{ github.event.issue.number }}
           parent_number: ${{ steps.epic.outputs.parent_number }}
           epic_id: ${{ steps.epic.outputs.epic_id }}
-          task_skill_name: ${{ steps.epic.outputs.task_skill_name }}
+          task_skill: ${{ steps.epic.outputs.task_skill }}
           branch_name: ${{ steps.epic.outputs.branch_name }}
           draft_flag: ${{ steps.epic.outputs.draft_flag }}
           skip_validation: ${{ steps.epic.outputs.skip_validation }}
@@ -171,7 +171,7 @@ jobs:
       # - Loads the task issue and its parent EPIC.
       # - Finds the open pull request linked to the task.
       # - Renders .github/octestra/prompts/lifecycle-validation.md.hbs.
-      # - Publishes these outputs: parent_number, validation_skill_name, branch_name, pull_number,
+      # - Publishes these outputs: parent_number, validation_skill, branch_name, pull_number,
       #   prompt, target, and the artifact_path and result_path the agent writes into.
       #
       # **Keep this step first: every step below reads `steps.epic.outputs`.**
@@ -198,7 +198,7 @@ jobs:
         with:
           issue_number: ${{ github.event.issue.number }}
           parent_number: ${{ steps.epic.outputs.parent_number }}
-          validation_skill_name: ${{ steps.epic.outputs.validation_skill_name }}
+          validation_skill: ${{ steps.epic.outputs.validation_skill }}
           branch_name: ${{ steps.epic.outputs.branch_name }}
           pull_number: ${{ steps.epic.outputs.pull_number }}
           prompt: ${{ steps.epic.outputs.prompt }}
