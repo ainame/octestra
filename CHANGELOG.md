@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0 (2026-08-07)
+
+
+### Features
+
+* automate releases with Release Please ([39f46dd](https://github.com/ainame/octestra/commit/39f46dd833957269ff4ac49171f4640c951e44d1))
+
+## Changelog
+
 All notable changes to Octestra are documented in this file.
 
 ## Initial capabilities
