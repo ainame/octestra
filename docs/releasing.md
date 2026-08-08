@@ -14,8 +14,6 @@ A release has two tags:
 - A moving `vMAJOR` tag, such as `v0`, for consumers that deliberately follow compatible releases.
 
 The installer and installed maintenance script resolve the newest stable `vMAJOR.MINOR.PATCH` tag.
-They continue to recognize older unprefixed tags during this migration, but Release Please creates
-new releases with the `v` prefix.
 
 ## Create a release
 

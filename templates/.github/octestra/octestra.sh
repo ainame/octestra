@@ -509,31 +509,19 @@ vars_command() {
   return "$status"
 }
 
-# Newest stable release tag in a repository, by version sort. `vMAJOR.MINOR.PATCH` is preferred
-# when a legacy unprefixed tag names the same version. Release candidates and moving major tags
-# are ignored. An unreachable, private, or untagged repository yields an empty string.
+# Newest stable release tag in a repository, by version sort. Release candidates and moving major
+# tags are ignored. An unreachable, private, or untagged repository yields an empty string.
 latest_version_tag() {
   local repository="$1"
-  local tag=""
-  local version=""
-  local prefix_priority=""
 
-  while IFS= read -r tag; do
-    version=${tag#v}
-    prefix_priority=0
-    if [[ "$tag" == v* ]]; then
-      prefix_priority=1
-    fi
-    if [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-      printf '%s\t%s\t%s\n' "$version" "$prefix_priority" "$tag"
-    fi
-  done < <(
-    gh api \
-      -H "Accept: application/vnd.github+json" \
-      "/repos/$repository/tags" \
-      --paginate \
-      --jq '.[].name' 2>/dev/null
-  ) | sort -t $'\t' -k1,1V -k2,2n | tail -n 1 | cut -f3
+  gh api \
+    -H "Accept: application/vnd.github+json" \
+    "/repos/$repository/tags" \
+    --paginate \
+    --jq '.[].name' 2>/dev/null |
+    grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' |
+    sort -V |
+    tail -n 1
 }
 
 # Resolves a reference spec against the installed one. Both 'ref' and 'update' accept the
