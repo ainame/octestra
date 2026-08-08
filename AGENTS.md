@@ -204,11 +204,12 @@ bugs in this repository have been silently-inert code paths, not loud failures. 
 that operations depend on must be **required**, never optional, so a missing implementation is a
 type error instead of a runtime `undefined`.
 
-**Commits.** Every commit, including a pull request's squash-merge commit, must use a
-[Conventional Commit](https://www.conventionalcommits.org/) prefix. Release Please reads these
-messages to create releases: `fix:` produces a patch release, `feat:` produces a minor release,
-and `!` or a `BREAKING CHANGE:` footer produces a major release. Use an appropriate non-releasing
-prefix such as `docs:`, `test:`, `chore:`, or `refactor:` when the change should not release.
+**Pull request titles.** Every pull request title must use a
+[Conventional Commit](https://www.conventionalcommits.org/) prefix, because its title becomes the
+squash-merge commit that Release Please reads. `fix:` produces a patch release, `feat:` produces a
+minor release, and `!` or a `BREAKING CHANGE:` footer produces a major release. Use an appropriate
+non-releasing prefix such as `docs:`, `test:`, `chore:`, or `refactor:` when the change should not
+release.
 
 **Never** commit secrets, hand-edit `dist/`, add a runtime dependency for something the vendored
 `yaml` package already does, require `yq`, or use `secrets: inherit`.
