@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/ainame/octestra/compare/v0.1.0...v0.1.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* require v-prefixed release tags ([#2](https://github.com/ainame/octestra/issues/2)) ([56308d2](https://github.com/ainame/octestra/commit/56308d276b831c183d8d8a03f5e2ba1bd2720cb7))
+
 ## 0.1.0 (2026-08-07)
 
 
