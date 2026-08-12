@@ -194,6 +194,7 @@ class EpicSetup
     @epic = object!(@manifest['epic'], 'epic')
     @title = non_empty_string!(@epic['title'], 'epic.title')
     @task_skill = non_empty_string!(@epic['taskSkill'], 'epic.taskSkill')
+    @triage_skill = optional_string!(@epic['triageSkill'], 'epic.triageSkill')&.strip
     boolean!(@epic.fetch('draftPr', false), 'epic.draftPr')
     @skip_validation = boolean!(@epic.fetch('skipValidation', false), 'epic.skipValidation')
     @validation_skill = optional_string!(@epic['validationSkill'], 'epic.validationSkill')&.strip
@@ -330,6 +331,7 @@ class EpicSetup
     render_contract('epic.md.hbs', {
       'epicId' => @task_skill,
       'taskSkill' => @task_skill,
+      'triageSkill' => @triage_skill.to_s,
       'validationSkill' => @validation_skill.to_s,
       'draftPr' => @epic.fetch('draftPr', false).to_s,
       'skipValidation' => @skip_validation.to_s

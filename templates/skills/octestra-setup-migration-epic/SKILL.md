@@ -43,6 +43,7 @@ Ask for missing values one at a time:
 | Migration title | Required |
 | How to discover or define tasks | Required |
 | Task skill invoked for each task, such as `objc-to-swift` | Required; also becomes the EPIC ID and branch namespace |
+| Todo triage skill invoked by the loop | Empty; required only when using `octestra-loop-todo.yml` |
 | Organization Project number | Required |
 | Draft pull requests | `false` |
 | Skip agentic validation | `false` |
@@ -92,6 +93,7 @@ Create a temporary JSON file outside the repository unless the user requests oth
   "epic": {
     "title": "Convert Objective-C screens to Swift",
     "taskSkill": "objc-to-swift",
+    "triageSkill": "migration-triage",
     "validationSkill": "migration-validation",
     "draftPr": false,
     "skipValidation": false
@@ -115,7 +117,8 @@ and so on.
 For this migration setup skill, the script uses the selected task skill name as the EPIC ID and
 writes it as the first field in every EPIC's `epic-config`; task branches use it to stay unique and
 deterministic. Other EPIC creation flows may use any lowercase slug as the ID and omit
-`task_skill`. `validationSkill` may be null or omitted only when `skipValidation` is `true`.
+`task_skill`. `triageSkill` may be null or omitted when the Todo triage loop is not used.
+`validationSkill` may be null or omitted only when `skipValidation` is `true`.
 
 ## 5. Run the bundled setup script
 

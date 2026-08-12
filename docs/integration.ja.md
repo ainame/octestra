@@ -37,6 +37,7 @@ EPIC issue には、すべての task issue で共有する設定と指示を記
 ```epic-config
 id: ios-swift6            # task branch の名前に使う小文字の識別子
 task_skill: swift-concurrency       # task エージェントが使う任意のスキル
+triage_skill: migration-triage      # Todo triage loop を使う場合は必須
 validation_skill: ios-ui-validation # 検証を省略しない場合は必須
 draft_pr: false           # 各 task pull request を draft で開くか
 skip_validation: false    # true の場合は直接 Human Review へ進める
@@ -44,6 +45,10 @@ skip_validation: false    # true の場合は直接 Human Review へ進める
 
 ```epic-task-prompt
 この EPIC のすべてのタスクで共有する指示。
+```
+
+```epic-triage-prompt
+この EPIC の Todo triage で使う任意の指示。
 ```
 
 ```epic-validation-prompt
@@ -67,15 +72,19 @@ target: Sources/Feature.swift # 任意の変更対象ファイルまたはコン
 ```
 ````
 
-`epic-validation-prompt` と `validation-prompt` は任意です。空のままにしておくと、issue ごとに
-必要なときだけ追加できます。`validation_skill` は `skip_validation` が `true` でない限り必須です。
-検証を省略する場合は空でも構いません。
+`epic-triage-prompt`、`epic-validation-prompt`、`validation-prompt` は任意です。空のままに
+しておくと、必要なときだけ追加できます。`triage_skill` は Todo triage loop を使う場合だけ
+必須です。`validation_skill` は `skip_validation` が `true` でない限り必須で、検証を省略する
+場合は空でも構いません。
 
 ## エージェントのワークフローを設定する
 
 `.github/octestra/actions/task-agent/action.yml` は実装エージェントを、`.github/octestra/actions/validation-agent/action.yml` は検証エージェントを実行します。各ファイルのプレースホルダーを、利用するエージェントの設定と実行ステップに置き換えてください。
 
-Octestra は各 agent action を初回だけインストールし、以後の更新ではファイル全体を保持します。workflow は全体が置き換えられます。agent action では lifecycle context に `inputs.*`、エージェント用 GitHub token に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。
+Octestra は各 agent action を初回だけインストールし、以後の更新ではファイル全体を保持します。
+lifecycle workflow は全体が置き換えられますが、loop workflow とその prompt は consumer-owned
+file として保持されます。agent action では context に `inputs.*`、エージェント用 GitHub token
+に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。
 
 composite action は GitHub Actions の `secrets` context を直接参照できません。cloud credential
 には OIDC を使うか、選択した runner の環境から credential を渡してください。OIDC が必要な
@@ -157,17 +166,42 @@ action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済�
 
 Octestra は task issue の検証結果コメントに、check ごとに 1 行を表示します。`checks` を使うとコメントを確認しやすくなりますが、ライフサイクルを個別に制御するものではありません。Octestra が task issue を進めるか Blocked にするかは、最上位の `outcome` だけで決まります。
 
+## Scheduled Agent Loop
+
+`.github/workflows/octestra-loop-todo.yml` は consumer-owned の Todo triage 例です。手動では
+すぐ実行できます。定期実行する場合は `OCTESTRA_TRIAGE_EPIC_NUMBER` repository variable と
+実行間隔を設定して `schedule` block を uncomment し、
+`.github/octestra/actions/triage-agent/action.yml` の placeholder を置き換えてください。
+
+`loop/prepare-run` は選択した EPIC から `triage_skill` と任意の `epic-triage-prompt` block を
+読み、`triageSkill`、`epicTriagePrompt`、workflow が渡した JSON context を使って
+`.github/octestra/prompts/loop-todo.md.hbs` を描画します。issue の探索、選択、件数制限、変更
+ルール、domain knowledge は workflow や prompt ではなく、その triage skill に置いてください。
+Octestra は prompt を描画し、agent の run summary と supporting artifacts の安定した保存先を
+出力するだけです。
+
+workflow は local triage action に `epic_number`、`triage_skill`、`dry_run`、`prompt`、
+`result_path`、`artifact_path` を渡します。agent integration が skill 名を明示的に必要とする
+場合は `inputs.triage_skill` を使ってください。描画された prompt には同じ値が `triageSkill`
+として渡されます。
+
 ## プロンプトテンプレート
 
-Octestra はエージェントに渡すプロンプトを Handlebars template として管理します。実装用は `.github/octestra/prompts/lifecycle-in-progress.md.hbs`、検証用は `.github/octestra/prompts/lifecycle-validation.md.hbs` です。`Prepare task lifecycle` または `Prepare validation lifecycle` が template を描画し、結果を `steps.epic.outputs.prompt` としてエージェントの実行ステップへ渡します。
+Octestra は agent に渡す prompt を Handlebars template として管理します。実装用は
+`.github/octestra/prompts/lifecycle-in-progress.md.hbs`、検証用は
+`.github/octestra/prompts/lifecycle-validation.md.hbs`、Todo triage 用は
+`.github/octestra/prompts/loop-todo.md.hbs` です。対応する準備 step が template を描画し、
+local agent action へ渡します。
 
 template では EPIC と task issue の設定・prompt を利用できます。主な変数は次のとおりです。
 
 - `epicTaskPrompt`: EPIC の実装指示
+- `epicTriagePrompt`: EPIC の Todo triage 指示
 - `taskPrompt`: task issue の実装指示
 - `epicValidationPrompt`: EPIC の検証指示
 - `validationPrompt`: task issue の検証指示
 - `taskSkill`: EPIC で設定した task スキル
+- `triageSkill`: EPIC で設定した Todo triage スキル
 - `validationSkill`: EPIC で設定した検証スキル
 - `target`: 設定されている場合のタスク対象
 - `issueNumber`: task issue 番号

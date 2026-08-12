@@ -10,22 +10,23 @@ Octestra is a **framework**: Octestra owns the mechanism, the consumer owns the 
 consumer might reasonably want to change — which agent runs, what it is allowed to do — must be
 reachable by editing an installed file, not by forking Octestra.
 
-One system sits on the shared control plane:
+Two systems share the action surface:
 
 | System | Trigger | Entry point | Unit of work |
 |---|---|---|---|
 | Lifecycle | `issues: [field_added, closed]` | `octestra-lifecycle.yml` | one task issue moving through the state graph |
+| Loop | consumer-selected `schedule` or `workflow_dispatch` | a consumer-owned `octestra-loop-*.yml` | one skill-driven triage run |
 
 ```
 issues:field_added ─▶ octestra-lifecycle.yml
                        guard ─┬─▶ in-progress
                               └─▶ validation
+
+schedule ───────────▶ octestra-loop-todo.yml ─▶ prepare-run ─▶ triage-agent
 ```
 
-A second system — scheduled loops sweeping many issues — is planned, not present, which is why
-the `lifecycle/<verb>` operation namespace, the `src/lifecycle/` ⁄ `src/shared/` split and the
-`lifecycle` infix in the workflow filename are seams held open for it rather than leftovers to tidy
-away (see `TODO.md` §1).
+Loops deliberately do not own issue selection or mutation. The repository's triage skill decides
+what work happens; Octestra only renders the prompt and executes the local agent action.
 
 ## Layout
 
@@ -35,11 +36,14 @@ src/
   index.ts                     operation dispatch; builds context per namespace
   shared/                      config.ts, github-client.ts, prompt.ts, proof.ts
   lifecycle/operations.ts      lifecycle/<verb> implementations
+  loop/operations.ts           loop/prepare-run
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
 templates/.github/
   workflows/octestra-lifecycle.yml
                                lifecycle trigger, routing and status jobs
-  octestra/actions/            consumer-owned task and validation agent composite actions
+  workflows/octestra-loop-*.yml
+                               consumer-owned scheduled agent entry points
+  octestra/actions/            consumer-owned task, validation and loop agent composite actions
   octestra/config.yml          the ONLY file install.sh generates
   octestra/octestra.sh         installed maintenance CLI: doctor, update, vars check|sync, ref
   octestra/prompts/            handlebars prompts, read from the consumer's checkout
@@ -69,9 +73,8 @@ afterwards.
 
 Each of these was verified against GitHub documentation and cost real debugging. Violating one
 produces silent misbehaviour rather than an error, which is why they are listed rather than left to
-be rediscovered. The numbering is stable, so the list has gaps where invariants about loop machinery
-were removed with it — the removal commit quotes those verbatim and they return with loops. Never
-renumber: `docs/design.md` cites these numbers.
+be rediscovered. The numbering is stable and still has gaps for invariants not used by the current
+systems. Never renumber: `docs/design.md` cites these numbers.
 
 - **P1. Status option *names* are part of the contract, because the write API gives no
   alternative.** `POST .../issue-field-values` takes `{field_id, value}` and accepts a single_select
@@ -85,7 +88,7 @@ renumber: `docs/design.md` cites these numbers.
   absent from `allowedTransitions`, so the guard reports an invalid transition instead of routing,
   and `install.sh` reports the option as missing on its next run. That is loud rather than silent,
   which is the only reason this is tolerable. Revisit only if the write endpoint gains ID addressing;
-  see `TODO.md` §3 for what was tried and why it was reverted.
+  see `TODO.md` §2 for what was tried and why it was reverted.
 - **P2. `vars` is available where `env` is not.** `vars` works in `jobs.<id>.runs-on`,
   `jobs.<id>.if`, `jobs.<id>.with.<id>`, `concurrency`, and `run-name`; `env` works in none of them.
   This lets status jobs select their runners directly without a bootstrap job.
@@ -93,6 +96,12 @@ renumber: `docs/design.md` cites these numbers.
   a silent no-match. Routing comparisons must be string comparisons
   (`format('{0}', x) == vars.Y`); runner labels must carry a literal fallback
   (`${{ vars.X || 'ubuntu-latest' }}`); drift must fail loudly.
+- **P4. `schedule` only runs on the default branch**, against its latest commit, and only if the
+  workflow file exists there. A loop cannot be exercised from a pull request, so every loop must
+  also offer `workflow_dispatch` with dry-run behavior enabled by default.
+- **P5. `schedule` is best-effort** — delayed or skipped under load, and disabled after 60 days of
+  repository inactivity. Every loop must be idempotent; correctness must never depend on a run
+  happening exactly once per period.
 - **P8. Concurrency groups are repository-scoped.** Identical group strings in different workflow
   files share a group. The `in-progress` and `validation` jobs use the same
   `octestra-<issue_number>` group with `cancel-in-progress: false`, so work on one task issue is
@@ -158,6 +167,11 @@ preserve them in full. Octestra may extend the inputs passed by its workflow, bu
 updating an already-installed action to consume them. Any workflow toggle, such as `--enable-oidc`,
 must be reconstructed by `update` from the installed state or an update silently reverts it.
 
+Installed loop workflows, their prompts and their local agent actions also belong to the consumer
+and are preserved in full. Their schedule and work policy cannot be reconstructed from Octestra's
+templates. Framework-owned loop behavior belongs in `loop/prepare-run`, never in selection, limits
+or mutation logic.
+
 **Agent execution stays with preparation.** Lifecycle preparation, agent execution and finalization
 share one job and runner instance. Do not split preparation into a producer job merely to condition
 the agent job: that starts another runner and loses the workspace and process environment
@@ -191,7 +205,7 @@ run coding agents. The lifecycle workflow therefore favors one readable job grap
 each agent behind a separate permission boundary: agent jobs inherit the workflow's write
 permissions, receive an App token, and run finalization beside the agent. This does not protect
 against a compromised agent, dependency or command. The intended stronger boundary remains in
-`TODO.md` §2; do not add further credentials or permissions without documenting the threat and
+`TODO.md` §1; do not add further credentials or permissions without documenting the threat and
 trade-off there.
 
 **Style.** Conventional multi-line TypeScript: one statement per line, named `function`

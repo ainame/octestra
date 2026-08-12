@@ -19,6 +19,7 @@ import {
   validateTransition,
   type OperationContext,
 } from "./lifecycle/operations";
+import { prepareRun } from "./loop/operations";
 
 function requiredNumber(name: string): number {
   return positiveInteger(name, core.getInput(name, { required: true }));
@@ -42,9 +43,22 @@ function triggerActorPair(required: boolean): [string, string] {
 }
 
 export async function run(): Promise<void> {
-  const token = core.getInput("github-token", { required: true });
   const operation = core.getInput("operation", { required: true });
+  const token = core.getInput("github-token", { required: true });
   const client = new GitHubClient(token);
+  if (operation === "loop/prepare-run") {
+    await prepareRun(
+      {
+        client,
+        epicNumber: requiredNumber("issue-number"),
+      },
+      core.getInput("loop-id", { required: true }),
+      core.getInput("prompt-path", { required: true }),
+      core.getInput("loop-context"),
+    );
+    return;
+  }
+
   const config = await loadOctestraConfig(client, core.getInput("config-ref"));
   function lifecycleOperationContext(): OperationContext {
     const statusFieldName = core.getInput("status-field-name");

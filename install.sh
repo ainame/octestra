@@ -629,21 +629,50 @@ preserve_installed_config() {
   fi
 }
 
-# Agent actions are the consumer's policy surface. Templates seed them on first install, but a
-# rerun must preserve each existing file in full rather than merge Octestra-owned content into it.
-preserve_installed_agent_actions() {
+# Agent actions and loop examples are consumer policy surfaces. Templates seed them on first
+# install, but a rerun must preserve each existing file in full rather than merge Octestra-owned
+# content into it.
+preserve_installed_consumer_policy() {
   local relative=""
   local installed=""
 
   for relative in \
     ".github/octestra/actions/task-agent/action.yml" \
-    ".github/octestra/actions/validation-agent/action.yml"; do
+    ".github/octestra/actions/validation-agent/action.yml" \
+    ".github/octestra/actions/triage-agent/action.yml" \
+    ".github/octestra/prompts/loop-todo.md.hbs" \
+    ".github/workflows/octestra-loop-todo.yml"; do
     installed="$TARGET_DIR/$relative"
     if [[ -f "$installed" ]]; then
       cp "$installed" "$INSTALL_TREE/$relative"
       info "kept the existing $relative"
     fi
   done
+}
+
+rewrite_preserved_loop_reference() {
+  local installed_script="$TARGET_DIR/$MAINTENANCE_SCRIPT"
+  local installed_action=""
+  local pattern=""
+  local replacement="$SOURCE_REPOSITORY\\1@$SOURCE_REF"
+  local workflow=""
+  local output=""
+
+  if [[ ! -f "$installed_script" ]]; then
+    return
+  fi
+  installed_action=$(sed -n 's/^readonly INSTALLED_ACTION="\([^"]*\)"$/\1/p' "$installed_script")
+  if [[ -z "$installed_action" ||
+    "$installed_action" == "$SOURCE_REPOSITORY@$SOURCE_REF" ]]; then
+    return
+  fi
+
+  pattern="${installed_action%@*}(/[^@[:space:]]+)?@${installed_action##*@}"
+  while IFS= read -r workflow; do
+    output="$workflow.octestra-tmp"
+    sed -E "s|$pattern|$replacement|g" "$workflow" > "$output"
+    mv "$output" "$workflow"
+  done < <(find "$INSTALL_TREE/.github/workflows" -type f -name 'octestra-loop-*.yml' -print)
 }
 
 remove_legacy_workflows() {
@@ -663,7 +692,8 @@ copy_and_render_templates() {
   local config="$TARGET_DIR/.github/octestra/config.yml"
 
   preserve_installed_config
-  preserve_installed_agent_actions
+  preserve_installed_consumer_policy
+  rewrite_preserved_loop_reference
   remove_legacy_workflows
   (cd "$INSTALL_TREE" && tar -cf - .) | (cd "$TARGET_DIR" && tar -xf -)
   [[ -f "$config" ]] || die "Octestra config template was not installed"

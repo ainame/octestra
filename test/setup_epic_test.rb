@@ -84,6 +84,7 @@ class EpicSetupTest < Minitest::Test
       'epic' => {
         'title' => 'Convert Objective-C to Swift',
         'taskSkill' => 'objc-to-swift',
+        'triageSkill' => 'migration-triage',
         'validationSkill' => 'migration-validation',
         'draftPr' => true,
         'skipValidation' => false
@@ -168,9 +169,11 @@ class EpicSetupTest < Minitest::Test
 
     assert_includes epic.fetch('body'),
                     "```epic-config\nid: objc-to-swift\ntask_skill: objc-to-swift\n" \
+                    "triage_skill: migration-triage\n" \
                     "validation_skill: migration-validation\n" \
                     "draft_pr: true\nskip_validation: false\n```"
     assert_includes epic.fetch('body'), "```epic-task-prompt\n\n```"
+    assert_includes epic.fetch('body'), "```epic-triage-prompt\n\n```"
     assert_includes epic.fetch('body'), "```epic-validation-prompt\n\n```"
   end
 

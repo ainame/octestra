@@ -42,8 +42,13 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
   - `.github/octestra/issue-templates/task.md.hbs`
   - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
   - `.github/octestra/prompts/lifecycle-validation.md.hbs`
+  - `.github/octestra/prompts/loop-todo.md.hbs`
+  - `.github/octestra/actions/task-agent/action.yml`
+  - `.github/octestra/actions/validation-agent/action.yml`
+  - `.github/octestra/actions/triage-agent/action.yml`
 - workflow
   - `.github/workflows/octestra-lifecycle.yml`
+  - `.github/workflows/octestra-loop-todo.yml`
 - エージェントスキル
   - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
   - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
@@ -63,6 +68,19 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
 
 EPIC と task issue の書式、各 status option の意味、エージェントへの入力は [実装ガイド](docs/integration.ja.md) を参照してください。
 
+### Todo Triage Loop を設定する
+
+`.github/workflows/octestra-loop-todo.yml` は Todo triage agent を手動実行できます。
+`.github/octestra/prompts/loop-todo.md.hbs` と
+`.github/octestra/actions/triage-agent/action.yml` をカスタマイズしてください。
+
+prompt は repository の Todo triage skill を使うよう agent に指示します。issue の探索、選択、
+EPIC issue の `triage_skill` と、必要に応じて `epic-triage-prompt` block を設定してください。
+描画された prompt では `triageSkill` と `epicTriagePrompt` として参照できます。issue の探索、
+選択、件数制限、変更はその skill が所有し、Octestra は prompt の描画と設定済み agent action
+の実行だけを担当します。定期実行は opt-in です。`OCTESTRA_TRIAGE_EPIC_NUMBER` repository
+variable と実行間隔を設定し、workflow の `schedule` block を uncomment してください。
+
 ## 更新とメンテナンス
 
 ```sh
@@ -81,7 +99,9 @@ EPIC と task issue の書式、各 status option の意味、エージェント
 | `ref`             | インストール済みワークフローが使う Octestra のリポジトリと ref を表示 |
 | `update --latest` | agent action と `config.yml` を保ったまま最新リリースをインストール |
 
-インストーラを再実行すると workflow は置き換えられ、`config.yml` と両方の agent action は保持されます。更新後は、コミット前に `git diff` で変更内容を確認してください。
+インストーラを再実行すると lifecycle workflow は置き換えられます。`config.yml`、すべての
+local agent action、loop workflow とその prompt は保持されます。更新後は、コミット前に
+`git diff` で変更内容を確認してください。
 
 ## セキュリティ
 

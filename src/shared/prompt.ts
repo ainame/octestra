@@ -1,20 +1,7 @@
 import { readFile } from "node:fs/promises";
 import Handlebars from "handlebars";
 
-export interface PromptVariables {
-  taskSkill?: string;
-  validationSkill?: string;
-  target?: string;
-  epicTaskPrompt?: string;
-  taskPrompt?: string;
-  epicValidationPrompt?: string;
-  validationPrompt?: string;
-  issueNumber?: number;
-  pullNumber?: number | undefined;
-  draftFlag?: string;
-  resultPath: string;
-  artifactPath: string;
-}
+export type PromptVariables = Record<string, unknown>;
 
 export async function renderPrompt(
   templatePath: string,

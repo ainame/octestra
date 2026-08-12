@@ -7,6 +7,7 @@ describe("parseEpicConfig", () => {
 \`\`\`epic-config
 id: objc-to-swift
 task_skill: objc-to-swift
+triage_skill: migration-triage
 validation_skill:
 draft_pr: true
 skip_validation: true
@@ -19,15 +20,21 @@ Keep the public API unchanged.
 \`\`\`epic-validation-prompt
 Verify that the target implementation has been migrated from Objective-C to Swift.
 \`\`\`
+
+\`\`\`epic-triage-prompt
+Prioritize tasks that unblock other work.
+\`\`\`
 `);
 
     expect(result).toEqual({
       id: "objc-to-swift",
       taskSkill: "objc-to-swift",
+      triageSkill: "migration-triage",
       validationSkill: undefined,
       draftPr: true,
       skipValidation: true,
       epicTaskPrompt: "Keep the public API unchanged.",
+      epicTriagePrompt: "Prioritize tasks that unblock other work.",
       epicValidationPrompt: "Verify that the target implementation has been migrated from Objective-C to Swift.",
     });
   });
@@ -44,8 +51,10 @@ validation_skill: ios-ui-validation
     expect(result.draftPr).toBe(false);
     expect(result.skipValidation).toBe(false);
     expect(result.taskSkill).toBe("migrate-storyboard-uikit");
+    expect(result.triageSkill).toBeUndefined();
     expect(result.validationSkill).toBe("ios-ui-validation");
     expect(result.epicTaskPrompt).toBe("");
+    expect(result.epicTriagePrompt).toBe("");
     expect(result.epicValidationPrompt).toBe("");
   });
 
@@ -109,6 +118,18 @@ skip_validation: "false"
 \`\`\`
 `),
     ).toThrow("skip_validation must be true or false");
+  });
+
+  it("rejects a non-string triage skill", () => {
+    expect(() =>
+      parseEpicConfig(`
+\`\`\`epic-config
+id: migrate-storyboard-uikit
+triage_skill: 42
+validation_skill: ios-ui-validation
+\`\`\`
+`),
+    ).toThrow("triage_skill must be a string or null");
   });
 });
 

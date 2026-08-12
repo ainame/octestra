@@ -3,11 +3,15 @@
 Why the system is shaped the way it is. `AGENTS.md` states the rules; this file states the
 reasoning behind them, so that a future change can tell a deliberate constraint from an accident.
 
-## 1. One system, one control plane
+## 1. Two systems, one action surface
 
 Octestra runs AI coding agents against GitHub issues. Work reaches an agent one way: an
 `issues: [field_added, closed]` event enters `octestra-lifecycle.yml`, which owns the task state
 graph — one event, one task.
+
+Scheduled loops are intentionally thinner. A consumer-owned workflow chooses the schedule, prompt
+and agent. Octestra renders that prompt and publishes stable output paths; the repository's triage
+skill owns discovery, selection, domain knowledge and mutation.
 
 ## 2. Decisions
 
@@ -17,14 +21,15 @@ graph — one event, one task.
 | D4 | The lifecycle is one workflow | Repository variables let each status job select its runner directly, and local composite actions now hold the consumer-owned agent policy. Separate reusable workflows add files and caller/callee wiring without preserving a useful boundary. |
 | D5 | Per-status routing keys on a `status_key` output from the transition guard, not on per-status values in workflow YAML | The guard already runs for every routed event, so this costs nothing and keeps seven values out of `vars`. |
 | D6 | `config.yml` is the source of truth and the only file `install.sh` generates — once, and never again | One reviewable, version-controlled file keeps per-consumer values out of the managed workflow. Regenerating it on a rerun would reset every value the consumer edited, so an existing file is kept and contradictions are reported (D14). |
-| D7 | The status *field* is addressed by ID; a status *option* is addressed by its display name | A field rename must not break routing, and `field_id` is available to the guard through a variable. Option IDs cannot be used the same way: the write endpoint accepts a single_select value only as the option name, so an option ID would buy nothing while adding a second vocabulary. See P1 and `TODO.md` §3. |
+| D7 | The status *field* is addressed by ID; a status *option* is addressed by its display name | A field rename must not break routing, and `field_id` is available to the guard through a variable. Option IDs cannot be used the same way: the write endpoint accepts a single_select value only as the option name, so an option ID would buy nothing while adding a second vocabulary. See P1 and `TODO.md` §2. |
 | D8 | Prompts live in `.github/octestra/prompts/` | Everything Octestra owns in a consumer repository sits under one directory. |
-| D9 | Operations are namespaced `lifecycle/<verb>`, `loop/<verb>`, bare for scope-neutral | Paired operations get identical names (`lifecycle/report-failure` ↔ `loop/report-failure`), verb-first naming survives inside each namespace, and `src/lifecycle/`, `src/loop/`, `src/shared/` map 1:1. The `loop/` namespace and `src/loop/` are kept unused: they return when loops do (`TODO.md` §1). |
+| D9 | Operations are namespaced `lifecycle/<verb>`, `loop/<verb>`, bare for scope-neutral | Verb-first naming survives inside each namespace, and `src/lifecycle/`, `src/loop/`, `src/shared/` map 1:1. |
 | D11 | `install.sh` rewrites the workflow's `uses:` references: a fork tracks its own default branch, upstream is pinned to its newest version tag | A consumer who forks Octestra does so to execute only code their own organization controls, and their fork's default branch is the thing they update deliberately — pinning it to a tag would add a second step to every upgrade without adding a guarantee. An upstream install gets a tag instead, so the code a consumer runs cannot change between two installs. The template still ships `@main` because it must be runnable as committed, which makes this a rewrite of a valid value rather than placeholder substitution. |
 | D12 | Maintenance lives in `.github/octestra/octestra.sh`, installed into the consumer repository, and `install.sh` uses that copy for the initial variable sync | Mirroring, drift detection and ref switching are things a consumer does *after* installation, from their own checkout — a `make` target in this repository was documented but unreachable there. Installing the tool also removes the second implementation: one script owns config → variables, and every install exercises it. It needs only `gh`, because a consumer repository is not required to have node. |
 | D13 | A finished task PR is opened ready for review, is taken out of draft before review is requested, and gets no assignee; the EPIC opts out with `draft_pr: true` and out of validation with `skip_validation: true`, both defaulting to `false` | Every default here is the state a human wants at the moment they are asked to look. Marking a PR ready by hand is friction repeated on every task, and where validation runs the work has already been checked before a human sees it — so *ready* is the honest state, and requesting review on something GitHub labels a draft is a contradiction rather than a workflow. `skip_validation` is spelled as the exception it is: the negative name (`validation_required: false`) read as the normal case while describing the opt-out, and inverting it puts "run validation" in the default. The PR assignee was dropped because it duplicates the issue assignee while adding a second mobile notification for the same person. |
 | D14 | The installed workflow is replaced in full; consumer-owned composite actions and `config.yml` are preserved in full; `octestra.sh update` drives the process by running the target version's own `install.sh` | The lifecycle workflow is mechanism that Octestra must be able to update coherently. Agent actions are policy: every line expresses how the consumer's agent runs, so there is no useful Octestra-owned remainder to merge. Keeping each file wholly on one side removes a merge protocol and makes update behavior explicit. Delegating to the downloaded `install.sh` keeps one implementation and means an update runs the new logic rather than whatever the consumer installed months ago. |
 | D15 | Lifecycle preparation, repository-defined agent execution, and finalization share one job and runner; the repository-defined steps live in local composite actions | Preparation publishes runtime state that the agent consumes immediately, so another job would start another runner only to reconstruct the same workspace and environment. A composite action provides a boundary inside the existing job; for task execution, the workflow also checks `task_ready` once so every setup and agent step inside the action is skipped together. |
+| D16 | The loop kernel only renders a consumer-selected prompt | Selection, limits, schedules, domain knowledge and mutations vary by use case and are policy. Keeping them in a repository-owned triage skill and preserved local action makes the loop useful without expanding Octestra's configuration model or requiring a framework operation for each domain action. |
 
 ### Local composite action trade-offs
 
@@ -70,6 +75,10 @@ Split by *when* a value is needed, not by what it is.
 | Policy | status field name, branch templates, prompt paths | `config.yml`, read at runtime | Reviewable and versioned |
 | Wiring | trigger filters, job graph, agent invocation | workflow YAML | GitHub accepts only literals here; also the consumer's customisation surface |
 | Intent | EPIC and task issue body blocks | issue body | Unchanged |
+
+Loop configuration does not add another tier. A loop workflow passes its prompt path and JSON
+context directly to `loop/prepare-run`; the workflow is already the reviewable source for its
+schedule, permissions and agent wiring.
 
 ### Mirrored values
 

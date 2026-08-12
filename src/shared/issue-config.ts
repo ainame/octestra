@@ -3,10 +3,12 @@ import { parse } from "yaml";
 export interface EpicConfig {
   id: string;
   taskSkill?: string;
+  triageSkill?: string;
   validationSkill?: string;
   draftPr: boolean;
   skipValidation: boolean;
   epicTaskPrompt: string;
+  epicTriagePrompt: string;
   epicValidationPrompt: string;
 }
 
@@ -29,6 +31,23 @@ function extractBlock(body: string, name: string, required: boolean): string {
   return "";
 }
 
+function optionalConfigString(
+  config: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = config[key];
+  if (
+    value !== undefined &&
+    value !== null &&
+    typeof value !== "string"
+  ) {
+    throw new Error(`epic-config ${key} must be a string or null`);
+  }
+  return typeof value === "string"
+    ? value.trim() || undefined
+    : undefined;
+}
+
 export function parseEpicConfig(body: string): EpicConfig {
   const configText = extractBlock(body, "epic-config", true);
   const value: unknown = parse(configText);
@@ -43,17 +62,8 @@ export function parseEpicConfig(body: string): EpicConfig {
     throw new Error("epic-config id must be a non-empty lowercase slug");
   }
 
-  const taskSkillValue = config.task_skill;
-  if (
-    taskSkillValue !== undefined &&
-    taskSkillValue !== null &&
-    typeof taskSkillValue !== "string"
-  ) {
-    throw new Error("epic-config task_skill must be a string or null");
-  }
-  const taskSkill = typeof taskSkillValue === "string"
-    ? taskSkillValue.trim() || undefined
-    : undefined;
+  const taskSkill = optionalConfigString(config, "task_skill");
+  const triageSkill = optionalConfigString(config, "triage_skill");
 
   // A task PR is opened ready for review, so an EPIC has to opt in to drafts. Marking a
   // finished PR ready by hand is friction on every task, and a repository that validates
@@ -68,17 +78,7 @@ export function parseEpicConfig(body: string): EpicConfig {
     throw new Error("epic-config skip_validation must be true or false");
   }
 
-  const validationSkillValue = config.validation_skill;
-  if (
-    validationSkillValue !== undefined &&
-    validationSkillValue !== null &&
-    typeof validationSkillValue !== "string"
-  ) {
-    throw new Error("epic-config validation_skill must be a string or null");
-  }
-  const validationSkill = typeof validationSkillValue === "string"
-    ? validationSkillValue.trim() || undefined
-    : undefined;
+  const validationSkill = optionalConfigString(config, "validation_skill");
   if (!skipValidation && !validationSkill) {
     throw new Error(
       "epic-config validation_skill must be a non-empty string when skip_validation is false",
@@ -88,10 +88,12 @@ export function parseEpicConfig(body: string): EpicConfig {
   return {
     id,
     taskSkill,
+    triageSkill,
     validationSkill,
     draftPr,
     skipValidation,
     epicTaskPrompt: extractBlock(body, "epic-task-prompt", false),
+    epicTriagePrompt: extractBlock(body, "epic-triage-prompt", false),
     epicValidationPrompt: extractBlock(body, "epic-validation-prompt", false),
   };
 }

@@ -76,6 +76,36 @@ if (action.runs.using !== "composite") {
 NODE
 }
 
+assert_triage_action_interface() {
+  local workflow="$1"
+  local action="$2"
+
+  node - "$workflow" "$action" <<'NODE'
+const fs = require("fs");
+const yaml = require("yaml");
+
+const workflow = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
+const action = yaml.parse(fs.readFileSync(process.argv[3], "utf8"));
+const step = workflow.jobs.triage.steps.find(
+  (candidate) => candidate.uses === "./.github/octestra/actions/triage-agent",
+);
+if (!step) {
+  throw new Error("triage workflow does not call the local triage-agent action");
+}
+const declared = Object.keys(action.inputs).sort();
+const passed = Object.keys(step.with).sort();
+if (JSON.stringify(declared) !== JSON.stringify(passed)) {
+  throw new Error(`triage-agent inputs differ: declared=${declared} passed=${passed}`);
+}
+if (step.env.OCTESTRA_AGENT_GITHUB_TOKEN !== "${{ steps.app-token.outputs.token }}") {
+  throw new Error("triage-agent GitHub token is not passed through its stable environment name");
+}
+if (action.runs.using !== "composite") {
+  throw new Error("triage-agent action is not composite");
+}
+NODE
+}
+
 mkdir -p "$TEMP_DIR/bin" "$TEMP_DIR/consumer"
 git -C "$TEMP_DIR/consumer" init --quiet
 git -C "$TEMP_DIR/consumer" remote add origin git@github.com:example-org/consumer.git
@@ -218,17 +248,29 @@ bash "$ROOT/install.sh" \
     --yes >"$TEMP_DIR/initial-install-output"
 
 orchestrator="$TEMP_DIR/consumer/.github/workflows/octestra-lifecycle.yml"
+triage_workflow="$TEMP_DIR/consumer/.github/workflows/octestra-loop-todo.yml"
 test -f "$orchestrator"
+test -f "$triage_workflow"
 test -f "$TEMP_DIR/consumer/.github/octestra/config.yml"
 test -f "$TEMP_DIR/consumer/.github/octestra/issue-templates/epic.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/issue-templates/task.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
 test -f "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
+test -f "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
+test -f "$TEMP_DIR/consumer/.github/octestra/actions/triage-agent/action.yml"
+grep -q 'triage_skill: {{triageSkill}}' \
+  "$TEMP_DIR/consumer/.github/octestra/issue-templates/epic.md.hbs"
+grep -q '{{triageSkill}}' \
+  "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
+grep -q '{{epicTriagePrompt}}' \
+  "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
 grep -q '/octestra-validation-proof' \
   "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
 test -x "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/scripts/check.sh"
+test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-loop-proof"
+test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-gbat-goal"
 grep -q '<skill-directory>/scripts/check.sh "<result-path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
 grep -q '.github/octestra/octestra.sh doctor' \
@@ -244,6 +286,14 @@ grep -q 'private_key_secret_key_name: "OCTESTRA_GITHUB_APP_PRIVATE_KEY"' \
 ! grep -q 'options:' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 grep -q "secrets\\[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET" "$orchestrator"
+grep -q 'operation: loop/prepare-run' "$triage_workflow"
+! grep -q 'operation: loop/report-run' "$triage_workflow"
+grep -q '^  # schedule:' "$triage_workflow"
+grep -q '^  workflow_dispatch:' "$triage_workflow"
+grep -q 'OCTESTRA_TRIAGE_EPIC_NUMBER' "$triage_workflow"
+assert_triage_action_interface \
+  "$triage_workflow" \
+  "$TEMP_DIR/consumer/.github/octestra/actions/triage-agent/action.yml"
 grep -q "issue_field_value.option.name != 'Todo'" "$orchestrator"
 grep -q "issue_field_value.option.name != 'Ready'" "$orchestrator"
 grep -q "issue_field_value.option.name != 'Done'" "$orchestrator"
@@ -780,11 +830,21 @@ update_dir="$TEMP_DIR/consumer-update"
 update_entry="$update_dir/.github/workflows/octestra-lifecycle.yml"
 update_agent="$update_dir/.github/octestra/actions/task-agent/action.yml"
 update_validation_agent="$update_dir/.github/octestra/actions/validation-agent/action.yml"
+update_triage_agent="$update_dir/.github/octestra/actions/triage-agent/action.yml"
+update_triage_workflow="$update_dir/.github/workflows/octestra-loop-todo.yml"
+update_triage_prompt="$update_dir/.github/octestra/prompts/loop-todo.md.hbs"
 new_consumer "$update_dir"
 install_into "$update_dir" >/dev/null
 
 customize_action "$update_agent" "./scripts/agent.sh"
 customize_action "$update_validation_agent" "./scripts/validation-agent.sh"
+customize_action "$update_triage_agent" "./scripts/triage-agent.sh"
+printf '\n# Consumer schedule customization\n' >>"$update_triage_workflow"
+printf '\nConsumer triage instructions.\n' >>"$update_triage_prompt"
+# Consumer content is preserved, but the loop must move to the newly installed Octestra ref.
+PATH="$TEMP_DIR/bin:$PATH" \
+  bash "$update_dir/.github/octestra/octestra.sh" ref @1.0.0 >/dev/null
+grep -q 'uses: ainame/octestra@1\.0\.0' "$update_triage_workflow"
 # A managed line the consumer also changed, to prove Octestra's own content is restored.
 sed '0,/timeout-minutes: 60/s//timeout-minutes: 5/' "$update_entry" >"$update_entry.edit"
 mv "$update_entry.edit" "$update_entry"
@@ -795,6 +855,11 @@ touch "$update_dir/.github/workflows/octestra-lifecycle-validation.yml"
 install_into "$update_dir" >/dev/null
 grep -q 'run: ./scripts/agent.sh' "$update_agent"
 grep -q 'run: ./scripts/validation-agent.sh' "$update_validation_agent"
+grep -q 'run: ./scripts/triage-agent.sh' "$update_triage_agent"
+grep -q 'Consumer schedule customization' "$update_triage_workflow"
+grep -q 'Consumer triage instructions' "$update_triage_prompt"
+grep -q 'uses: ainame/octestra@main' "$update_triage_workflow"
+! grep -q 'uses: ainame/octestra@1\.0\.0' "$update_triage_workflow"
 grep -q 'timeout-minutes: 60' "$update_entry"
 test ! -e "$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
 test ! -e "$update_dir/.github/workflows/octestra-lifecycle-validation.yml"
@@ -806,20 +871,28 @@ fi
 parses_as_yaml "$update_entry"
 parses_as_yaml "$update_agent"
 parses_as_yaml "$update_validation_agent"
+parses_as_yaml "$update_triage_agent"
+parses_as_yaml "$update_triage_workflow"
 
 # Reinstalling over a merged file must be a no-op, or every update would churn the diff.
 before_rerun=$(
   cat \
     "$update_entry" \
     "$update_agent" \
-    "$update_validation_agent"
+    "$update_validation_agent" \
+    "$update_triage_agent" \
+    "$update_triage_workflow" \
+    "$update_triage_prompt"
 )
 install_into "$update_dir" >/dev/null
 after_rerun=$(
   cat \
     "$update_entry" \
     "$update_agent" \
-    "$update_validation_agent"
+    "$update_validation_agent" \
+    "$update_triage_agent" \
+    "$update_triage_workflow" \
+    "$update_triage_prompt"
 )
 if [[ "$before_rerun" != "$after_rerun" ]]; then
   echo "a second identical install changed installed files" >&2

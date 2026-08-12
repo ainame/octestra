@@ -1,0 +1,91 @@
+# Consumer-owned schedule for triaging Todo tasks. Octestra installs this example only when it does
+# not exist; later updates preserve the whole file.
+#
+# Configure triage-agent/action.yml to run an agent that can use your repository's triage skill.
+# The skill owns task discovery and triage policy; this workflow only runs it.
+name: Octestra Loop - Todo
+
+on:
+  # Scheduled execution is opt-in. Set the OCTESTRA_TRIAGE_EPIC_NUMBER repository variable, choose
+  # a cadence, then uncomment these lines.
+  # schedule:
+  #   - cron: "0 9 * * *"
+  workflow_dispatch:
+    inputs:
+      epic-number:
+        description: EPIC issue whose Todo tasks should be triaged
+        required: true
+        type: number
+      dry-run:
+        description: Run the triage skill without changing issues
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  # Uncomment when triage-agent/action.yml uses GitHub OIDC for cloud credentials.
+  # id-token: write
+  issues: write
+
+jobs:
+  triage:
+    name: Triage Todo tasks
+    runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    concurrency:
+      group: octestra-loop-todo
+      cancel-in-progress: false
+    steps:
+      # An App token lets agent-made issue changes trigger the lifecycle workflow. Changes made
+      # with GITHUB_TOKEN do not start another workflow run.
+      - name: Generate a token from GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Prepare loop prompt
+        id: loop
+        uses: ainame/octestra@main
+        with:
+          operation: loop/prepare-run
+          github-token: ${{ steps.app-token.outputs.token }}
+          issue-number: ${{ inputs.epic-number || vars.OCTESTRA_TRIAGE_EPIC_NUMBER }}
+          loop-id: todo
+          prompt-path: .github/octestra/prompts/loop-todo.md.hbs
+          loop-context: |
+            {
+              "dryRun": ${{ inputs.dry-run || false }}
+            }
+
+      # This action owns agent setup and execution. The triage skill available to that agent owns
+      # task discovery, selection, limits and every issue mutation.
+      - name: Run triage agent
+        uses: ./.github/octestra/actions/triage-agent
+        env:
+          OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          epic_number: ${{ inputs.epic-number || vars.OCTESTRA_TRIAGE_EPIC_NUMBER }}
+          triage_skill: ${{ steps.loop.outputs.triage_skill }}
+          dry_run: ${{ inputs.dry-run || false }}
+          prompt: ${{ steps.loop.outputs.prompt }}
+          result_path: ${{ steps.loop.outputs.result_path }}
+          artifact_path: ${{ steps.loop.outputs.artifact_path }}
+
+      - name: Upload triage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: octestra-loop-todo
+          path: |
+            ${{ steps.loop.outputs.result_path }}
+            ${{ steps.loop.outputs.artifact_path }}
+          if-no-files-found: warn
