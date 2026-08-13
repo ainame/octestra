@@ -6,6 +6,7 @@ export interface EpicConfig {
   triageSkill?: string;
   validationSkill?: string;
   draftPr: boolean;
+  skipTriage: boolean;
   skipValidation: boolean;
   epicTaskPrompt: string;
   epicTriagePrompt: string;
@@ -73,6 +74,11 @@ export function parseEpicConfig(body: string): EpicConfig {
     throw new Error("epic-config draft_pr must be true or false");
   }
 
+  const skipTriage = config.skip_triage ?? false;
+  if (typeof skipTriage !== "boolean") {
+    throw new Error("epic-config skip_triage must be true or false");
+  }
+
   const skipValidation = config.skip_validation ?? false;
   if (typeof skipValidation !== "boolean") {
     throw new Error("epic-config skip_validation must be true or false");
@@ -91,6 +97,7 @@ export function parseEpicConfig(body: string): EpicConfig {
     triageSkill,
     validationSkill,
     draftPr,
+    skipTriage,
     skipValidation,
     epicTaskPrompt: extractBlock(body, "epic-task-prompt", false),
     epicTriagePrompt: extractBlock(body, "epic-triage-prompt", false),

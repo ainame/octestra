@@ -40,6 +40,7 @@ task_skill: swift-concurrency       # task エージェントが使う任意の�
 triage_skill: migration-triage      # Todo triage loop を使う場合は必須
 validation_skill: ios-ui-validation # 検証を省略しない場合は必須
 draft_pr: false           # 各 task pull request を draft で開くか
+skip_triage: false        # true の場合はこの EPIC を triage から除外
 skip_validation: false    # true の場合は直接 Human Review へ進める
 ```
 
@@ -73,9 +74,9 @@ target: Sources/Feature.swift # 任意の変更対象ファイルまたはコン
 ````
 
 `epic-triage-prompt`、`epic-validation-prompt`、`validation-prompt` は任意です。空のままに
-しておくと、必要なときだけ追加できます。`triage_skill` は Todo triage loop を使う場合だけ
-必須です。`validation_skill` は `skip_validation` が `true` でない限り必須で、検証を省略する
-場合は空でも構いません。
+しておくと、必要なときだけ追加できます。`skip_triage` のデフォルトは `false` で、
+`false` の場合は `triage_skill` が必須です。`validation_skill` は `skip_validation` が `true`
+でない限り必須で、検証を省略する場合は空でも構いません。
 
 ## エージェントのワークフローを設定する
 
@@ -169,16 +170,21 @@ Octestra は task issue の検証結果コメントに、check ごとに 1 行�
 ## Scheduled Agent Loop
 
 `.github/workflows/octestra-loop-todo.yml` は consumer-owned の Todo triage 例です。手動では
-すぐ実行できます。定期実行する場合は `OCTESTRA_TRIAGE_EPIC_NUMBER` repository variable と
-実行間隔を設定して `schedule` block を uncomment し、
+すぐ実行できます。定期実行する場合は実行間隔を設定して `schedule` block を uncomment し、
 `.github/octestra/actions/triage-agent/action.yml` の placeholder を置き換えてください。
 
-`loop/prepare-run` は選択した EPIC から `triage_skill` と任意の `epic-triage-prompt` block を
-読み、`triageSkill`、`epicTriagePrompt`、workflow が渡した JSON context を使って
-`.github/octestra/prompts/loop-todo.md.hbs` を描画します。issue の探索、選択、件数制限、変更
-ルール、domain knowledge は workflow や prompt ではなく、その triage skill に置いてください。
-Octestra は prompt を描画し、agent の run summary と supporting artifacts の安定した保存先を
-出力するだけです。
+`loop/list-epics` は `octestra-epic` label を持つ open issue を探し、`epic-config` に
+`skip_triage: true` を設定した EPIC を除外します。workflow は残った EPIC ごとに matrix
+job を起動し、同時に実行する agent job は最大3つです。`loop/prepare-run` はその EPIC から
+`triage_skill` と任意の `epic-triage-prompt` block を読み、`triageSkill`、
+`epicTriagePrompt`、workflow が渡した JSON context を使って
+`.github/octestra/prompts/loop-todo.md.hbs` を描画します。
+
+task の探索、選択、件数制限、変更ルール、domain knowledge は workflow や prompt ではなく、
+triage skill に置いてください。Octestra は設定単位である EPIC の発見、prompt の描画、agent の
+run summary と supporting artifacts の安定した保存先の出力だけを担当します。
+open かつ opt-out していない EPIC に `triage_skill` がない場合、または `epic-config` が不正な
+場合、discovery はその EPIC を示して run を失敗させ、黙って除外しません。
 
 workflow は local triage action に `epic_number`、`triage_skill`、`dry_run`、`prompt`、
 `result_path`、`artifact_path` を渡します。agent integration が skill 名を明示的に必要とする

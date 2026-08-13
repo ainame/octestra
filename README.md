@@ -75,10 +75,12 @@ Customize `.github/octestra/prompts/loop-todo.md.hbs` and
 `.github/octestra/actions/triage-agent/action.yml`.
 
 Set `triage_skill` and, optionally, the `epic-triage-prompt` block in the EPIC issue. The rendered
-prompt exposes them as `triageSkill` and `epicTriagePrompt`. That skill owns issue discovery,
-selection, limits and mutations; Octestra only renders the prompt and runs the configured agent
-action. Scheduled execution is opt-in: set the `OCTESTRA_TRIAGE_EPIC_NUMBER` repository variable,
-choose a cadence, and uncomment the workflow's `schedule` block.
+prompt exposes them as `triageSkill` and `epicTriagePrompt`. Open `octestra-epic` issues participate
+by default; set `skip_triage: true` in an EPIC to opt out. Octestra starts one bounded matrix
+job per participating EPIC. The skill owns task discovery, selection, limits and mutations.
+Scheduled execution is opt-in: choose a cadence and uncomment the workflow's `schedule` block.
+Before running it, every open `octestra-epic` issue must either configure `triage_skill` or opt out;
+discovery fails loudly rather than silently omitting an invalid EPIC.
 
 ## Updating and Maintenance
 

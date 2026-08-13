@@ -40,6 +40,7 @@ task_skill: swift-concurrency       # optional skill used by the task agent
 triage_skill: migration-triage      # required when using the Todo triage loop
 validation_skill: ios-ui-validation # required unless validation is skipped
 draft_pr: false           # whether to open each task pull request as a draft
+skip_triage: false        # when true, exclude this EPIC from triage
 skip_validation: false    # when true, move directly to Human Review
 ```
 
@@ -73,9 +74,9 @@ Confirm the screen displays the expected content and responds correctly to user 
 ````
 
 `epic-triage-prompt`, `epic-validation-prompt`, and `validation-prompt` are optional. Leave them
-empty until an individual issue needs them. `triage_skill` is required only when using the Todo
-triage loop. `validation_skill` is required unless `skip_validation` is `true`; when validation is
-skipped, it may be empty.
+empty until an individual issue needs them. `skip_triage` defaults to `false`; when it is
+`false`, `triage_skill` is required. `validation_skill` is required unless `skip_validation` is
+`true`; when validation is skipped, it may be empty.
 
 ## Configure Agent Workflows
 
@@ -175,16 +176,22 @@ Octestra renders one row per check in the validation proof comment. `checks` mak
 ## Scheduled Agent Loops
 
 `.github/workflows/octestra-loop-todo.yml` is a consumer-owned Todo triage example. It supports
-manual runs immediately. To schedule it, set the `OCTESTRA_TRIAGE_EPIC_NUMBER` repository variable,
-choose a cadence, and uncomment its `schedule` block. Then replace the placeholder in
+manual runs immediately. To schedule it, choose a cadence and uncomment its `schedule` block. Then
+replace the placeholder in
 `.github/octestra/actions/triage-agent/action.yml`.
 
-`loop/prepare-run` reads `triage_skill` and the optional `epic-triage-prompt` block from the selected
-EPIC, then renders `.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill`,
-`epicTriagePrompt`, and the JSON context provided by the workflow. Keep issue discovery, selection,
-limits, mutation rules and domain knowledge in the triage skill rather than in the workflow or
-prompt. Octestra only renders the prompt and publishes stable paths for the agent's run summary and
-supporting artifacts.
+`loop/list-epics` finds open issues carrying the `octestra-epic` label and excludes those whose
+`epic-config` sets `skip_triage: true`. The workflow starts one matrix job per remaining EPIC,
+with at most three agent jobs running concurrently. `loop/prepare-run` reads `triage_skill` and the
+optional `epic-triage-prompt` block from that EPIC, then renders
+`.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill`, `epicTriagePrompt`, and the JSON
+context provided by the workflow.
+
+Keep task discovery, selection, limits, mutation rules and domain knowledge in the triage skill
+rather than in the workflow or prompt. Octestra only discovers its EPIC configuration units,
+renders the prompt, and publishes stable paths for the agent's run summary and supporting artifacts.
+If any open, non-opted-out EPIC has no `triage_skill` or has invalid `epic-config`, discovery fails
+the run and names that EPIC instead of silently skipping it.
 
 The workflow passes the local triage action `epic_number`, `triage_skill`, `dry_run`, `prompt`,
 `result_path`, and `artifact_path`. Use `inputs.triage_skill` when the agent integration requires an

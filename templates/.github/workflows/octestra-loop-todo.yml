@@ -6,16 +6,11 @@
 name: Octestra Loop - Todo
 
 on:
-  # Scheduled execution is opt-in. Set the OCTESTRA_TRIAGE_EPIC_NUMBER repository variable, choose
-  # a cadence, then uncomment these lines.
+  # Scheduled execution is opt-in. Choose a cadence, then uncomment these lines.
   # schedule:
   #   - cron: "0 9 * * *"
   workflow_dispatch:
     inputs:
-      epic-number:
-        description: EPIC issue whose Todo tasks should be triaged
-        required: true
-        type: number
       dry-run:
         description: Run the triage skill without changing issues
         required: true
@@ -29,12 +24,42 @@ permissions:
   issues: write
 
 jobs:
+  discover:
+    name: Discover EPICs
+    runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
+    outputs:
+      epics: ${{ steps.epics.outputs.epics }}
+      count: ${{ steps.epics.outputs.count }}
+    steps:
+      - name: Generate a token from GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
+
+      - name: Find EPICs enabled for Todo triage
+        id: epics
+        uses: ainame/octestra@main
+        with:
+          operation: loop/list-epics
+          github-token: ${{ steps.app-token.outputs.token }}
+
   triage:
-    name: Triage Todo tasks
+    name: Triage EPIC #${{ matrix.epic.number }}
+    needs: discover
+    if: needs.discover.outputs.count != '0'
     runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        epic: ${{ fromJSON(needs.discover.outputs.epics) }}
     concurrency:
-      group: octestra-loop-todo
+      group: octestra-loop-todo-${{ matrix.epic.number }}
       cancel-in-progress: false
     steps:
       # An App token lets agent-made issue changes trigger the lifecycle workflow. Changes made
@@ -58,7 +83,7 @@ jobs:
         with:
           operation: loop/prepare-run
           github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ inputs.epic-number || vars.OCTESTRA_TRIAGE_EPIC_NUMBER }}
+          issue-number: ${{ matrix.epic.number }}
           loop-id: todo
           prompt-path: .github/octestra/prompts/loop-todo.md.hbs
           loop-context: |
@@ -73,7 +98,7 @@ jobs:
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
-          epic_number: ${{ inputs.epic-number || vars.OCTESTRA_TRIAGE_EPIC_NUMBER }}
+          epic_number: ${{ matrix.epic.number }}
           triage_skill: ${{ steps.loop.outputs.triage_skill }}
           dry_run: ${{ inputs.dry-run || false }}
           prompt: ${{ steps.loop.outputs.prompt }}
@@ -84,7 +109,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: octestra-loop-todo
+          name: octestra-loop-todo-${{ matrix.epic.number }}
           path: |
             ${{ steps.loop.outputs.result_path }}
             ${{ steps.loop.outputs.artifact_path }}

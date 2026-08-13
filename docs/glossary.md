@@ -71,8 +71,8 @@ The JSON file an agent writes to `result_path`. Octestra renders it as an issue 
 
 ### loop
 
-A consumer-scheduled agent run whose workflow, prompt and local agent action decide what work to do.
-Octestra only prepares its prompt and posts its result.
+A consumer-scheduled agent run. The Todo loop discovers enabled EPIC issues and starts one local
+agent action per EPIC; the repository's triage skill decides what task work to do.
 
 > a scheduled agent loop
 
@@ -124,6 +124,6 @@ it holds where it appears.
 | the guard | The `guard` job, and `lifecycle/validate-transition` inside it, which decides whether a status change is legal and which status job to run. |
 | mirrored value | One of the five values copied from `config.yml` into repository variables because a job needs them before it can read a file. |
 | drift | A mirrored value disagreeing with `config.yml`. |
-| platform invariant | A verified GitHub behaviour, numbered `P1`–`P11` in `AGENTS.md`. Numbers are stable and never reused. |
+| platform invariant | A verified GitHub behaviour with a stable `P` number in `AGENTS.md`. Numbers are never reused. |
 | decision | A design choice, numbered `D3`–`D14` in `docs/design.md`. |
 | lifecycle / loop namespace | The two operation namespaces: task-state operations and scheduled prompt operations. |

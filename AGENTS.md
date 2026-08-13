@@ -22,11 +22,12 @@ issues:field_added ─▶ octestra-lifecycle.yml
                        guard ─┬─▶ in-progress
                               └─▶ validation
 
-schedule ───────────▶ octestra-loop-todo.yml ─▶ prepare-run ─▶ triage-agent
+schedule ───────────▶ octestra-loop-todo.yml ─▶ list-epics ─▶ prepare-run ─▶ triage-agent
 ```
 
-Loops deliberately do not own issue selection or mutation. The repository's triage skill decides
-what work happens; Octestra only renders the prompt and executes the local agent action.
+Loops discover open EPIC configuration units and honor each EPIC's triage opt-out. They deliberately do not
+select or mutate tasks. The repository's triage skill decides what task work happens; Octestra
+renders the prompt and executes the local agent action once per enabled EPIC.
 
 ## Layout
 
@@ -36,7 +37,7 @@ src/
   index.ts                     operation dispatch; builds context per namespace
   shared/                      config.ts, github-client.ts, prompt.ts, proof.ts
   lifecycle/operations.ts      lifecycle/<verb> implementations
-  loop/operations.ts           loop/prepare-run
+  loop/operations.ts           loop/list-epics and loop/prepare-run
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
 templates/.github/
   workflows/octestra-lifecycle.yml
@@ -102,6 +103,10 @@ systems. Never renumber: `docs/design.md` cites these numbers.
 - **P5. `schedule` is best-effort** — delayed or skipped under load, and disabled after 60 days of
   repository inactivity. Every loop must be idempotent; correctness must never depend on a run
   happening exactly once per period.
+- **P6. Dynamic matrices need an explicit empty guard and have a hard size limit.** An empty
+  `strategy.matrix` fails the job rather than skipping it, while a matrix may generate at most 256
+  jobs. The Todo loop gates its matrix job on the discovery count and discovery fails loudly rather
+  than truncating more than 256 enabled EPICs.
 - **P8. Concurrency groups are repository-scoped.** Identical group strings in different workflow
   files share a group. The `in-progress` and `validation` jobs use the same
   `octestra-<issue_number>` group with `cancel-in-progress: false`, so work on one task issue is
@@ -169,8 +174,8 @@ must be reconstructed by `update` from the installed state or an update silently
 
 Installed loop workflows, their prompts and their local agent actions also belong to the consumer
 and are preserved in full. Their schedule and work policy cannot be reconstructed from Octestra's
-templates. Framework-owned loop behavior belongs in `loop/prepare-run`, never in selection, limits
-or mutation logic.
+templates. Framework-owned loop behavior belongs in discovering enabled EPIC configuration units
+and `loop/prepare-run`, never in task selection, limits or mutation logic.
 
 **Agent execution stays with preparation.** Lifecycle preparation, agent execution and finalization
 share one job and runner instance. Do not split preparation into a producer job merely to condition

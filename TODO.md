@@ -5,8 +5,9 @@ work must respect live in `AGENTS.md`.
 
 The configuration restructuring has shipped: the config control plane, the single-workflow lifecycle
 topology, operation namespacing, and the minimal Todo triage loop. Earlier fan-out and aggregate
-loop designs owned too much policy and were removed. The retained loop kernel only renders a prompt;
-the repository's triage skill owns discovery, selection, limits, domain knowledge and mutations.
+loop designs owned too much policy and were removed. The retained loop kernel discovers enabled
+EPIC configuration units and renders a prompt for each; the repository's triage skill owns task
+discovery, selection, limits, domain knowledge and mutations.
 
 ## 1. Put agent execution behind a trust boundary
 

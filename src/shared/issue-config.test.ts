@@ -10,6 +10,7 @@ task_skill: objc-to-swift
 triage_skill: migration-triage
 validation_skill:
 draft_pr: true
+skip_triage: true
 skip_validation: true
 \`\`\`
 
@@ -32,6 +33,7 @@ Prioritize tasks that unblock other work.
       triageSkill: "migration-triage",
       validationSkill: undefined,
       draftPr: true,
+      skipTriage: true,
       skipValidation: true,
       epicTaskPrompt: "Keep the public API unchanged.",
       epicTriagePrompt: "Prioritize tasks that unblock other work.",
@@ -49,6 +51,7 @@ validation_skill: ios-ui-validation
 `);
 
     expect(result.draftPr).toBe(false);
+    expect(result.skipTriage).toBe(false);
     expect(result.skipValidation).toBe(false);
     expect(result.taskSkill).toBe("migrate-storyboard-uikit");
     expect(result.triageSkill).toBeUndefined();
@@ -118,6 +121,18 @@ skip_validation: "false"
 \`\`\`
 `),
     ).toThrow("skip_validation must be true or false");
+  });
+
+  it("rejects a non-boolean skip_triage value", () => {
+    expect(() =>
+      parseEpicConfig(`
+\`\`\`epic-config
+id: migrate-storyboard-uikit
+validation_skill: ios-ui-validation
+skip_triage: "false"
+\`\`\`
+`),
+    ).toThrow("skip_triage must be true or false");
   });
 
   it("rejects a non-string triage skill", () => {

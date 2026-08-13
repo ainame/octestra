@@ -31,6 +31,12 @@ interface TimelineEvent {
   };
 }
 
+export interface RepositoryIssue {
+  number: number;
+  title: string;
+  body: string;
+}
+
 const mergeClosureWindowMilliseconds = 60_000;
 
 const perPage = 100;
@@ -68,7 +74,9 @@ export class GitHubClient {
     return Buffer.from(response.data.content, "base64").toString("utf8");
   }
 
-  async getIssue(issueNumber: number): Promise<{ title: string; body: string }> {
+  async getIssue(
+    issueNumber: number,
+  ): Promise<{ title: string; body: string; state: string; labels: string[] }> {
     const response = await this.octokit.rest.issues.get({
       owner: this.owner,
       repo: this.repo,
@@ -77,7 +85,31 @@ export class GitHubClient {
     return {
       title: response.data.title,
       body: response.data.body ?? "",
+      state: response.data.state,
+      labels: response.data.labels
+        .map((label) => typeof label === "string" ? label : label.name)
+        .filter((label): label is string => Boolean(label)),
     };
+  }
+
+  async listOpenIssuesByLabel(label: string): Promise<RepositoryIssue[]> {
+    const issues = await this.octokit.paginate(
+      this.octokit.rest.issues.listForRepo,
+      {
+        owner: this.owner,
+        repo: this.repo,
+        state: "open",
+        labels: label,
+        per_page: perPage,
+      },
+    );
+    return issues
+      .filter((issue) => !issue.pull_request)
+      .map((issue) => ({
+        number: issue.number,
+        title: issue.title,
+        body: issue.body ?? "",
+      }));
   }
 
   async isClosedByMergedPullRequest(issueNumber: number): Promise<boolean> {

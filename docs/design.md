@@ -10,8 +10,9 @@ Octestra runs AI coding agents against GitHub issues. Work reaches an agent one 
 graph — one event, one task.
 
 Scheduled loops are intentionally thinner. A consumer-owned workflow chooses the schedule, prompt
-and agent. Octestra renders that prompt and publishes stable output paths; the repository's triage
-skill owns discovery, selection, domain knowledge and mutation.
+and agent. Octestra discovers its open EPIC configuration units, honors their opt-out, renders the
+prompt, and publishes stable output paths. The repository's triage skill owns task discovery,
+selection, domain knowledge and mutation.
 
 ## 2. Decisions
 
@@ -29,7 +30,7 @@ skill owns discovery, selection, domain knowledge and mutation.
 | D13 | A finished task PR is opened ready for review, is taken out of draft before review is requested, and gets no assignee; the EPIC opts out with `draft_pr: true` and out of validation with `skip_validation: true`, both defaulting to `false` | Every default here is the state a human wants at the moment they are asked to look. Marking a PR ready by hand is friction repeated on every task, and where validation runs the work has already been checked before a human sees it — so *ready* is the honest state, and requesting review on something GitHub labels a draft is a contradiction rather than a workflow. `skip_validation` is spelled as the exception it is: the negative name (`validation_required: false`) read as the normal case while describing the opt-out, and inverting it puts "run validation" in the default. The PR assignee was dropped because it duplicates the issue assignee while adding a second mobile notification for the same person. |
 | D14 | The installed workflow is replaced in full; consumer-owned composite actions and `config.yml` are preserved in full; `octestra.sh update` drives the process by running the target version's own `install.sh` | The lifecycle workflow is mechanism that Octestra must be able to update coherently. Agent actions are policy: every line expresses how the consumer's agent runs, so there is no useful Octestra-owned remainder to merge. Keeping each file wholly on one side removes a merge protocol and makes update behavior explicit. Delegating to the downloaded `install.sh` keeps one implementation and means an update runs the new logic rather than whatever the consumer installed months ago. |
 | D15 | Lifecycle preparation, repository-defined agent execution, and finalization share one job and runner; the repository-defined steps live in local composite actions | Preparation publishes runtime state that the agent consumes immediately, so another job would start another runner only to reconstruct the same workspace and environment. A composite action provides a boundary inside the existing job; for task execution, the workflow also checks `task_ready` once so every setup and agent step inside the action is skipped together. |
-| D16 | The loop kernel only renders a consumer-selected prompt | Selection, limits, schedules, domain knowledge and mutations vary by use case and are policy. Keeping them in a repository-owned triage skill and preserved local action makes the loop useful without expanding Octestra's configuration model or requiring a framework operation for each domain action. |
+| D16 | The loop kernel discovers enabled EPIC configuration units and renders a consumer-selected prompt for each | The `octestra-epic` label and `epic-config` are Octestra contracts, so enumerating them and honoring `skip_triage` is mechanism. Task selection, limits, domain knowledge and mutations vary by use case and stay in a repository-owned triage skill and preserved local action. |
 
 ### Local composite action trade-offs
 
@@ -76,9 +77,9 @@ Split by *when* a value is needed, not by what it is.
 | Wiring | trigger filters, job graph, agent invocation | workflow YAML | GitHub accepts only literals here; also the consumer's customisation surface |
 | Intent | EPIC and task issue body blocks | issue body | Unchanged |
 
-Loop configuration does not add another tier. A loop workflow passes its prompt path and JSON
-context directly to `loop/prepare-run`; the workflow is already the reviewable source for its
-schedule, permissions and agent wiring.
+Loop configuration does not add another tier. An EPIC's `epic-config` controls whether Todo triage
+runs and which skill it invokes. The loop workflow remains the reviewable source for its schedule,
+permissions, concurrency and agent wiring.
 
 ### Mirrored values
 

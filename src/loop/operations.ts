@@ -1,15 +1,29 @@
 import path from "node:path";
 import * as core from "@actions/core";
 import { parseEpicConfig } from "../shared/issue-config";
+import { markdownTable } from "../shared/markdown";
 import { renderPrompt } from "../shared/prompt";
 import { workflowRunUrl } from "../shared/workflow-run";
 
-export interface LoopClient {
-  getIssue(issueNumber: number): Promise<{ title: string; body: string }>;
+const maximumMatrixEntries = 256;
+
+export interface LoopPrepareClient {
+  getIssue(issueNumber: number): Promise<{
+    title: string;
+    body: string;
+    state: string;
+    labels: string[];
+  }>;
+}
+
+export interface LoopDiscoveryClient {
+  listOpenIssuesByLabel(
+    label: string,
+  ): Promise<Array<{ number: number; title: string; body: string }>>;
 }
 
 export interface LoopPrepareContext {
-  client: LoopClient;
+  client: LoopPrepareClient;
   epicNumber: number;
 }
 
@@ -44,6 +58,45 @@ function validateLoopId(loopId: string): void {
   }
 }
 
+export async function listEpics(client: LoopDiscoveryClient): Promise<void> {
+  const issues = await client.listOpenIssuesByLabel("octestra-epic");
+  const epics: Array<{ number: number }> = [];
+
+  for (const issue of issues) {
+    let config;
+    try {
+      config = parseEpicConfig(issue.body);
+    } catch (error) {
+      throw new Error(
+        `EPIC #${issue.number} has invalid configuration: ${String(error)}`,
+      );
+    }
+    if (config.skipTriage) {
+      continue;
+    }
+    if (!config.triageSkill) {
+      throw new Error(
+        `EPIC #${issue.number} enables Todo triage but epic-config triage_skill is empty`,
+      );
+    }
+    epics.push({ number: issue.number });
+  }
+
+  if (epics.length > maximumMatrixEntries) {
+    throw new Error(
+      `Todo triage found ${epics.length} enabled EPICs; GitHub Actions supports at most ${maximumMatrixEntries} matrix jobs`,
+    );
+  }
+
+  core.setOutput("epics", JSON.stringify(epics));
+  core.setOutput("count", String(epics.length));
+  core.summary.addRaw(markdownTable(["Field", "Value"], [
+    ["Open EPICs", String(issues.length)],
+    ["Todo triage enabled", String(epics.length)],
+  ]));
+  await core.summary.write();
+}
+
 export async function prepareRun(
   context: LoopPrepareContext,
   loopId: string,
@@ -58,9 +111,18 @@ export async function prepareRun(
   const resultPath = `octestra-loop-${loopId}.md`;
   const artifactPath = `octestra-loop-${loopId}-artifacts`;
   const callerContext = parsePromptContext(rawContext);
-  const epic = parseEpicConfig(
-    (await context.client.getIssue(context.epicNumber)).body,
-  );
+  const issue = await context.client.getIssue(context.epicNumber);
+  if (issue.state !== "open" || !issue.labels.includes("octestra-epic")) {
+    throw new Error(
+      `EPIC #${context.epicNumber} is no longer an open octestra-epic issue`,
+    );
+  }
+  const epic = parseEpicConfig(issue.body);
+  if (epic.skipTriage) {
+    throw new Error(
+      `EPIC #${context.epicNumber} has skip_triage enabled`,
+    );
+  }
   if (!epic.triageSkill) {
     throw new Error("epic-config triage_skill must be a non-empty string for loop/todo");
   }

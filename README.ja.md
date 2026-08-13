@@ -74,12 +74,14 @@ EPIC と task issue の書式、各 status option の意味、エージェント
 `.github/octestra/prompts/loop-todo.md.hbs` と
 `.github/octestra/actions/triage-agent/action.yml` をカスタマイズしてください。
 
-prompt は repository の Todo triage skill を使うよう agent に指示します。issue の探索、選択、
 EPIC issue の `triage_skill` と、必要に応じて `epic-triage-prompt` block を設定してください。
-描画された prompt では `triageSkill` と `epicTriagePrompt` として参照できます。issue の探索、
-選択、件数制限、変更はその skill が所有し、Octestra は prompt の描画と設定済み agent action
-の実行だけを担当します。定期実行は opt-in です。`OCTESTRA_TRIAGE_EPIC_NUMBER` repository
-variable と実行間隔を設定し、workflow の `schedule` block を uncomment してください。
+描画された prompt では `triageSkill` と `epicTriagePrompt` として参照できます。open な
+`octestra-epic` issue はデフォルトで対象になり、除外する EPIC は `skip_triage: true` を
+設定します。Octestra は対象 EPIC ごとに bounded matrix job を起動し、task の探索、選択、
+件数制限、変更は skill が所有します。定期実行は opt-in です。実行間隔を設定し、workflow の
+`schedule` block を uncomment してください。
+実行前に、open なすべての `octestra-epic` issue で `triage_skill` を設定するか opt-out して
+ください。不正な EPIC を黙って除外せず、discovery は明示的に失敗します。
 
 ## 更新とメンテナンス
 

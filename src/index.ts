@@ -19,7 +19,10 @@ import {
   validateTransition,
   type OperationContext,
 } from "./lifecycle/operations";
-import { prepareRun } from "./loop/operations";
+import {
+  listEpics,
+  prepareRun,
+} from "./loop/operations";
 
 function requiredNumber(name: string): number {
   return positiveInteger(name, core.getInput(name, { required: true }));
@@ -46,6 +49,10 @@ export async function run(): Promise<void> {
   const operation = core.getInput("operation", { required: true });
   const token = core.getInput("github-token", { required: true });
   const client = new GitHubClient(token);
+  if (operation === "loop/list-epics") {
+    await listEpics(client);
+    return;
+  }
   if (operation === "loop/prepare-run") {
     await prepareRun(
       {

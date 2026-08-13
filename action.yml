@@ -94,6 +94,10 @@ outputs:
     description: Outcome read from a proof JSON file
   summary:
     description: Summary read from a proof JSON file
+  epics:
+    description: JSON array of open EPIC issue numbers enabled for Todo triage
+  count:
+    description: Number of EPICs enabled for Todo triage
 
 runs:
   using: node24

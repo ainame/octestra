@@ -103,6 +103,15 @@ if (step.env.OCTESTRA_AGENT_GITHUB_TOKEN !== "${{ steps.app-token.outputs.token 
 if (action.runs.using !== "composite") {
   throw new Error("triage-agent action is not composite");
 }
+if (workflow.jobs.triage.strategy["fail-fast"] !== false) {
+  throw new Error("triage matrix must continue when one EPIC fails");
+}
+if (workflow.jobs.triage.strategy["max-parallel"] !== 3) {
+  throw new Error("triage matrix must bound parallel agent jobs");
+}
+if (workflow.jobs.triage.strategy.matrix.epic !== "${{ fromJSON(needs.discover.outputs.epics) }}") {
+  throw new Error("triage matrix does not consume discovered EPICs");
+}
 NODE
 }
 
@@ -287,10 +296,13 @@ grep -q 'private_key_secret_key_name: "OCTESTRA_GITHUB_APP_PRIVATE_KEY"' \
 node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 grep -q "secrets\\[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET" "$orchestrator"
 grep -q 'operation: loop/prepare-run' "$triage_workflow"
+grep -q 'operation: loop/list-epics' "$triage_workflow"
 ! grep -q 'operation: loop/report-run' "$triage_workflow"
 grep -q '^  # schedule:' "$triage_workflow"
 grep -q '^  workflow_dispatch:' "$triage_workflow"
-grep -q 'OCTESTRA_TRIAGE_EPIC_NUMBER' "$triage_workflow"
+! grep -q 'OCTESTRA_TRIAGE_EPIC_NUMBER' "$triage_workflow"
+grep -q 'skip_triage: {{skipTriage}}' \
+  "$TEMP_DIR/consumer/.github/octestra/issue-templates/epic.md.hbs"
 assert_triage_action_interface \
   "$triage_workflow" \
   "$TEMP_DIR/consumer/.github/octestra/actions/triage-agent/action.yml"
