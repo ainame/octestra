@@ -295,7 +295,7 @@ grep -q 'private_key_secret_key_name: "OCTESTRA_GITHUB_APP_PRIVATE_KEY"' \
 ! grep -q 'options:' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 grep -q "secrets\\[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET" "$orchestrator"
-grep -q 'operation: loop/prepare-run' "$triage_workflow"
+grep -q 'operation: loop/prepare-triage' "$triage_workflow"
 grep -q 'operation: loop/list-epics' "$triage_workflow"
 ! grep -q 'operation: loop/report-run' "$triage_workflow"
 grep -q '^  # schedule:' "$triage_workflow"

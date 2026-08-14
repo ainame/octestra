@@ -22,7 +22,7 @@ issues:field_added ─▶ octestra-lifecycle.yml
                        guard ─┬─▶ in-progress
                               └─▶ validation
 
-schedule ───────────▶ octestra-loop-todo.yml ─▶ list-epics ─▶ prepare-run ─▶ triage-agent
+schedule ───────────▶ octestra-loop-todo.yml ─▶ list-epics ─▶ prepare-triage ─▶ triage-agent
 ```
 
 Loops discover open EPIC configuration units and honor each EPIC's triage opt-out. They deliberately do not
@@ -37,7 +37,7 @@ src/
   index.ts                     operation dispatch; builds context per namespace
   shared/                      config.ts, github-client.ts, prompt.ts, proof.ts
   lifecycle/operations.ts      lifecycle/<verb> implementations
-  loop/operations.ts           loop/list-epics and loop/prepare-run
+  loop/operations.ts           loop/list-epics and loop/prepare-triage
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
 templates/.github/
   workflows/octestra-lifecycle.yml
@@ -175,7 +175,7 @@ must be reconstructed by `update` from the installed state or an update silently
 Installed loop workflows, their prompts and their local agent actions also belong to the consumer
 and are preserved in full. Their schedule and work policy cannot be reconstructed from Octestra's
 templates. Framework-owned loop behavior belongs in discovering enabled EPIC configuration units
-and `loop/prepare-run`, never in task selection, limits or mutation logic.
+and `loop/prepare-triage`, never in task selection, limits or mutation logic.
 
 **Agent execution stays with preparation.** Lifecycle preparation, agent execution and finalization
 share one job and runner instance. Do not split preparation into a producer job merely to condition

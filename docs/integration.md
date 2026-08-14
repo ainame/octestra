@@ -182,7 +182,7 @@ replace the placeholder in
 
 `loop/list-epics` finds open issues carrying the `octestra-epic` label and excludes those whose
 `epic-config` sets `skip_triage: true`. The workflow starts one matrix job per remaining EPIC,
-with at most three agent jobs running concurrently. `loop/prepare-run` reads `triage_skill` and the
+with at most three agent jobs running concurrently. `loop/prepare-triage` reads `triage_skill` and the
 optional `epic-triage-prompt` block from that EPIC, then renders
 `.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill`, `epicTriagePrompt`, and the JSON
 context provided by the workflow.

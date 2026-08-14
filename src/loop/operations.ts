@@ -97,7 +97,7 @@ export async function listEpics(client: LoopDiscoveryClient): Promise<void> {
   await core.summary.write();
 }
 
-export async function prepareRun(
+export async function prepareTriage(
   context: LoopPrepareContext,
   loopId: string,
   promptPath: string,

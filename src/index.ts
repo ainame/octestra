@@ -21,7 +21,7 @@ import {
 } from "./lifecycle/operations";
 import {
   listEpics,
-  prepareRun,
+  prepareTriage,
 } from "./loop/operations";
 
 function requiredNumber(name: string): number {
@@ -53,8 +53,8 @@ export async function run(): Promise<void> {
     await listEpics(client);
     return;
   }
-  if (operation === "loop/prepare-run") {
-    await prepareRun(
+  if (operation === "loop/prepare-triage") {
+    await prepareTriage(
       {
         client,
         epicNumber: requiredNumber("issue-number"),

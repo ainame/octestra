@@ -9,7 +9,7 @@ inputs:
     description: GitHub App token used for API requests
     required: true
   issue-number:
-    description: Issue number; lifecycle operations use a task and loop/prepare-run uses an EPIC
+    description: Issue number; lifecycle operations use a task and loop/prepare-triage uses an EPIC
     required: false
   trigger-actor:
     description: User that initiated or started the task
@@ -48,7 +48,7 @@ inputs:
     description: Lowercase slug identifying a loop run
     required: false
   prompt-path:
-    description: Prompt template path used by loop/prepare-run
+    description: Prompt template path used by loop/prepare-triage
     required: false
   loop-context:
     description: Optional JSON object exposed as variables to a loop prompt

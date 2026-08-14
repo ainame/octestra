@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as core from "@actions/core";
 import {
   listEpics,
-  prepareRun,
+  prepareTriage,
 } from "./operations";
 
 vi.mock("@actions/core", async (importOriginal) => {
@@ -134,7 +134,7 @@ describe("listEpics", () => {
   });
 });
 
-describe("prepareRun", () => {
+describe("prepareTriage", () => {
   it("renders caller context with stable loop paths", async () => {
     const workspace = await mkdtemp(path.join(tmpdir(), "loop-prompt-"));
     temporaryDirectories.push(workspace);
@@ -162,7 +162,7 @@ describe("prepareRun", () => {
       }),
     };
 
-    await prepareRun(
+    await prepareTriage(
       {
         client,
         epicNumber: 42,
@@ -211,7 +211,7 @@ describe("prepareRun", () => {
       }),
     };
 
-    await expect(prepareRun(
+    await expect(prepareTriage(
       {
         client,
         epicNumber: 42,
@@ -237,7 +237,7 @@ describe("prepareRun", () => {
       }),
     };
 
-    await expect(prepareRun(
+    await expect(prepareTriage(
       {
         client,
         epicNumber: 42,
@@ -264,7 +264,7 @@ describe("prepareRun", () => {
       }),
     };
 
-    await expect(prepareRun(
+    await expect(prepareTriage(
       {
         client,
         epicNumber: 42,
@@ -291,7 +291,7 @@ describe("prepareRun", () => {
       }),
     };
 
-    await expect(prepareRun(
+    await expect(prepareTriage(
       {
         client,
         epicNumber: 42,

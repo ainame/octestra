@@ -81,7 +81,7 @@ jobs:
         id: loop
         uses: ainame/octestra@main
         with:
-          operation: loop/prepare-run
+          operation: loop/prepare-triage
           github-token: ${{ steps.app-token.outputs.token }}
           issue-number: ${{ matrix.epic.number }}
           loop-id: todo

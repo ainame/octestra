@@ -175,7 +175,7 @@ Octestra は task issue の検証結果コメントに、check ごとに 1 行�
 
 `loop/list-epics` は `octestra-epic` label を持つ open issue を探し、`epic-config` に
 `skip_triage: true` を設定した EPIC を除外します。workflow は残った EPIC ごとに matrix
-job を起動し、同時に実行する agent job は最大3つです。`loop/prepare-run` はその EPIC から
+job を起動し、同時に実行する agent job は最大3つです。`loop/prepare-triage` はその EPIC から
 `triage_skill` と任意の `epic-triage-prompt` block を読み、`triageSkill`、
 `epicTriagePrompt`、workflow が渡した JSON context を使って
 `.github/octestra/prompts/loop-todo.md.hbs` を描画します。
