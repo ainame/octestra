@@ -39,10 +39,7 @@ describe("run", () => {
     const inputs: Record<string, string> = {
       "github-token": "token",
       "issue-number": "42",
-      "loop-context": "{\"dryRun\":true}",
-      "loop-id": "todo",
       "operation": "loop/prepare-triage",
-      "prompt-path": ".github/octestra/prompts/loop-todo.md.hbs",
     };
     mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
 
@@ -53,9 +50,6 @@ describe("run", () => {
         client: mocks.client,
         epicNumber: 42,
       },
-      "todo",
-      ".github/octestra/prompts/loop-todo.md.hbs",
-      "{\"dryRun\":true}",
     );
     expect(mocks.loadOctestraConfig).not.toHaveBeenCalled();
   });

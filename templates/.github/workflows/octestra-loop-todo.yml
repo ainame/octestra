@@ -10,12 +10,6 @@ on:
   # schedule:
   #   - cron: "0 9 * * *"
   workflow_dispatch:
-    inputs:
-      dry-run:
-        description: Run the triage skill without changing issues
-        required: true
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -84,13 +78,6 @@ jobs:
           operation: loop/prepare-triage
           github-token: ${{ steps.app-token.outputs.token }}
           issue-number: ${{ matrix.epic.number }}
-          loop-id: todo
-          prompt-path: .github/octestra/prompts/loop-todo.md.hbs
-          loop-context: |
-            {
-              "dryRun": ${{ inputs.dry-run || false }}
-            }
-
       # This action owns agent setup and execution. The triage skill available to that agent owns
       # task discovery, selection, limits and every issue mutation.
       - name: Run triage agent
@@ -98,19 +85,4 @@ jobs:
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
-          epic_number: ${{ matrix.epic.number }}
-          triage_skill: ${{ steps.loop.outputs.triage_skill }}
-          dry_run: ${{ inputs.dry-run || false }}
           prompt: ${{ steps.loop.outputs.prompt }}
-          result_path: ${{ steps.loop.outputs.result_path }}
-          artifact_path: ${{ steps.loop.outputs.artifact_path }}
-
-      - name: Upload triage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: octestra-loop-todo-${{ matrix.epic.number }}
-          path: |
-            ${{ steps.loop.outputs.result_path }}
-            ${{ steps.loop.outputs.artifact_path }}
-          if-no-files-found: warn

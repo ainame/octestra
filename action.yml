@@ -44,15 +44,6 @@ inputs:
   status-field-id:
     description: Organization issue field ID override; must be paired with status-field-name
     required: false
-  loop-id:
-    description: Lowercase slug identifying a loop run
-    required: false
-  prompt-path:
-    description: Prompt template path used by loop/prepare-triage
-    required: false
-  loop-context:
-    description: Optional JSON object exposed as variables to a loop prompt
-    required: false
 outputs:
   status_key:
     description: Configured status key emitted by lifecycle transition validation
@@ -64,8 +55,6 @@ outputs:
     description: Optional task skill configured by the parent EPIC
   validation_skill:
     description: Validation skill configured by the parent EPIC
-  triage_skill:
-    description: Todo triage skill configured by the EPIC
   epic_id:
     description: Stable identifier configured by the parent EPIC
   branch_name:
@@ -81,9 +70,9 @@ outputs:
   pull_number:
     description: Linked task pull request number
   result_path:
-    description: Path where the agent must write its result
+    description: Path where the validation agent must write its result
   artifact_path:
-    description: Directory where the agent must save artifacts
+    description: Directory where the validation agent must save artifacts
   target:
     description: Optional file, class, feature, or other target from the task-config block
   reviewer:

@@ -59,9 +59,6 @@ export async function run(): Promise<void> {
         client,
         epicNumber: requiredNumber("issue-number"),
       },
-      core.getInput("loop-id", { required: true }),
-      core.getInput("prompt-path", { required: true }),
-      core.getInput("loop-context"),
     );
     return;
   }

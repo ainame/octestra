@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -135,13 +135,15 @@ describe("listEpics", () => {
 });
 
 describe("prepareTriage", () => {
-  it("renders caller context with stable loop paths", async () => {
+  it("renders the EPIC triage prompt", async () => {
     const workspace = await mkdtemp(path.join(tmpdir(), "loop-prompt-"));
     temporaryDirectories.push(workspace);
     process.env.GITHUB_WORKSPACE = workspace;
+    const promptDirectory = path.join(workspace, ".github/octestra/prompts");
+    await mkdir(promptDirectory, { recursive: true });
     await writeFile(
-      path.join(workspace, "triage.md.hbs"),
-      "Use {{triageSkill}} for EPIC #{{epicNumber}}.\n{{epicTriagePrompt}}\nWrite {{resultPath}}.\nArtifacts: {{artifactPath}}.",
+      path.join(promptDirectory, "loop-todo.md.hbs"),
+      "Use {{triageSkill}} for EPIC #{{epicNumber}}.\n{{epicTriagePrompt}}",
     );
     const client = {
       getIssue: vi.fn().mockResolvedValue({
@@ -167,9 +169,6 @@ describe("prepareTriage", () => {
         client,
         epicNumber: 42,
       },
-      "todo",
-      "triage.md.hbs",
-      JSON.stringify({ dryRun: true }),
     );
 
     expect(core.setOutput).toHaveBeenCalledWith(
@@ -177,25 +176,12 @@ describe("prepareTriage", () => {
       [
         "Use migration-triage for EPIC #42.",
         "Prioritize tasks that unblock other work.",
-        "Write octestra-loop-todo.md.",
-        "Artifacts: octestra-loop-todo-artifacts.",
       ].join("\n"),
-    );
-    expect(core.setOutput).toHaveBeenCalledWith(
-      "triage_skill",
-      "migration-triage",
-    );
-    expect(core.setOutput).toHaveBeenCalledWith(
-      "result_path",
-      "octestra-loop-todo.md",
-    );
-    expect(core.setOutput).toHaveBeenCalledWith(
-      "artifact_path",
-      "octestra-loop-todo-artifacts",
     );
   });
 
-  it("rejects context that overrides framework paths", async () => {
+  it("omits the additional instructions section when the EPIC has none", async () => {
+    process.env.GITHUB_WORKSPACE = path.join(process.cwd(), "templates");
     const client = {
       getIssue: vi.fn().mockResolvedValue({
         title: "Migration",
@@ -211,15 +197,17 @@ describe("prepareTriage", () => {
       }),
     };
 
-    await expect(prepareTriage(
+    await prepareTriage(
       {
         client,
         epicNumber: 42,
       },
-      "todo",
-      "triage.md.hbs",
-      JSON.stringify({ resultPath: "/tmp/result.json" }),
-    )).rejects.toThrow("cannot override resultPath");
+    );
+
+    const promptCall = vi.mocked(core.setOutput).mock.calls.find(
+      ([name]) => name === "prompt",
+    );
+    expect(promptCall?.[1]).not.toContain("Additional instructions from the EPIC");
   });
 
   it("requires the EPIC to configure a triage skill", async () => {
@@ -242,9 +230,6 @@ describe("prepareTriage", () => {
         client,
         epicNumber: 42,
       },
-      "todo",
-      "triage.md.hbs",
-      "",
     )).rejects.toThrow("triage_skill must be a non-empty string");
   });
 
@@ -269,9 +254,6 @@ describe("prepareTriage", () => {
         client,
         epicNumber: 42,
       },
-      "todo",
-      "triage.md.hbs",
-      "",
     )).rejects.toThrow("EPIC #42 has skip_triage enabled");
   });
 
@@ -296,9 +278,6 @@ describe("prepareTriage", () => {
         client,
         epicNumber: 42,
       },
-      "todo",
-      "triage.md.hbs",
-      "",
     )).rejects.toThrow(
       "EPIC #42 is no longer an open octestra-epic issue",
     );

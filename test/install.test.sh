@@ -300,6 +300,7 @@ grep -q 'operation: loop/list-epics' "$triage_workflow"
 ! grep -q 'operation: loop/report-run' "$triage_workflow"
 grep -q '^  # schedule:' "$triage_workflow"
 grep -q '^  workflow_dispatch:' "$triage_workflow"
+! grep -q 'dry-run' "$triage_workflow"
 ! grep -q 'OCTESTRA_TRIAGE_EPIC_NUMBER' "$triage_workflow"
 grep -q 'skip_triage: {{skipTriage}}' \
   "$TEMP_DIR/consumer/.github/octestra/issue-templates/epic.md.hbs"

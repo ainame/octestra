@@ -177,19 +177,16 @@ Octestra は task issue の検証結果コメントに、check ごとに 1 行�
 `skip_triage: true` を設定した EPIC を除外します。workflow は残った EPIC ごとに matrix
 job を起動し、同時に実行する agent job は最大3つです。`loop/prepare-triage` はその EPIC から
 `triage_skill` と任意の `epic-triage-prompt` block を読み、`triageSkill`、
-`epicTriagePrompt`、workflow が渡した JSON context を使って
+`epicTriagePrompt` を使って
 `.github/octestra/prompts/loop-todo.md.hbs` を描画します。
 
 task の探索、選択、件数制限、変更ルール、domain knowledge は workflow や prompt ではなく、
 triage skill に置いてください。Octestra は設定単位である EPIC の発見、prompt の描画、agent の
-run summary と supporting artifacts の安定した保存先の出力だけを担当します。
+local action の実行だけを担当します。
 open かつ opt-out していない EPIC に `triage_skill` がない場合、または `epic-config` が不正な
 場合、discovery はその EPIC を示して run を失敗させ、黙って除外しません。
 
-workflow は local triage action に `epic_number`、`triage_skill`、`dry_run`、`prompt`、
-`result_path`、`artifact_path` を渡します。agent integration が skill 名を明示的に必要とする
-場合は `inputs.triage_skill` を使ってください。描画された prompt には同じ値が `triageSkill`
-として渡されます。
+workflow は描画した `prompt` を local triage action に渡します。
 
 ## プロンプトテンプレート
 

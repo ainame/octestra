@@ -184,18 +184,15 @@ replace the placeholder in
 `epic-config` sets `skip_triage: true`. The workflow starts one matrix job per remaining EPIC,
 with at most three agent jobs running concurrently. `loop/prepare-triage` reads `triage_skill` and the
 optional `epic-triage-prompt` block from that EPIC, then renders
-`.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill`, `epicTriagePrompt`, and the JSON
-context provided by the workflow.
+`.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill` and `epicTriagePrompt`.
 
 Keep task discovery, selection, limits, mutation rules and domain knowledge in the triage skill
 rather than in the workflow or prompt. Octestra only discovers its EPIC configuration units,
-renders the prompt, and publishes stable paths for the agent's run summary and supporting artifacts.
+renders the prompt, and runs the local agent action.
 If any open, non-opted-out EPIC has no `triage_skill` or has invalid `epic-config`, discovery fails
 the run and names that EPIC instead of silently skipping it.
 
-The workflow passes the local triage action `epic_number`, `triage_skill`, `dry_run`, `prompt`,
-`result_path`, and `artifact_path`. Use `inputs.triage_skill` when the agent integration requires an
-explicit skill name; the rendered prompt receives the same value as `triageSkill`.
+The workflow passes the rendered `prompt` to the local triage action.
 
 ## Prompt Templates
 

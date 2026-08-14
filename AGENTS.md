@@ -99,7 +99,7 @@ systems. Never renumber: `docs/design.md` cites these numbers.
   (`${{ vars.X || 'ubuntu-latest' }}`); drift must fail loudly.
 - **P4. `schedule` only runs on the default branch**, against its latest commit, and only if the
   workflow file exists there. A loop cannot be exercised from a pull request, so every loop must
-  also offer `workflow_dispatch` with dry-run behavior enabled by default.
+  also offer `workflow_dispatch`.
 - **P5. `schedule` is best-effort** — delayed or skipped under load, and disabled after 60 days of
   repository inactivity. Every loop must be idempotent; correctness must never depend on a run
   happening exactly once per period.

@@ -2,31 +2,15 @@
 # it does not already exist; later updates preserve the whole file.
 #
 # WHAT STEPS MAY REFERENCE
-# Use `inputs.*` for execution paths and `env.OCTESTRA_AGENT_GITHUB_TOKEN` for GitHub API calls.
+# Use `inputs.*` for triage context and `env.OCTESTRA_AGENT_GITHUB_TOKEN` for GitHub API calls.
 # The repository's triage skill owns issue discovery, selection and mutation.
 name: Octestra triage agent
 description: Repository-configured setup and agent execution for Todo triage
 
 inputs:
-  epic_number:
-    description: EPIC issue whose Todo tasks should be triaged
-    required: true
-  triage_skill:
-    description: Todo triage skill configured by the EPIC
-    required: true
-  dry_run:
-    description: Whether the agent must run the triage skill without changing issues
-    required: true
   prompt:
     description: Rendered instructions to invoke the repository's Todo triage skill
     required: true
-  result_path:
-    description: Path where the agent should write its run summary
-    required: true
-  artifact_path:
-    description: Directory for supporting triage artifacts
-    required: true
-
 runs:
   using: composite
   steps:
