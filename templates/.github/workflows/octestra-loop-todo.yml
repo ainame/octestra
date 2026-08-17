@@ -1,0 +1,88 @@
+# Consumer-owned schedule for triaging Todo tasks. Octestra installs this example only when it does
+# not exist; later updates preserve the whole file.
+#
+# Configure triage-agent/action.yml to run an agent that can use your repository's triage skill.
+# The skill owns task discovery and triage policy; this workflow only runs it.
+name: Octestra Loop - Todo
+
+on:
+  # Scheduled execution is opt-in. Choose a cadence, then uncomment these lines.
+  # schedule:
+  #   - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Uncomment when triage-agent/action.yml uses GitHub OIDC for cloud credentials.
+  # id-token: write
+  issues: write
+
+jobs:
+  discover:
+    name: Discover EPICs
+    runs-on: ${{ vars.OCTESTRA_ORCHESTRATION_RUNNER || 'ubuntu-latest' }}
+    outputs:
+      epics: ${{ steps.epics.outputs.epics }}
+      count: ${{ steps.epics.outputs.count }}
+    steps:
+      - name: Generate a token from GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
+
+      - name: Find EPICs enabled for Todo triage
+        id: epics
+        uses: ainame/octestra@main
+        with:
+          operation: loop/list-epics
+          github-token: ${{ steps.app-token.outputs.token }}
+
+  triage:
+    name: Triage EPIC #${{ matrix.epic.number }}
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        epic: ${{ fromJSON(needs.discover.outputs.epics) }}
+    concurrency:
+      group: octestra-loop-todo-${{ matrix.epic.number }}
+      cancel-in-progress: false
+    steps:
+      # An App token lets agent-made issue changes trigger the lifecycle workflow. Changes made
+      # with GITHUB_TOKEN do not start another workflow run.
+      - name: Generate a token from GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Prepare loop prompt
+        id: loop
+        uses: ainame/octestra@main
+        with:
+          operation: loop/prepare-triage
+          github-token: ${{ steps.app-token.outputs.token }}
+          issue-number: ${{ matrix.epic.number }}
+      # This action owns agent setup and execution. The triage skill available to that agent owns
+      # task discovery, selection, limits and every issue mutation.
+      - name: Run triage agent
+        uses: ./.github/octestra/actions/triage-agent
+        env:
+          OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          prompt: ${{ steps.loop.outputs.prompt }}

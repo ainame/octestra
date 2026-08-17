@@ -42,8 +42,13 @@ The installer adds the following files.
   - `.github/octestra/issue-templates/task.md.hbs`
   - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
   - `.github/octestra/prompts/lifecycle-validation.md.hbs`
+  - `.github/octestra/prompts/loop-todo.md.hbs`
+  - `.github/octestra/actions/task-agent/action.yml`
+  - `.github/octestra/actions/validation-agent/action.yml`
+  - `.github/octestra/actions/triage-agent/action.yml`
 - Workflow
   - `.github/workflows/octestra-lifecycle.yml`
+  - `.github/workflows/octestra-loop-todo.yml`
 - Agent skills
   - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
   - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
@@ -63,6 +68,20 @@ The installed agent actions contain placeholders for running agents. Configure a
 
 For the EPIC and task issue format, the meaning of each status option, and agent inputs, see the [integration guide](docs/integration.md).
 
+### Configure the Todo Triage Loop
+
+The installed `.github/workflows/octestra-loop-todo.yml` can run a Todo triage agent manually.
+Customize `.github/octestra/prompts/loop-todo.md.hbs` and
+`.github/octestra/actions/triage-agent/action.yml`.
+
+Set `triage_skill` and, optionally, the `epic-triage-prompt` block in the EPIC issue. The rendered
+prompt exposes them as `triageSkill` and `epicTriagePrompt`. Open `octestra-epic` issues participate
+by default; set `skip_triage: true` in an EPIC to opt out. Octestra starts one bounded matrix
+job per participating EPIC. The skill owns task discovery, selection, limits and mutations.
+Scheduled execution is opt-in: choose a cadence and uncomment the workflow's `schedule` block.
+Before running it, every open `octestra-epic` issue must either configure `triage_skill` or opt out;
+discovery fails loudly rather than silently omitting an invalid EPIC.
+
 ## Updating and Maintenance
 
 ```sh
@@ -81,8 +100,9 @@ For the EPIC and task issue format, the meaning of each status option, and agent
 | `ref`             | Show the Octestra repository and ref used by the installed workflow        |
 | `update --latest` | Install the latest release while preserving agent actions and `config.yml` |
 
-Rerunning the installer replaces the workflow and keeps `config.yml` and both agent actions. Review
-`git diff` before committing changes from an update.
+Rerunning the installer replaces the lifecycle workflow and keeps `config.yml`, all local agent
+actions, and the loop workflow and prompt. Review `git diff` before committing changes from an
+update.
 
 ## Security
 

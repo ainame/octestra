@@ -19,6 +19,10 @@ import {
   validateTransition,
   type OperationContext,
 } from "./lifecycle/operations";
+import {
+  listEpics,
+  prepareTriage,
+} from "./loop/operations";
 
 function requiredNumber(name: string): number {
   return positiveInteger(name, core.getInput(name, { required: true }));
@@ -42,9 +46,23 @@ function triggerActorPair(required: boolean): [string, string] {
 }
 
 export async function run(): Promise<void> {
-  const token = core.getInput("github-token", { required: true });
   const operation = core.getInput("operation", { required: true });
+  const token = core.getInput("github-token", { required: true });
   const client = new GitHubClient(token);
+  if (operation === "loop/list-epics") {
+    await listEpics(client);
+    return;
+  }
+  if (operation === "loop/prepare-triage") {
+    await prepareTriage(
+      {
+        client,
+        epicNumber: requiredNumber("issue-number"),
+      },
+    );
+    return;
+  }
+
   const config = await loadOctestraConfig(client, core.getInput("config-ref"));
   function lifecycleOperationContext(): OperationContext {
     const statusFieldName = core.getInput("status-field-name");

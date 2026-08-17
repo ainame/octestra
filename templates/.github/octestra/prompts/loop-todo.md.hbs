@@ -1,0 +1,18 @@
+{{!--
+Todo triage prompt. This file belongs to the repository after installation.
+
+Available variables:
+- epicNumber: EPIC issue whose Todo tasks should be triaged
+- triageSkill: triage skill configured by the EPIC
+- epicTriagePrompt: additional triage instructions from the EPIC
+--}}
+Use the `{{triageSkill}}` skill to triage the Todo tasks belonging to EPIC #{{epicNumber}}.
+
+{{#if epicTriagePrompt}}
+Additional instructions from the EPIC:
+
+{{epicTriagePrompt}}
+{{/if}}
+
+The triage skill decides which tasks to inspect, how many to select, what makes a task ready, and
+which issue changes to make. Follow it instead of inventing triage policy in this prompt.

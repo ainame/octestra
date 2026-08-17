@@ -37,13 +37,19 @@ An EPIC issue contains settings and instructions shared by all of its task issue
 ```epic-config
 id: ios-swift6            # lowercase identifier used in task branch names
 task_skill: swift-concurrency       # optional skill used by the task agent
+triage_skill: migration-triage      # required when using the Todo triage loop
 validation_skill: ios-ui-validation # required unless validation is skipped
 draft_pr: false           # whether to open each task pull request as a draft
+skip_triage: false        # when true, exclude this EPIC from triage
 skip_validation: false    # when true, move directly to Human Review
 ```
 
 ```epic-task-prompt
 Instructions shared by every task in this EPIC.
+```
+
+```epic-triage-prompt
+Optional instructions for Todo triage in this EPIC.
 ```
 
 ```epic-validation-prompt
@@ -67,9 +73,10 @@ Confirm the screen displays the expected content and responds correctly to user 
 ```
 ````
 
-`epic-validation-prompt` and `validation-prompt` are optional. Leave them empty until an individual
-issue needs them. `validation_skill` is required unless `skip_validation` is `true`; when
-validation is skipped, it may be empty.
+`epic-triage-prompt`, `epic-validation-prompt`, and `validation-prompt` are optional. Leave them
+empty until an individual issue needs them. `skip_triage` defaults to `false`; when it is
+`false`, `triage_skill` is required. `validation_skill` is required unless `skip_validation` is
+`true`; when validation is skipped, it may be empty.
 
 ## Configure Agent Workflows
 
@@ -77,8 +84,9 @@ validation is skipped, it may be empty.
 `.github/octestra/actions/validation-agent/action.yml` runs the validation agent. Replace the
 placeholder in each file with the configuration and execution steps for your agent.
 
-Octestra installs each agent action once and preserves the whole file on later updates. Workflows
-are replaced in full. Inside an agent action, use its `inputs.*` for lifecycle context and
+Octestra installs each agent action once and preserves the whole file on later updates. The
+lifecycle workflow is replaced in full; loop workflows and their prompts are consumer-owned and
+preserved. Inside an agent action, use its `inputs.*` for context and
 `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token.
 
 Composite actions cannot read the GitHub Actions `secrets` context. Configure cloud credentials
@@ -165,17 +173,44 @@ Only `outcome` and `summary` are required. To advance to `Human Review`, `outcom
 
 Octestra renders one row per check in the validation proof comment. `checks` makes the comment easier to review, but does not independently control the lifecycle: Octestra uses only the top-level `outcome` to advance or block a task.
 
+## Scheduled Agent Loops
+
+`.github/workflows/octestra-loop-todo.yml` is a consumer-owned Todo triage example. It supports
+manual runs immediately. To schedule it, choose a cadence and uncomment its `schedule` block. Then
+replace the placeholder in
+`.github/octestra/actions/triage-agent/action.yml`.
+
+`loop/list-epics` finds open issues carrying the `octestra-epic` label and excludes those whose
+`epic-config` sets `skip_triage: true`. The workflow starts one matrix job per remaining EPIC,
+with at most three agent jobs running concurrently. `loop/prepare-triage` reads `triage_skill` and the
+optional `epic-triage-prompt` block from that EPIC, then renders
+`.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill` and `epicTriagePrompt`.
+
+Keep task discovery, selection, limits, mutation rules and domain knowledge in the triage skill
+rather than in the workflow or prompt. Octestra only discovers its EPIC configuration units,
+renders the prompt, and runs the local agent action.
+If any open, non-opted-out EPIC has no `triage_skill` or has invalid `epic-config`, discovery fails
+the run and names that EPIC instead of silently skipping it.
+
+The workflow passes the rendered `prompt` to the local triage action.
+
 ## Prompt Templates
 
-Octestra manages agent prompts as Handlebars templates. The implementation template is `.github/octestra/prompts/lifecycle-in-progress.md.hbs`, and the validation template is `.github/octestra/prompts/lifecycle-validation.md.hbs`. `Prepare task lifecycle` or `Prepare validation lifecycle` renders the template and passes the result to the agent execution step as `steps.epic.outputs.prompt`.
+Octestra manages agent prompts as Handlebars templates. The implementation template is
+`.github/octestra/prompts/lifecycle-in-progress.md.hbs`, the validation template is
+`.github/octestra/prompts/lifecycle-validation.md.hbs`, and the Todo triage template is
+`.github/octestra/prompts/loop-todo.md.hbs`. The corresponding preparation step renders the template
+and passes the result to its local agent action.
 
 Templates can use configuration and prompts from the EPIC and task issue. The main variables are:
 
 - `epicTaskPrompt`: Implementation instructions from the EPIC
+- `epicTriagePrompt`: Todo triage instructions from the EPIC
 - `taskPrompt`: Implementation instructions from the task issue
 - `epicValidationPrompt`: Validation instructions from the EPIC
 - `validationPrompt`: Validation instructions from the task issue
 - `taskSkill`: Task skill configured by the EPIC
+- `triageSkill`: Todo triage skill configured by the EPIC
 - `validationSkill`: Validation skill configured by the EPIC
 - `target`: Task target, when configured
 - `issueNumber`: Task issue number

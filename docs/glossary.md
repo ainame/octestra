@@ -59,15 +59,22 @@ them as co-author. Not the pull request assignee — Octestra sets none.
 ### operation
 
 What the `operation:` input names. Two spellings are both correct and the difference is deliberate
-(D9): `lifecycle/<verb>` for anything tied to one task's state, a bare verb for the pieces that are
-scope-neutral, such as `update-status`.
+(D9): `lifecycle/<verb>` for anything tied to one task's state, `loop/<verb>` for preparing
+scheduled agent work, and a bare verb for scope-neutral pieces such as `update-status`.
 
 ### proof
 
-The JSON file a validation agent writes to `result_path`. Octestra renders it as an issue comment
-and reads `outcome`; it checks nothing inside `acceptance` or `checks`.
+The JSON file an agent writes to `result_path`. Octestra renders it as an issue comment and reads
+`outcome`; it checks nothing inside `acceptance` or `checks`.
 
 > a proof file — the JSON document your validation agent writes to `result_path`
+
+### loop
+
+A consumer-scheduled agent run. The Todo loop discovers enabled EPIC issues and starts one local
+agent action per EPIC; the repository's triage skill decides what task work to do.
+
+> a scheduled agent loop
 
 ### status job
 
@@ -81,8 +88,9 @@ local composite action.
 ### issue body blocks
 
 The fenced blocks Octestra parses out of issue bodies: `epic-config`, `epic-task-prompt`, and the
-optional `epic-validation-prompt` in an EPIC, plus `task-config`, `task-prompt`, and the optional
-`validation-prompt` in a task issue. Refer to them by their literal names.
+optional `epic-triage-prompt` and `epic-validation-prompt` in an EPIC, plus `task-config`,
+`task-prompt`, and the optional `validation-prompt` in a task issue. Refer to them by their literal
+names.
 
 ### issue-body contract
 
@@ -109,13 +117,13 @@ it holds where it appears.
 
 | Term | Means |
 |---|---|
-| trust boundary | The intended separation between a job running an agent and a job holding a privileged token. Not implemented; see `TODO.md` §2. |
+| trust boundary | The intended separation between a job running an agent and a job holding a privileged token. Not implemented; see `TODO.md` §1. |
 | control plane | `config.yml` plus the five repository variables mirrored from it. |
-| mechanism / policy | What Octestra owns versus what the consumer decides. Workflows are mechanism; installed agent actions are policy. |
-| seam | A split kept deliberately for work that has not landed, such as the unused `loop/` namespace. |
+| mechanism / policy | What Octestra owns versus what the consumer decides. Lifecycle workflows are mechanism; installed agent actions and loop workflows are policy. |
+| seam | A split kept deliberately so a later system can fit without restructuring existing code. |
 | the guard | The `guard` job, and `lifecycle/validate-transition` inside it, which decides whether a status change is legal and which status job to run. |
 | mirrored value | One of the five values copied from `config.yml` into repository variables because a job needs them before it can read a file. |
 | drift | A mirrored value disagreeing with `config.yml`. |
-| platform invariant | A verified GitHub behaviour, numbered `P1`–`P11` in `AGENTS.md`. Numbers are stable and never reused. |
+| platform invariant | A verified GitHub behaviour with a stable `P` number in `AGENTS.md`. Numbers are never reused. |
 | decision | A design choice, numbered `D3`–`D14` in `docs/design.md`. |
-| lifecycle / loop namespace | The two operation namespaces. Only `lifecycle/` exists today. |
+| lifecycle / loop namespace | The two operation namespaces: task-state operations and scheduled prompt operations. |

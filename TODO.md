@@ -4,35 +4,12 @@ Open work, ordered by what unblocks what. Design rationale lives in `docs/design
 work must respect live in `AGENTS.md`.
 
 The configuration restructuring has shipped: the config control plane, the single-workflow lifecycle
-topology, and operation namespacing. Both loop shapes (per-issue fan-out and aggregate) were built
-but never run, and have been removed — see §1. Everything below is what remains.
+topology, operation namespacing, and the minimal Todo triage loop. Earlier fan-out and aggregate
+loop designs owned too much policy and were removed. The retained loop kernel discovers enabled
+EPIC configuration units and renders a prompt for each; the repository's triage skill owns task
+discovery, selection, limits, domain knowledge and mutations.
 
-## 1. Bring loops back
-
-Loops are intended to return. Scheduled automation sweeping many tasks at once is what turns
-Octestra from a task executor into a feedback cycle, and the seams it needs are still in place: the
-`lifecycle/<verb>` namespace, the `src/shared/` ⁄ `src/lifecycle/` split, and the
-`octestra-lifecycle-*.yml` naming all leave room for a `src/loop/` and `octestra-loop-<id>.yml` to
-slot back in.
-
-The previous implementation was removed because it had never been exercised, not because it was
-wrong. `git log` has all of it — operations, both reference workflows, their prompts and their
-config block — so start by reading it rather than from scratch. The four platform invariants that
-described loop machinery only (**P4** schedules run only on the default branch, **P5** schedules are
-best-effort, **P6** an empty `strategy.matrix` fails the job, **P9** REST pagination offset) were
-deleted from `AGENTS.md` and are quoted verbatim in the removal commit message. They are verified
-platform properties that each cost real debugging; recover them from that commit before rebuilding,
-and restore the ones the new shape actually relies on.
-
-The design questions are unsettled and need a human, not an agent:
-
-- The missing capability is creation. A loop could comment on and promote existing tasks, but never
-  open them. What bounds `loop/create-task` — a per-run cap, and where does it live?
-- How are duplicates suppressed across runs, given a best-effort scheduler that may delay, skip or
-  repeat a run?
-- Do created tasks start in `Todo` for a human to release, or enter the lifecycle directly?
-
-## 2. Put agent execution behind a trust boundary
+## 1. Put agent execution behind a trust boundary
 
 No workflow separates agent execution from privileged finalization: `finalize-task` still runs in
 the same job as the agent. The rule Octestra intends is that a job executing an agent gets no
@@ -68,7 +45,7 @@ An early implementation experiment is in the git stash named
 - Should comment tokens be opt-in rather than present in generated defaults?
 - What cloud and network isolation is required when validation uses Bedrock or another hosted model?
 
-## 3. Status options stay name-addressed (closed, not planned)
+## 2. Status options stay name-addressed (closed, not planned)
 
 Kept as a record so this is not re-attempted. Renaming a status option in the organization does
 break an installation, and the fix looked available — but it is not, and the earlier claim here that
@@ -95,7 +72,7 @@ but it would still leave `updateStatus` and `getStatus` name-keyed.
 
 Revisit if the write endpoint gains ID addressing.
 
-## 4. `install.sh` hardening
+## 3. `install.sh` hardening
 
 - Re-running the installer over an existing installation should preserve consumer edits to
   `config.yml`; today it regenerates the file.

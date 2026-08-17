@@ -84,8 +84,10 @@ class EpicSetupTest < Minitest::Test
       'epic' => {
         'title' => 'Convert Objective-C to Swift',
         'taskSkill' => 'objc-to-swift',
+        'triageSkill' => 'migration-triage',
         'validationSkill' => 'migration-validation',
         'draftPr' => true,
+        'skipTriage' => false,
         'skipValidation' => false
       },
       'tasks' => [
@@ -168,9 +170,11 @@ class EpicSetupTest < Minitest::Test
 
     assert_includes epic.fetch('body'),
                     "```epic-config\nid: objc-to-swift\ntask_skill: objc-to-swift\n" \
+                    "triage_skill: migration-triage\n" \
                     "validation_skill: migration-validation\n" \
-                    "draft_pr: true\nskip_validation: false\n```"
+                    "draft_pr: true\nskip_triage: false\nskip_validation: false\n```"
     assert_includes epic.fetch('body'), "```epic-task-prompt\n\n```"
+    assert_includes epic.fetch('body'), "```epic-triage-prompt\n\n```"
     assert_includes epic.fetch('body'), "```epic-validation-prompt\n\n```"
   end
 
@@ -190,6 +194,26 @@ class EpicSetupTest < Minitest::Test
 
     assert_equal(
       'epic.validationSkill must be a non-empty string when epic.skipValidation is false',
+      error.message
+    )
+  end
+
+  def test_requires_triage_skill_when_todo_triage_runs
+    invalid = manifest.merge(
+      'epic' => manifest.fetch('epic').merge('triageSkill' => nil)
+    )
+
+    error = assert_raises(RuntimeError) do
+      EpicSetup.new(
+        invalid,
+        github: FakeGitHubCLI.new,
+        parallel: 2,
+        state: state_store(invalid)
+      )
+    end
+
+    assert_equal(
+      'epic.triageSkill must be a non-empty string when epic.skipTriage is false',
       error.message
     )
   end
@@ -216,7 +240,9 @@ class EpicSetupTest < Minitest::Test
 
       JSON.parse(call[:input])
     end.find { |payload| payload['labels'] == ['octestra-epic'] }
-    assert_includes epic.fetch('body'), "validation_skill: \ndraft_pr: true\nskip_validation: true"
+    assert_includes epic.fetch('body'),
+                    "validation_skill: \ndraft_pr: true\nskip_triage: false\n" \
+                    "skip_validation: true"
   end
 
   def test_rejects_an_empty_task_list

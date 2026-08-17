@@ -1,0 +1,33 @@
+# Repository-owned setup and agent execution for Todo triage. Octestra installs this file only when
+# it does not already exist; later updates preserve the whole file.
+#
+# WHAT STEPS MAY REFERENCE
+# Use `inputs.*` for triage context and `env.OCTESTRA_AGENT_GITHUB_TOKEN` for GitHub API calls.
+# The repository's triage skill owns issue discovery, selection and mutation.
+name: Octestra triage agent
+description: Repository-configured setup and agent execution for Todo triage
+
+inputs:
+  prompt:
+    description: Rendered instructions to invoke the repository's Todo triage skill
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Configure triage agent
+      shell: bash
+      run: |
+        echo "::error::Replace this step with the repository's triage agent configuration."
+        exit 1
+
+    # Example: replace the placeholder step above with Claude Code Action.
+    #
+    # - name: Run Claude Code triage
+    #   uses: anthropics/claude-code-action@v1
+    #   with:
+    #     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
+    #     use_bedrock: "true"
+    #     claude_args: >-
+    #       --allowedTools
+    #       "Bash,Read,Write,Edit,Grep,Glob"
+    #     prompt: ${{ inputs.prompt }}

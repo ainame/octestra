@@ -9,7 +9,7 @@ inputs:
     description: GitHub App token used for API requests
     required: true
   issue-number:
-    description: Task issue number
+    description: Issue number; lifecycle operations use a task and loop/prepare-triage uses an EPIC
     required: false
   trigger-actor:
     description: User that initiated or started the task
@@ -83,6 +83,10 @@ outputs:
     description: Outcome read from a proof JSON file
   summary:
     description: Summary read from a proof JSON file
+  epics:
+    description: JSON array of open EPIC issue numbers enabled for Todo triage
+  count:
+    description: Number of EPICs enabled for Todo triage
 
 runs:
   using: node24
