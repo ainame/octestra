@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0](https://github.com/ainame/octestra/compare/v0.2.3...v1.0.0) (2026-08-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* standardize action inputs on snake_case ([#15](https://github.com/ainame/octestra/issues/15))
+
+### Features
+
+* standardize action inputs on snake_case ([#15](https://github.com/ainame/octestra/issues/15)) ([883f7e7](https://github.com/ainame/octestra/commit/883f7e7f08c44519d4fe21d69c25ddfb08280161))
+
+
+### Bug Fixes
+
+* align agent preparation contracts ([#13](https://github.com/ainame/octestra/issues/13)) ([f5b23d1](https://github.com/ainame/octestra/commit/f5b23d1310da2a3fc4080bb27389abd793fdeff4))
+
 ## 0.3.0 (unreleased)
 
 ### Breaking Changes
