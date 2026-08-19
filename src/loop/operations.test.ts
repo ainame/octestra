@@ -14,6 +14,7 @@ vi.mock("@actions/core", async (importOriginal) => {
   return {
     ...actual,
     setOutput: vi.fn(),
+    warning: vi.fn(),
     summary: {
       addRaw: vi.fn(),
       write: vi.fn(),
@@ -357,6 +358,8 @@ describe("finalizeTriage", () => {
         .mockResolvedValueOnce("Ready")
         .mockResolvedValueOnce("Todo")
         .mockResolvedValueOnce("Ready"),
+      getLatestAssignedUser: vi.fn().mockResolvedValue("task-owner"),
+      comment: vi.fn(),
       updateStatus: vi.fn(),
     };
 
@@ -371,11 +374,27 @@ describe("finalizeTriage", () => {
 
     expect(client.updateStatus).toHaveBeenCalledTimes(1);
     expect(client.updateStatus).toHaveBeenCalledWith(101, 9001, "Ready");
+    expect(client.comment).toHaveBeenCalledWith(
+      101,
+      expect.stringContaining(
+        "Todo triage selected this task from EPIC #42 and queued it for execution.",
+      ),
+    );
+    expect(client.comment).toHaveBeenCalledWith(
+      101,
+      expect.stringContaining("- AI Task Status transition: `Todo` to `Ready`"),
+    );
+    expect(client.comment).not.toHaveBeenCalledWith(102, expect.anything());
     expect(core.setOutput).toHaveBeenCalledWith("ready_count", "1");
     expect(client.getIssue).toHaveBeenCalledWith(101);
     expect(client.getIssue).toHaveBeenCalledWith(102);
     expect(
       vi.mocked(client.getIssue).mock.invocationCallOrder[2],
+    ).toBeLessThan(
+      vi.mocked(client.updateStatus).mock.invocationCallOrder[0],
+    );
+    expect(
+      vi.mocked(client.comment).mock.invocationCallOrder[0],
     ).toBeLessThan(
       vi.mocked(client.updateStatus).mock.invocationCallOrder[0],
     );
@@ -387,6 +406,8 @@ describe("finalizeTriage", () => {
       getIssue: vi.fn().mockResolvedValue(epicIssue()),
       getParentNumber: vi.fn(),
       getStatus: vi.fn(),
+      getLatestAssignedUser: vi.fn(),
+      comment: vi.fn(),
       updateStatus: vi.fn(),
     };
 
@@ -401,6 +422,7 @@ describe("finalizeTriage", () => {
 
     expect(client.getIssue).toHaveBeenCalledTimes(2);
     expect(client.getParentNumber).not.toHaveBeenCalled();
+    expect(client.comment).not.toHaveBeenCalled();
     expect(client.updateStatus).not.toHaveBeenCalled();
     expect(core.setOutput).toHaveBeenCalledWith("ready_count", "0");
   });
@@ -415,6 +437,8 @@ describe("finalizeTriage", () => {
         issueNumber === 101 ? 42 : 99
       ),
       getStatus: vi.fn().mockResolvedValue("Todo"),
+      getLatestAssignedUser: vi.fn(),
+      comment: vi.fn(),
       updateStatus: vi.fn(),
     };
 
@@ -442,6 +466,8 @@ describe("finalizeTriage", () => {
       getStatus: vi.fn()
         .mockResolvedValueOnce("Todo")
         .mockResolvedValueOnce("In Progress"),
+      getLatestAssignedUser: vi.fn(),
+      comment: vi.fn(),
       updateStatus: vi.fn(),
     };
 
@@ -457,6 +483,7 @@ describe("finalizeTriage", () => {
     );
 
     expect(client.updateStatus).not.toHaveBeenCalled();
+    expect(client.comment).not.toHaveBeenCalled();
   });
 
   it("rechecks EPIC eligibility after task preflight", async () => {
@@ -471,6 +498,8 @@ describe("finalizeTriage", () => {
         }),
       getParentNumber: vi.fn().mockResolvedValue(42),
       getStatus: vi.fn().mockResolvedValue("Todo"),
+      getLatestAssignedUser: vi.fn(),
+      comment: vi.fn(),
       updateStatus: vi.fn(),
     };
 
@@ -486,6 +515,7 @@ describe("finalizeTriage", () => {
     );
 
     expect(client.updateStatus).not.toHaveBeenCalled();
+    expect(client.comment).not.toHaveBeenCalled();
   });
 
   it("rejects a reported issue without a task-config body before writes", async () => {
@@ -501,6 +531,8 @@ describe("finalizeTriage", () => {
       ),
       getParentNumber: vi.fn().mockResolvedValue(42),
       getStatus: vi.fn(),
+      getLatestAssignedUser: vi.fn(),
+      comment: vi.fn(),
       updateStatus: vi.fn(),
     };
 
@@ -514,5 +546,34 @@ describe("finalizeTriage", () => {
     )).rejects.toThrow("Reported task #101 has an invalid task body");
 
     expect(client.updateStatus).not.toHaveBeenCalled();
+    expect(client.comment).not.toHaveBeenCalled();
+  });
+
+  it("updates Todo tasks when activity reporting fails", async () => {
+    const resultPath = await triageResultPath([101]);
+    const client = {
+      getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
+        issueNumber === 42 ? epicIssue() : taskIssue()
+      ),
+      getParentNumber: vi.fn().mockResolvedValue(42),
+      getStatus: vi.fn().mockResolvedValue("Todo"),
+      getLatestAssignedUser: vi.fn().mockResolvedValue("task-owner"),
+      comment: vi.fn().mockRejectedValue(new Error("comment failed")),
+      updateStatus: vi.fn(),
+    };
+
+    await finalizeTriage(
+      {
+        client,
+        epicNumber: 42,
+        statusFieldId: 9001,
+      },
+      resultPath,
+    );
+
+    expect(core.warning).toHaveBeenCalledWith(
+      "Failed to report Octestra activity: Error: comment failed",
+    );
+    expect(client.updateStatus).toHaveBeenCalledWith(101, 9001, "Ready");
   });
 });

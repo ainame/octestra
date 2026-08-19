@@ -3,6 +3,10 @@ import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import * as core from "@actions/core";
+import {
+  reportActivity,
+  reportActivityBestEffort,
+} from "../shared/activity";
 import { renderBranchTemplate } from "../shared/branch";
 import {
   parseEpicConfig,
@@ -49,13 +53,6 @@ export interface OperationsClient {
   updateStatus(issueNumber: number, fieldId: number, status: string): Promise<void>;
 }
 
-interface ActivityReport {
-  status: string;
-  outcome: string;
-  summary: string;
-  details?: string;
-}
-
 export interface ProofReportOptions {
   pullNumber?: number;
   subjectSha?: string;
@@ -87,61 +84,6 @@ const allowedTransitions = new Map<string, Set<string>>([
   ["Blocked", new Set(["Ready"])],
   ["Done", new Set()],
 ]);
-
-async function reportActivity(
-  context: OperationContext,
-  activity: ActivityReport,
-): Promise<void> {
-  if (!activity.status || !activity.outcome || !activity.summary) {
-    throw new Error("Activity status, outcome, and summary are required");
-  }
-
-  const owner = await context.client.getLatestAssignedUser(context.issueNumber);
-  const actor = process.env.GITHUB_ACTOR;
-  const runUrl = workflowRunUrl();
-  const metadata = markdownTable(["Field", "Value"], [
-    ["Workflow run", `[View run](${runUrl})`],
-    ["Trigger actor", actor ? `@${actor}` : "N/A"],
-    ["Task owner", owner ? `@${owner}` : "Unassigned"],
-    ["Recorded at", new Date().toISOString()],
-  ]);
-  const details = activity.details?.trim()
-    ? `\n\n### Details\n\n${activity.details.trim()}`
-    : "";
-
-  await context.client.comment(
-    context.issueNumber,
-    [
-      "<!-- octestra-activity -->",
-      "## Octestra activity",
-      "",
-      activity.summary.trim(),
-      "",
-      "| Status | Outcome |",
-      "| --- | --- |",
-      `| \`${activity.status}\` | \`${activity.outcome}\` |`,
-      details,
-      "",
-      "<details>",
-      "<summary>Technical metadata</summary>",
-      "",
-      metadata,
-      "",
-      "</details>",
-    ].join("\n"),
-  );
-}
-
-async function reportActivityBestEffort(
-  context: OperationContext,
-  activity: ActivityReport,
-): Promise<void> {
-  try {
-    await reportActivity(context, activity);
-  } catch (error) {
-    core.warning(`Failed to report Octestra activity: ${String(error)}`);
-  }
-}
 
 export async function validateTransition(
   context: OperationContext,

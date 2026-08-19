@@ -207,6 +207,10 @@ body やその他の issue data を変更できますが、`AI Task Status` Issu
 前に、報告されたすべての issue が open で、対象 EPIC の direct sub-issue であり、有効な task
 body を持ち、現在 `Todo` または `Ready` であることを確認します。`Ready` は no-op です。
 `Todo` から `Ready` へ変更する直前にも status を再確認し、ほかの status を上書きしません。
+実際に `Todo` から `Ready` へ変更する各 task には、変更直前に source EPIC と workflow run の
+metadata を含む Octestra activity comment を投稿します。comment の投稿は lifecycle の成功系と
+同じく best-effort です。失敗時は workflow warning を出しますが、status 更新は続行します。
+すでに `Ready` の task には status 更新も重複する activity comment も行いません。
 open かつ opt-out していない EPIC に `triage_skill` がない場合、または `epic-config` が不正な
 場合、discovery はその EPIC を示して run を失敗させ、黙って除外しません。
 
