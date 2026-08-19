@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as core from "@actions/core";
 import {
+  finalizeTriage,
   listEpics,
   prepareTriage,
 } from "./operations";
@@ -33,6 +34,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   delete process.env.GITHUB_WORKSPACE;
+  delete process.env.RUNNER_TEMP;
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, {
     force: true,
     recursive: true,
@@ -139,6 +141,7 @@ describe("prepareTriage", () => {
     const workspace = await mkdtemp(path.join(tmpdir(), "loop-prompt-"));
     temporaryDirectories.push(workspace);
     process.env.GITHUB_WORKSPACE = workspace;
+    process.env.RUNNER_TEMP = workspace;
     const promptDirectory = path.join(workspace, ".github/octestra/prompts");
     await mkdir(promptDirectory, { recursive: true });
     await writeFile(
@@ -178,10 +181,15 @@ describe("prepareTriage", () => {
         "Prioritize tasks that unblock other work.",
       ].join("\n"),
     );
+    expect(core.setOutput).toHaveBeenCalledWith(
+      "result_path",
+      path.join(workspace, "octestra-triage-result.json"),
+    );
   });
 
   it("omits the additional instructions section when the EPIC has none", async () => {
     process.env.GITHUB_WORKSPACE = path.join(process.cwd(), "templates");
+    process.env.RUNNER_TEMP = tmpdir();
     const client = {
       getIssue: vi.fn().mockResolvedValue({
         title: "Migration",
@@ -211,6 +219,7 @@ describe("prepareTriage", () => {
   });
 
   it("requires the EPIC to configure a triage skill", async () => {
+    process.env.RUNNER_TEMP = tmpdir();
     const client = {
       getIssue: vi.fn().mockResolvedValue({
         title: "Migration",
@@ -234,6 +243,7 @@ describe("prepareTriage", () => {
   });
 
   it("rejects an EPIC that opted out after discovery", async () => {
+    process.env.RUNNER_TEMP = tmpdir();
     const client = {
       getIssue: vi.fn().mockResolvedValue({
         title: "Migration",
@@ -258,6 +268,7 @@ describe("prepareTriage", () => {
   });
 
   it("rejects an EPIC that became ineligible after discovery", async () => {
+    process.env.RUNNER_TEMP = tmpdir();
     const client = {
       getIssue: vi.fn().mockResolvedValue({
         title: "Migration",
@@ -281,5 +292,227 @@ describe("prepareTriage", () => {
     )).rejects.toThrow(
       "EPIC #42 is no longer an open octestra-epic issue",
     );
+  });
+});
+
+function epicIssue(): {
+  title: string;
+  body: string;
+  state: string;
+  labels: string[];
+} {
+  return {
+    title: "Migration",
+    state: "open",
+    labels: ["octestra-epic"],
+    body: [
+      "```epic-config",
+      "id: migration",
+      "triage_skill: migration-triage",
+      "validation_skill: validation",
+      "```",
+    ].join("\n"),
+  };
+}
+
+function taskIssue(state = "open"): {
+  title: string;
+  body: string;
+  state: string;
+  labels: string[];
+} {
+  return {
+    title: "Task",
+    state,
+    labels: [],
+    body: [
+      "```task-config",
+      "target: src/example.ts",
+      "```",
+    ].join("\n"),
+  };
+}
+
+async function triageResultPath(readyIssues: number[]): Promise<string> {
+  const directory = await mkdtemp(path.join(tmpdir(), "triage-result-"));
+  temporaryDirectories.push(directory);
+  const resultPath = path.join(directory, "result.json");
+  await writeFile(resultPath, JSON.stringify({
+    kind: "triage-result",
+    readyIssues,
+  }));
+  return resultPath;
+}
+
+describe("finalizeTriage", () => {
+  it("moves Todo tasks to Ready and leaves Ready tasks unchanged", async () => {
+    const resultPath = await triageResultPath([101, 102]);
+    const client = {
+      getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
+        issueNumber === 42 ? epicIssue() : taskIssue()
+      ),
+      getParentNumber: vi.fn().mockResolvedValue(42),
+      getStatus: vi.fn()
+        .mockResolvedValueOnce("Todo")
+        .mockResolvedValueOnce("Ready")
+        .mockResolvedValueOnce("Todo")
+        .mockResolvedValueOnce("Ready"),
+      updateStatus: vi.fn(),
+    };
+
+    await finalizeTriage(
+      {
+        client,
+        epicNumber: 42,
+        statusFieldId: 9001,
+      },
+      resultPath,
+    );
+
+    expect(client.updateStatus).toHaveBeenCalledTimes(1);
+    expect(client.updateStatus).toHaveBeenCalledWith(101, 9001, "Ready");
+    expect(core.setOutput).toHaveBeenCalledWith("ready_count", "1");
+    expect(client.getIssue).toHaveBeenCalledWith(101);
+    expect(client.getIssue).toHaveBeenCalledWith(102);
+    expect(
+      vi.mocked(client.getIssue).mock.invocationCallOrder[2],
+    ).toBeLessThan(
+      vi.mocked(client.updateStatus).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("accepts an empty result without task reads or writes", async () => {
+    const resultPath = await triageResultPath([]);
+    const client = {
+      getIssue: vi.fn().mockResolvedValue(epicIssue()),
+      getParentNumber: vi.fn(),
+      getStatus: vi.fn(),
+      updateStatus: vi.fn(),
+    };
+
+    await finalizeTriage(
+      {
+        client,
+        epicNumber: 42,
+        statusFieldId: 9001,
+      },
+      resultPath,
+    );
+
+    expect(client.getIssue).toHaveBeenCalledTimes(2);
+    expect(client.getParentNumber).not.toHaveBeenCalled();
+    expect(client.updateStatus).not.toHaveBeenCalled();
+    expect(core.setOutput).toHaveBeenCalledWith("ready_count", "0");
+  });
+
+  it("preflights every reported task before changing any status", async () => {
+    const resultPath = await triageResultPath([101, 202]);
+    const client = {
+      getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
+        issueNumber === 42 ? epicIssue() : taskIssue()
+      ),
+      getParentNumber: vi.fn().mockImplementation(async (issueNumber: number) =>
+        issueNumber === 101 ? 42 : 99
+      ),
+      getStatus: vi.fn().mockResolvedValue("Todo"),
+      updateStatus: vi.fn(),
+    };
+
+    await expect(finalizeTriage(
+      {
+        client,
+        epicNumber: 42,
+        statusFieldId: 9001,
+      },
+      resultPath,
+    )).rejects.toThrow(
+      "Reported task #202 is not a direct sub-issue of EPIC #42",
+    );
+
+    expect(client.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite a status that changes after preflight", async () => {
+    const resultPath = await triageResultPath([101]);
+    const client = {
+      getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
+        issueNumber === 42 ? epicIssue() : taskIssue()
+      ),
+      getParentNumber: vi.fn().mockResolvedValue(42),
+      getStatus: vi.fn()
+        .mockResolvedValueOnce("Todo")
+        .mockResolvedValueOnce("In Progress"),
+      updateStatus: vi.fn(),
+    };
+
+    await expect(finalizeTriage(
+      {
+        client,
+        epicNumber: 42,
+        statusFieldId: 9001,
+      },
+      resultPath,
+    )).rejects.toThrow(
+      "Reported task #101 changed to In Progress before update",
+    );
+
+    expect(client.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("rechecks EPIC eligibility after task preflight", async () => {
+    const resultPath = await triageResultPath([101]);
+    const client = {
+      getIssue: vi.fn()
+        .mockResolvedValueOnce(epicIssue())
+        .mockResolvedValueOnce(taskIssue())
+        .mockResolvedValueOnce({
+          ...epicIssue(),
+          state: "closed",
+        }),
+      getParentNumber: vi.fn().mockResolvedValue(42),
+      getStatus: vi.fn().mockResolvedValue("Todo"),
+      updateStatus: vi.fn(),
+    };
+
+    await expect(finalizeTriage(
+      {
+        client,
+        epicNumber: 42,
+        statusFieldId: 9001,
+      },
+      resultPath,
+    )).rejects.toThrow(
+      "EPIC #42 is no longer an open octestra-epic issue",
+    );
+
+    expect(client.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("rejects a reported issue without a task-config body before writes", async () => {
+    const resultPath = await triageResultPath([101]);
+    const client = {
+      getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
+        issueNumber === 42
+          ? epicIssue()
+          : {
+            ...taskIssue(),
+            body: "No task contract",
+          }
+      ),
+      getParentNumber: vi.fn().mockResolvedValue(42),
+      getStatus: vi.fn(),
+      updateStatus: vi.fn(),
+    };
+
+    await expect(finalizeTriage(
+      {
+        client,
+        epicNumber: 42,
+        statusFieldId: 9001,
+      },
+      resultPath,
+    )).rejects.toThrow("Reported task #101 has an invalid task body");
+
+    expect(client.updateStatus).not.toHaveBeenCalled();
   });
 });

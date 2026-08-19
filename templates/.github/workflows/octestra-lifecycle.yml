@@ -220,7 +220,7 @@ jobs:
           operation: lifecycle/finalize-validation
           github-token: ${{ steps.app-token.outputs.token }}
           issue-number: ${{ github.event.issue.number }}
-          proof-path: ${{ steps.epic.outputs.result_path }}
+          result-path: ${{ steps.epic.outputs.result_path }}
           pull-number: ${{ steps.epic.outputs.pull_number }}
 
   report-failure:

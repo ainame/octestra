@@ -11,15 +11,19 @@ Available variables:
 - epicValidationPrompt: validation instructions from the EPIC
 - validationPrompt: validation instructions from this task issue
 - issueNumber: task issue number
+- branchName: exact task branch Octestra expects
 - pullNumber: linked pull request number, when available
 - draftFlag: `--draft` when draft pull requests are configured
 --}}
+/octestra
+Follow the `task` phase contract.
 {{#if taskSkill}}
 Implement the requested change using /{{taskSkill}}.
 {{else}}
 Implement the requested change.
 {{/if}}
 Scope: {{target}}
+Create and push the exact branch `{{branchName}}`.
 
 {{epicTaskPrompt}}
 

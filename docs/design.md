@@ -12,7 +12,8 @@ graph — one event, one task.
 Scheduled loops are intentionally thinner. A consumer-owned workflow chooses the schedule, prompt
 and agent. Octestra discovers its open EPIC configuration units, honors their opt-out, renders the
 prompt, and publishes stable output paths. The repository's triage skill owns task discovery,
-selection, domain knowledge and mutation.
+selection and domain readiness policy. Octestra validates the reported issue numbers before it
+moves eligible tasks from `Todo` to `Ready`.
 
 ## 2. Decisions
 
@@ -30,11 +31,13 @@ selection, domain knowledge and mutation.
 | D13 | A finished task PR is opened ready for review, is taken out of draft before review is requested, and gets no assignee; the EPIC opts out with `draft_pr: true` and out of validation with `skip_validation: true`, both defaulting to `false` | Every default here is the state a human wants at the moment they are asked to look. Marking a PR ready by hand is friction repeated on every task, and where validation runs the work has already been checked before a human sees it — so *ready* is the honest state, and requesting review on something GitHub labels a draft is a contradiction rather than a workflow. `skip_validation` is spelled as the exception it is: the negative name (`validation_required: false`) read as the normal case while describing the opt-out, and inverting it puts "run validation" in the default. The PR assignee was dropped because it duplicates the issue assignee while adding a second mobile notification for the same person. |
 | D14 | The installed workflow is replaced in full; consumer-owned composite actions and `config.yml` are preserved in full; `octestra.sh update` drives the process by running the target version's own `install.sh` | The lifecycle workflow is mechanism that Octestra must be able to update coherently. Agent actions are policy: every line expresses how the consumer's agent runs, so there is no useful Octestra-owned remainder to merge. Keeping each file wholly on one side removes a merge protocol and makes update behavior explicit. Delegating to the downloaded `install.sh` keeps one implementation and means an update runs the new logic rather than whatever the consumer installed months ago. |
 | D15 | Lifecycle preparation, repository-defined agent execution, and finalization share one job and runner; the repository-defined steps live in local composite actions | Preparation publishes runtime state that the agent consumes immediately, so another job would start another runner only to reconstruct the same workspace and environment. A composite action provides a boundary inside the existing job; for task execution, the workflow also checks `task_ready` once so every setup and agent step inside the action is skipped together. |
-| D16 | The loop kernel discovers enabled EPIC configuration units and renders a consumer-selected prompt for each | The `octestra-epic` label and `epic-config` are Octestra contracts, so enumerating them and honoring `skip_triage` is mechanism. Task selection, limits, domain knowledge and mutations vary by use case and stay in a repository-owned triage skill and preserved local action. |
+| D16 | The loop kernel discovers enabled EPIC configuration units and renders a consumer-selected prompt for each | The `octestra-epic` label and `epic-config` are Octestra contracts, so enumerating them and honoring `skip_triage` is mechanism. Task selection, limits and domain knowledge stay in a repository-owned triage skill and preserved local action. |
+| D17 | One framework-owned `/octestra` skill defines the task, triage and validation phase contracts | Every agent needs the same workflow protocol while repository skills own domain policy. Updating one installed framework skill avoids protocol drift and removes the validation-only second source of truth. |
+| D18 | Triage agents report candidate issue numbers; `loop/finalize-triage` owns status mutation | Agent-selected numbers are untrusted. Finalization requires one valid result, preflights every task and the parent EPIC before any write, accepts only direct open task sub-issues currently in `Todo` or `Ready`, and rechecks status immediately before each `Todo` to `Ready` update. |
 
 ### Local composite action trade-offs
 
-The task and validation composite actions run as ordinary steps in their calling job. They therefore
+The task, validation and triage composite actions run as ordinary steps in their calling jobs. They therefore
 share its runner instance, operating system, workspace and environment. Consumer-owned actions may
 perform runner-specific setup such as selecting Xcode, installing Homebrew packages or configuring
 Ruby, and may branch on `runner.os`. The parent job still chooses the runner through
@@ -50,7 +53,7 @@ This boundary has deliberate limitations:
   permissions, environment and writable workspace.
 - GitHub Actions displays the action as one outer workflow step. Its nested steps retain separate
   logs, but the workflow graph is less direct than listing every step inline.
-- A repository-local action exists only after checkout. Both agent jobs already check out the
+- A repository-local action exists only after checkout. All agent jobs already check out the
   consumer repository before invoking their local action, so this adds no second clone or checkout.
 - Every composite `run` step must declare its shell.
 - An installed composite action receives no later template improvements automatically because the

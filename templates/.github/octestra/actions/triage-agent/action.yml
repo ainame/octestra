@@ -3,7 +3,7 @@
 #
 # WHAT STEPS MAY REFERENCE
 # Use `inputs.*` for triage context and `env.OCTESTRA_AGENT_GITHUB_TOKEN` for GitHub API calls.
-# The repository's triage skill owns issue discovery, selection and mutation.
+# The repository's triage skill owns issue discovery, selection and readiness policy.
 name: Octestra triage agent
 description: Repository-configured setup and agent execution for Todo triage
 

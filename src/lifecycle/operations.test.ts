@@ -36,6 +36,7 @@ async function proofResultPath(outcome: "passed" | "failed"): Promise<string> {
   temporaryDirectories.push(directory);
   const resultPath = path.join(directory, "result.json");
   await writeFile(resultPath, JSON.stringify({
+    kind: "validation-result",
     outcome,
     summary: `Validation ${outcome}`,
     checks: [{
@@ -108,7 +109,7 @@ describe("prepareTask", () => {
     temporaryDirectories.push(workspace);
     await writeFile(
       path.join(workspace, "prompt.md.hbs"),
-      "{{target}}\n{{epicTaskPrompt}}\n{{taskPrompt}}",
+      "{{branchName}}\n{{target}}\n{{epicTaskPrompt}}\n{{taskPrompt}}",
     );
     const client = createClient({
       getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
@@ -162,6 +163,7 @@ describe("prepareTask", () => {
     expect(setOutput).toHaveBeenCalledWith(
       "prompt",
       [
+        "octestra/example/issue-123",
         "Sources/Feature/Home.swift",
         "Use the existing architecture.",
         "Preserve the public API.",

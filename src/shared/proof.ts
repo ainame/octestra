@@ -1,18 +1,13 @@
-import { readFile } from "node:fs/promises";
 import { markdownTable } from "./markdown";
+import {
+  parseValidationResult,
+  readJsonResult,
+  type ResultRow,
+  type ValidationResult,
+} from "./result";
 
-type ProofRow = Record<string, unknown>;
-
-export interface ProofDocument {
-  outcome: string;
-  summary: string;
-  details?: string;
-  acceptance?: ProofRow[];
-  checks?: ProofRow[];
-  evidence?: ProofRow[];
-  artifacts?: ProofRow[];
-  knownGaps?: string[];
-}
+type ProofRow = ResultRow;
+export type ProofDocument = ValidationResult;
 
 export interface ProofCommentContext {
   issueNumber: number;
@@ -25,81 +20,12 @@ export interface ProofCommentContext {
   recordedAt?: string;
 }
 
-function requireString(
-  value: unknown,
-  field: string,
-  required = false,
-): string | undefined {
-  if (value === undefined && !required) {
-    return undefined;
-  }
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Proof ${field} must be a non-empty string`);
-  }
-  return value.trim();
-}
-
-function optionalRows(value: unknown, field: string): ProofRow[] | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (!Array.isArray(value) || value.some((row) =>
-    typeof row !== "object" || row === null || Array.isArray(row)
-  )) {
-    throw new Error(`Proof ${field} must be an array of objects`);
-  }
-  return value as ProofRow[];
-}
-
-function optionalChecks(value: unknown): ProofRow[] | undefined {
-  const checks = optionalRows(value, "checks");
-
-  if (checks === undefined) {
-    return undefined;
-  }
-
-  checks.forEach((check, index) => {
-    requireString(check.name, `checks[${index}].name`, true);
-    requireString(check.result, `checks[${index}].result`, true);
-  });
-  return checks;
-}
-
-function optionalStrings(value: unknown, field: string): string[] | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new Error(`Proof ${field} must be an array of strings`);
-  }
-  return value.map((item) => item.trim()).filter(Boolean);
-}
-
 export function parseProofDocument(raw: unknown): ProofDocument {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new Error("Proof must be a JSON object");
-  }
-
-  // The top-level outcome controls the lifecycle. Checks have a small structural
-  // contract for readable proof comments; consumer-specific fields remain allowed.
-  const proof = raw as Record<string, unknown>;
-  return {
-    outcome: requireString(proof.outcome, "outcome", true)!,
-    summary: requireString(proof.summary, "summary", true)!,
-    details: requireString(proof.details, "details"),
-    acceptance: optionalRows(proof.acceptance, "acceptance"),
-    checks: optionalChecks(proof.checks),
-    evidence: optionalRows(proof.evidence, "evidence"),
-    artifacts: optionalRows(proof.artifacts, "artifacts"),
-    knownGaps: optionalStrings(
-      proof.knownGaps ?? proof.known_gaps,
-      "knownGaps",
-    ),
-  };
+  return parseValidationResult(raw);
 }
 
 export async function readProofDocument(proofPath: string): Promise<ProofDocument> {
-  return parseProofDocument(JSON.parse(await readFile(proofPath, "utf8")));
+  return parseProofDocument(await readJsonResult(proofPath));
 }
 
 function valueFrom(row: ProofRow, ...keys: string[]): unknown {
