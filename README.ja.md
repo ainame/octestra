@@ -53,7 +53,7 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
   - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
   - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
   - `.agents/skills/octestra/SKILL.md`
-  - `.agents/skills/octestra/scripts/check.sh`
+  - `.agents/skills/octestra/scripts/check-output.sh`
 
 ### エージェントを設定する
 

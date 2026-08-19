@@ -49,7 +49,7 @@ task is ready. Do not call these values IDs. `summary` is optional.
 After writing the file, run:
 
 ```sh
-<skill-directory>/scripts/check.sh triage "<result-path>"
+<skill-directory>/scripts/check-output.sh triage "<result-path>"
 ```
 
 ## Validation phase
@@ -85,7 +85,7 @@ omitting them or reporting success.
 After writing the file, run:
 
 ```sh
-<skill-directory>/scripts/check.sh validation "<result-path>"
+<skill-directory>/scripts/check-output.sh validation "<result-path>"
 ```
 
 If a checker reports an error, correct the JSON and run it again. Never change a truthful decision

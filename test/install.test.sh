@@ -281,13 +281,13 @@ grep -q 'Follow the `triage` phase contract' \
   "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
-test -x "$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check.sh"
+test -x "$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check-output.sh"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-loop-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-gbat-goal"
-grep -q '<skill-directory>/scripts/check.sh validation "<result-path>"' \
+grep -q '<skill-directory>/scripts/check-output.sh validation "<result-path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
-grep -q '<skill-directory>/scripts/check.sh triage "<result-path>"' \
+grep -q '<skill-directory>/scripts/check-output.sh triage "<result-path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
 grep -q 'the `AI Task Status` Issue Field or its status option directly' \
   "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
@@ -343,10 +343,10 @@ cat > "$validation_result" <<'EOF'
   ]
 }
 EOF
-"$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check.sh" \
+"$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check-output.sh" \
   validation "$validation_result"
 
-result_checker="$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check.sh"
+result_checker="$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check-output.sh"
 assert_invalid_validation_result() {
   local name="$1"
   local contents="$2"
