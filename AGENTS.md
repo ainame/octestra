@@ -22,12 +22,14 @@ issues:field_added ─▶ octestra-lifecycle.yml
                        guard ─┬─▶ in-progress
                               └─▶ validation
 
-schedule ───────────▶ octestra-loop-todo.yml ─▶ list-epics ─▶ prepare-triage ─▶ triage-agent
+schedule ───────────▶ octestra-loop-todo.yml ─▶ list-epics ─▶ prepare-triage
+                                                           └─▶ triage-agent ─▶ finalize-triage
 ```
 
-Loops discover open EPIC configuration units and honor each EPIC's triage opt-out. They deliberately do not
-select or mutate tasks. The repository's triage skill decides what task work happens; Octestra
-renders the prompt and executes the local agent action once per enabled EPIC.
+Loops discover open EPIC configuration units and honor each EPIC's triage opt-out. The repository's
+triage skill decides which task work is ready, performs repository-owned issue preparation, and
+reports fully processed issue numbers; Octestra validates the complete result and exclusively
+performs eligible `Todo` to `Ready` updates.
 
 ## Layout
 
@@ -35,9 +37,9 @@ renders the prompt and executes the local agent action once per enabled EPIC.
 action.yml                     composite action surface (inputs are the public API)
 src/
   index.ts                     operation dispatch; builds context per namespace
-  shared/                      config.ts, github-client.ts, prompt.ts, proof.ts
+  shared/                      config.ts, github-client.ts, prompt.ts, proof.ts, result.ts
   lifecycle/operations.ts      lifecycle/<verb> implementations
-  loop/operations.ts           loop/list-epics and loop/prepare-triage
+  loop/operations.ts           loop/list-epics, prepare-triage and finalize-triage
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
 templates/.github/
   workflows/octestra-lifecycle.yml
@@ -48,6 +50,7 @@ templates/.github/
   octestra/config.yml          the ONLY file install.sh generates
   octestra/octestra.sh         installed maintenance CLI: doctor, update, vars check|sync, ref
   octestra/prompts/            handlebars prompts, read from the consumer's checkout
+templates/skills/octestra/     framework-owned task, triage and validation phase contracts
 install.sh, test/install.test.sh
 docs/design.md                 decisions and rationale
 docs/glossary.md               canonical names, and the wording to introduce each one with
@@ -111,7 +114,10 @@ systems. Never renumber: `docs/design.md` cites these numbers.
   files share a group. The `in-progress` and `validation` jobs use the same
   `octestra-<issue_number>` group with `cancel-in-progress: false`, so work on one task issue is
   serialized. Any workflow added later that touches a task issue must reuse that group string rather
-  than invent its own.
+  than invent its own. A loop finalizer is the deliberate exception: one agent result may name
+  several task issues, so GitHub Actions cannot assign its job one per-task group. It may only apply
+  the idempotent `Todo` to `Ready` entry transition after preflighting every task and must re-check
+  each live status immediately before writing.
 
 ## Rules
 
@@ -174,8 +180,16 @@ must be reconstructed by `update` from the installed state or an update silently
 
 Installed loop workflows, their prompts and their local agent actions also belong to the consumer
 and are preserved in full. Their schedule and work policy cannot be reconstructed from Octestra's
-templates. Framework-owned loop behavior belongs in discovering enabled EPIC configuration units
-and `loop/prepare-triage`, never in task selection, limits or mutation logic.
+templates. Framework-owned loop behavior belongs in discovering enabled EPIC configuration units,
+`loop/prepare-triage`, validating the agent result, and applying the fixed `Todo` to `Ready`
+transition. Task discovery, selection, limits and readiness policy remain repository-owned.
+Repository triage may mutate issue bodies and other issue data as its policy requires, but it must
+not update the status field directly.
+
+**Agent workflow contracts.** Every framework prompt starts with `/octestra` and names exactly one
+phase: `task`, `triage`, or `validation`. The installed `/octestra` skill is framework-owned and is
+replaced on update; repository domain skills remain consumer-owned. Task is a side-effect contract.
+Triage and validation are result-file contracts with discriminated JSON and no contract version.
 
 **Agent execution stays with preparation.** Lifecycle preparation, agent execution and finalization
 share one job and runner instance. Do not split preparation into a producer job merely to condition

@@ -52,8 +52,8 @@ The installer adds the following files.
 - Agent skills
   - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
   - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
-  - `.agents/skills/octestra-validation-proof/SKILL.md`
-  - `.agents/skills/octestra-validation-proof/scripts/check.sh`
+  - `.agents/skills/octestra/SKILL.md`
+  - `.agents/skills/octestra/scripts/check-output.sh`
 
 ### Configure an Agent
 
@@ -77,7 +77,10 @@ Customize `.github/octestra/prompts/loop-todo.md.hbs` and
 Set `triage_skill` and, optionally, the `epic-triage-prompt` block in the EPIC issue. The rendered
 prompt exposes them as `triageSkill` and `epicTriagePrompt`. Open `octestra-epic` issues participate
 by default; set `skip_triage: true` in an EPIC to opt out. Octestra starts one bounded matrix
-job per participating EPIC. The skill owns task discovery, selection, limits and mutations.
+job per participating EPIC. The repository skill owns task discovery, selection, limits and
+readiness policy, including required issue preparation, but must not change AI Task Status. It
+reports only fully processed tasks; Octestra validates the result and moves eligible Todo tasks to
+Ready.
 Scheduled execution is opt-in: choose a cadence and uncomment the workflow's `schedule` block.
 Before running it, every open `octestra-epic` issue must either configure `triage_skill` or opt out;
 discovery fails loudly rather than silently omitting an invalid EPIC.
@@ -102,7 +105,10 @@ discovery fails loudly rather than silently omitting an invalid EPIC.
 
 Rerunning the installer replaces the lifecycle workflow and keeps `config.yml`, all local agent
 actions, and the loop workflow and prompt. Review `git diff` before committing changes from an
-update.
+update. The framework-owned `/octestra` skill is replaced, and the obsolete
+`/octestra-validation-proof` skill is removed. Existing loop workflow and prompt files are
+preserved; installations created before triage finalization must manually adopt the current
+`octestra-loop-todo.yml` and `loop-todo.md.hbs` contract.
 
 ## Security
 

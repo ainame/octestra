@@ -650,6 +650,30 @@ preserve_installed_consumer_policy() {
   done
 }
 
+remove_legacy_framework_skill() {
+  local legacy_skill="$TARGET_DIR/.$SKILL_TARGET/skills/octestra-validation-proof"
+
+  if [[ -d "$legacy_skill" ]]; then
+    rm -rf "$legacy_skill"
+    info "removed obsolete /octestra-validation-proof skill; use /octestra"
+  fi
+}
+
+warn_preserved_loop_migration() {
+  local workflow="$TARGET_DIR/.github/workflows/octestra-loop-todo.yml"
+  local prompt="$TARGET_DIR/.github/octestra/prompts/loop-todo.md.hbs"
+
+  if [[ -f "$workflow" ]] &&
+    ! grep -q 'operation: loop/finalize-triage' "$workflow"; then
+    info "existing Todo loop predates result finalization; migrate $workflow from the current template"
+  fi
+  if [[ -f "$prompt" ]] &&
+    { ! grep -q '/octestra' "$prompt" ||
+      ! grep -q '{{resultPath}}' "$prompt"; }; then
+    info "existing Todo loop prompt predates the triage result contract; migrate $prompt from the current template"
+  fi
+}
+
 rewrite_preserved_loop_reference() {
   local installed_script="$TARGET_DIR/$MAINTENANCE_SCRIPT"
   local installed_action=""
@@ -695,6 +719,7 @@ copy_and_render_templates() {
   preserve_installed_consumer_policy
   rewrite_preserved_loop_reference
   remove_legacy_workflows
+  remove_legacy_framework_skill
   (cd "$INSTALL_TREE" && tar -cf - .) | (cd "$TARGET_DIR" && tar -xf -)
   [[ -f "$config" ]] || die "Octestra config template was not installed"
   [[ -x "$TARGET_DIR/$MAINTENANCE_SCRIPT" ]] ||
@@ -709,6 +734,7 @@ copy_and_render_templates() {
   # use for every later sync is the one exercised at install time.
   (cd "$TARGET_DIR" && bash "$MAINTENANCE_SCRIPT" vars sync)
   warn_missing_private_key_secret "$config"
+  warn_preserved_loop_migration
 }
 
 warn_missing_private_key_secret() {

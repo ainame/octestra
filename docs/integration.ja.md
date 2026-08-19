@@ -87,6 +87,11 @@ lifecycle workflow は全体が置き換えられますが、loop workflow と�
 file として保持されます。agent action では context に `inputs.*`、エージェント用 GitHub token
 に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。
 
+描画されるすべての agent prompt は、インストール済みの `/octestra` workflow-contract skill を
+最初に読み込み、`task`、`triage`、`validation` のいずれかの phase を指定します。repository
+skill は domain policy を所有し、`/octestra` は branch、pull request、mutation、result file の
+要件を所有します。
+
 composite action は GitHub Actions の `secrets` context を直接参照できません。cloud credential
 には OIDC を使うか、選択した runner の環境から credential を渡してください。OIDC が必要な
 場合は installer に `--enable-oidc` を指定します。
@@ -142,11 +147,12 @@ Claude Code Action の設定例です。
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub token |
 
 action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済み workspace で実行されます。
-検証エージェントは、インストール済みの `octestra-validation-proof` skill を使って
+検証エージェントは、インストール済みの `/octestra` skill を使って
 `inputs.result_path` に JSON を書き込み、その形式を検査します。
 
 ```json
 {
+  "kind": "validation-result",
   "outcome": "passed",
   "summary": "すべてのチェックが通りました。",
   "checks": [
@@ -159,7 +165,9 @@ action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済�
 }
 ```
 
-必須なのは `outcome` と `summary` だけです。`Human Review` に進むには、`outcome` が正確に `passed` である必要があります。その他の値では task issue が `Blocked` に移動します。
+`kind`、`outcome`、`summary` が必須です。`kind` は常に `validation-result`、`outcome` は
+`passed` または `failed` です。`passed` は task を `Human Review` に進め、`failed` は
+`Blocked` に移動します。
 
 ### 個別のチェックを記述する
 
@@ -177,16 +185,37 @@ Octestra は task issue の検証結果コメントに、check ごとに 1 行�
 `skip_triage: true` を設定した EPIC を除外します。workflow は残った EPIC ごとに matrix
 job を起動し、同時に実行する agent job は最大3つです。`loop/prepare-triage` はその EPIC から
 `triage_skill` と任意の `epic-triage-prompt` block を読み、`triageSkill`、
-`epicTriagePrompt` を使って
+`epicTriagePrompt`、`resultPath` を使って
 `.github/octestra/prompts/loop-todo.md.hbs` を描画します。
 
-task の探索、選択、件数制限、変更ルール、domain knowledge は workflow や prompt ではなく、
-triage skill に置いてください。Octestra は設定単位である EPIC の発見、prompt の描画、agent の
-local action の実行だけを担当します。
+task の探索、選択、件数制限、readiness policy、issue preparation、domain knowledge は workflow
+や prompt ではなく、triage skill に置いてください。agent は repository policy に必要な issue
+body やその他の issue data を変更できますが、`AI Task Status` Issue Field を直接変更してはいけません。
+必要な preparation がすべて成功したあと、次の JSON を書き込みます。
+
+```json
+{
+  "kind": "triage-result",
+  "readyIssues": [12, 34],
+  "summary": "任意の概要"
+}
+```
+
+`readyIssues` は完全に処理され、ready と判断した task の一意な正の repository issue 番号です。
+空配列も有効です。
+`loop/finalize-triage` は result がない場合や不正な場合に fail closed します。status を更新する
+前に、報告されたすべての issue が open で、対象 EPIC の direct sub-issue であり、有効な task
+body を持ち、現在 `Todo` または `Ready` であることを確認します。`Ready` は no-op です。
+`Todo` から `Ready` へ変更する直前にも status を再確認し、ほかの status を上書きしません。
 open かつ opt-out していない EPIC に `triage_skill` がない場合、または `epic-config` が不正な
 場合、discovery はその EPIC を示して run を失敗させ、黙って除外しません。
 
-workflow は描画した `prompt` を local triage action に渡します。
+workflow は描画した `prompt` を local triage action に渡します。finalization はその action が
+成功した場合だけ実行されます。
+
+loop workflow、prompt、local action は update で保持されます。`loop/finalize-triage` より前に
+インストールした場合は、現行 template から workflow と prompt を手動で移行してください。
+installer はこの状態を報告しますが、repository policy を上書きしません。
 
 ## プロンプトテンプレート
 
@@ -208,9 +237,10 @@ template では EPIC と task issue の設定・prompt を利用できます。�
 - `validationSkill`: EPIC で設定した検証スキル
 - `target`: 設定されている場合のタスク対象
 - `issueNumber`: task issue 番号
+- `branchName`: 実装時の正確な task branch
 - `pullNumber`: 存在する場合の関連 pull request 番号
 - `draftFlag`: draft pull request を設定した場合の `--draft`
-- `resultPath`: 検証時の result path。検証用 workflow でのみ利用可能
+- `resultPath`: 検証または triage 時の result path
 - `artifactPath`: 検証時の artifact directory。検証用 workflow でのみ利用可能
 
 ## 設定を変更する

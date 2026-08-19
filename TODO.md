@@ -7,7 +7,8 @@ The configuration restructuring has shipped: the config control plane, the singl
 topology, operation namespacing, and the minimal Todo triage loop. Earlier fan-out and aggregate
 loop designs owned too much policy and were removed. The retained loop kernel discovers enabled
 EPIC configuration units and renders a prompt for each; the repository's triage skill owns task
-discovery, selection, limits, domain knowledge and mutations.
+discovery, selection, limits, domain knowledge, readiness policy and issue preparation. Octestra
+validates its result before exclusively applying eligible `Todo` to `Ready` updates.
 
 ## 1. Put agent execution behind a trust boundary
 
@@ -29,7 +30,7 @@ The target:
 - If an agent must comment, a short-lived token limited to repository read plus issue and pull
   request write, revoked immediately afterwards.
 - A fresh lifecycle token minted in a separate job that does not execute pull request code.
-- Validation proof transferred to that job as bounded, strictly validated data.
+- Validation result transferred to that job as bounded, strictly validated data.
 - A default-branch ruleset the task App cannot bypass. Task agents still need write access to create
   their own branches.
 - OIDC roles, model credentials, network access, and persistent self-hosted runners treated as

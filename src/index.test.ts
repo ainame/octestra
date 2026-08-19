@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   client: {},
   getInput: vi.fn(),
   loadOctestraConfig: vi.fn(),
+  finalizeTriage: vi.fn(),
   prepareTriage: vi.fn(),
 }));
 
@@ -24,6 +25,7 @@ vi.mock("./shared/github-client", () => ({
 }));
 
 vi.mock("./loop/operations", () => ({
+  finalizeTriage: mocks.finalizeTriage,
   listEpics: vi.fn(),
   prepareTriage: mocks.prepareTriage,
 }));
@@ -52,5 +54,31 @@ describe("run", () => {
       },
     );
     expect(mocks.loadOctestraConfig).not.toHaveBeenCalled();
+  });
+
+  it("dispatches loop/finalize-triage with status configuration", async () => {
+    const inputs: Record<string, string> = {
+      "github-token": "token",
+      "issue-number": "42",
+      "operation": "loop/finalize-triage",
+      "result-path": "/tmp/triage-result.json",
+    };
+    mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
+    mocks.loadOctestraConfig.mockResolvedValue({
+      status: {
+        field_id: 9001,
+      },
+    });
+
+    await run();
+
+    expect(mocks.finalizeTriage).toHaveBeenCalledWith(
+      {
+        client: mocks.client,
+        epicNumber: 42,
+        statusFieldId: 9001,
+      },
+      "/tmp/triage-result.json",
+    );
   });
 });

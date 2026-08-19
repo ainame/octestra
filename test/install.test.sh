@@ -273,15 +273,26 @@ grep -q '{{triageSkill}}' \
   "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
 grep -q '{{epicTriagePrompt}}' \
   "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
-grep -q '/octestra-validation-proof' \
+grep -q 'Follow the `validation` phase contract' \
   "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-validation.md.hbs"
+grep -q 'Follow the `task` phase contract' \
+  "$TEMP_DIR/consumer/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
+grep -q 'Follow the `triage` phase contract' \
+  "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
-test -f "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
-test -x "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/scripts/check.sh"
+test -f "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+test -x "$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check-output.sh"
+test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-loop-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-gbat-goal"
-grep -q '<skill-directory>/scripts/check.sh "<result-path>"' \
-  "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
+grep -q '<skill-directory>/scripts/check-output.sh validation "<result-path>"' \
+  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+grep -q '<skill-directory>/scripts/check-output.sh triage "<result-path>"' \
+  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+grep -q 'the `AI Task Status` Issue Field or its status option directly' \
+  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+! grep -q 'Do not change issues' \
+  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
 grep -q '.github/octestra/octestra.sh doctor' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 ruby -c "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/scripts/setup_epic.rb" >/dev/null
@@ -297,6 +308,8 @@ node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8
 grep -q "secrets\\[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET" "$orchestrator"
 grep -q 'operation: loop/prepare-triage' "$triage_workflow"
 grep -q 'operation: loop/list-epics' "$triage_workflow"
+grep -q 'operation: loop/finalize-triage' "$triage_workflow"
+grep -q 'result-path: \${{ steps.loop.outputs.result_path }}' "$triage_workflow"
 ! grep -q 'operation: loop/report-run' "$triage_workflow"
 grep -q '^  # schedule:' "$triage_workflow"
 grep -q '^  workflow_dispatch:' "$triage_workflow"
@@ -316,6 +329,7 @@ grep -q 'Actions secret OCTESTRA_GITHUB_APP_PRIVATE_KEY is not set' \
 validation_result="$TEMP_DIR/validation-result.json"
 cat > "$validation_result" <<'EOF'
 {
+  "kind": "validation-result",
   "outcome": "passed",
   "summary": "All checks passed.",
   "checks": [
@@ -329,10 +343,10 @@ cat > "$validation_result" <<'EOF'
   ]
 }
 EOF
-"$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/scripts/check.sh" \
-  "$validation_result"
+"$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check-output.sh" \
+  validation "$validation_result"
 
-validation_result_checker="$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/scripts/check.sh"
+result_checker="$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check-output.sh"
 assert_invalid_validation_result() {
   local name="$1"
   local contents="$2"
@@ -341,7 +355,7 @@ assert_invalid_validation_result() {
   local output="$TEMP_DIR/$name.output"
 
   printf '%s' "$contents" > "$path"
-  if "$validation_result_checker" "$path" >"$output" 2>&1; then
+  if "$result_checker" validation "$path" >"$output" 2>&1; then
     echo "validation result checker accepted $name" >&2
     exit 1
   fi
@@ -349,7 +363,7 @@ assert_invalid_validation_result() {
 }
 
 missing_validation_output="$TEMP_DIR/missing-validation-output"
-if "$validation_result_checker" "$TEMP_DIR/does-not-exist.json" \
+if "$result_checker" validation "$TEMP_DIR/does-not-exist.json" \
   >"$missing_validation_output" 2>&1; then
   echo "validation result checker accepted a missing file" >&2
   exit 1
@@ -366,28 +380,45 @@ assert_invalid_validation_result \
   'validation result must be a JSON object'
 assert_invalid_validation_result \
   missing-outcome \
-  '{"summary":"All checks passed."}' \
-  'validation result outcome must be a non-empty string'
+  '{"kind":"validation-result","summary":"All checks passed."}' \
+  'validation result outcome must be passed or failed'
 assert_invalid_validation_result \
   empty-summary \
-  '{"outcome":"passed","summary":" "}' \
+  '{"kind":"validation-result","outcome":"passed","summary":" "}' \
   'validation result summary must be a non-empty string'
 assert_invalid_validation_result \
   checks-not-array \
-  '{"outcome":"passed","summary":"All checks passed.","checks":{}}' \
+  '{"kind":"validation-result","outcome":"passed","summary":"All checks passed.","checks":{}}' \
   'validation result checks must be an array of objects'
 assert_invalid_validation_result \
   checks-with-non-object \
-  '{"outcome":"passed","summary":"All checks passed.","checks":[null]}' \
+  '{"kind":"validation-result","outcome":"passed","summary":"All checks passed.","checks":[null]}' \
   'validation result checks must be an array of objects'
 assert_invalid_validation_result \
   check-without-name \
-  '{"outcome":"passed","summary":"All checks passed.","checks":[{"result":"passed"}]}' \
+  '{"kind":"validation-result","outcome":"passed","summary":"All checks passed.","checks":[{"result":"passed"}]}' \
   'validation result checks[0].name must be a non-empty string'
 assert_invalid_validation_result \
   check-without-result \
-  '{"outcome":"passed","summary":"All checks passed.","checks":[{"name":"unit tests"}]}' \
+  '{"kind":"validation-result","outcome":"passed","summary":"All checks passed.","checks":[{"name":"unit tests"}]}' \
   'validation result checks[0].result must be a non-empty string'
+
+triage_result="$TEMP_DIR/triage-result.json"
+printf '%s' \
+  '{"kind":"triage-result","readyIssues":[12,34],"summary":"Two tasks are ready."}' \
+  >"$triage_result"
+"$result_checker" triage "$triage_result"
+invalid_triage_output="$TEMP_DIR/invalid-triage-output"
+invalid_triage_result="$TEMP_DIR/invalid-triage-result.json"
+printf '%s' '{"kind":"triage-result","readyIssues":[12,12]}' \
+  >"$invalid_triage_result"
+if "$result_checker" triage "$invalid_triage_result" \
+  >"$invalid_triage_output" 2>&1; then
+  echo "triage result checker accepted duplicate issue numbers" >&2
+  exit 1
+fi
+grep -Fq 'triage result readyIssues must not contain duplicates' \
+  "$invalid_triage_output"
 
 missing_option_output="$TEMP_DIR/missing-option-output"
 if PATH="$TEMP_DIR/bin:$PATH" \
@@ -548,7 +579,7 @@ git -C "$TEMP_DIR/consumer-piped" remote add origin git@github.com:example-org/c
 )
 test -f "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-setup-migration-epic/SKILL.md"
-test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-validation-proof/SKILL.md"
+test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra/SKILL.md"
 # Templates are downloaded from the same ref the generated workflow calls.
 grep -q '^v1\.10\.0$' "$TEMP_DIR/tarball-ref"
 grep -q 'uses: ainame/octestra@v1\.10\.0' \
@@ -559,6 +590,22 @@ grep -q 'uses: ainame/octestra@v1\.10\.0' \
 # installer says so, including for a value it was asked to write.
 rerun_output="$TEMP_DIR/rerun-output"
 printf 'runners:\n  orchestration: macos-15\n' >>"$TEMP_DIR/consumer/.github/octestra/config.yml"
+mkdir -p "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
+printf 'obsolete\n' \
+  >"$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
+printf 'consumer edit\n' \
+  >"$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+mkdir -p "$TEMP_DIR/consumer/.codex/skills/repository-domain"
+printf 'repository policy\n' \
+  >"$TEMP_DIR/consumer/.codex/skills/repository-domain/SKILL.md"
+sed '/operation: loop\/finalize-triage/d' "$triage_workflow" \
+  >"$triage_workflow.legacy"
+mv "$triage_workflow.legacy" "$triage_workflow"
+sed 's/{{resultPath}}/{{legacyResultPath}}/g' \
+  "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs" \
+  >"$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs.legacy"
+mv "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs.legacy" \
+  "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
 # Existing installations do not have private_key_secret_key_name. The installed maintenance CLI must use
 # the legacy secret name until the consumer explicitly adds the new config key.
 sed '/^  private_key_secret_key_name:/d' "$TEMP_DIR/consumer/.github/octestra/config.yml" \
@@ -579,6 +626,14 @@ OCTESTRA_TEST_REPO_VIEW_FAIL=true \
 grep -q 'orchestration: macos-15' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 grep -q 'kept the existing config.yml' "$rerun_output"
 grep -q 'config.yml keeps its own github_app.client_id' "$rerun_output"
+grep -q 'removed obsolete /octestra-validation-proof skill' "$rerun_output"
+grep -q 'existing Todo loop predates result finalization' "$rerun_output"
+grep -q 'existing Todo loop prompt predates the triage result contract' \
+  "$rerun_output"
+test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
+grep -q '^name: octestra$' "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+grep -q 'repository policy' \
+  "$TEMP_DIR/consumer/.codex/skills/repository-domain/SKILL.md"
 ! grep -q '^  private_key_secret_key_name:' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 if grep -q 'client_id: "replacement-client-id"' \
   "$TEMP_DIR/consumer/.github/octestra/config.yml"; then

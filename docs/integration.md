@@ -89,6 +89,10 @@ lifecycle workflow is replaced in full; loop workflows and their prompts are con
 preserved. Inside an agent action, use its `inputs.*` for context and
 `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token.
 
+Every rendered agent prompt begins by loading the installed `/octestra` workflow-contract skill and
+names the `task`, `triage`, or `validation` phase. Repository skills own domain policy; `/octestra`
+owns branch, pull request, mutation, and result-file requirements.
+
 Composite actions cannot read the GitHub Actions `secrets` context. Configure cloud credentials
 with OIDC, or provide credentials through the selected runner's environment. Run the installer with
 `--enable-oidc` when an action needs OIDC.
@@ -148,11 +152,12 @@ and passes the preparation outputs to `validation-agent/action.yml` as inputs:
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
 
 The action runs in the same job, runner, and checked-out workspace as `lifecycle/prepare-validation`.
-The validation agent uses the installed `octestra-validation-proof` skill to write JSON to
+The validation agent uses the installed `/octestra` skill to write JSON to
 `inputs.result_path` and check its format.
 
 ```json
 {
+  "kind": "validation-result",
   "outcome": "passed",
   "summary": "All checks passed.",
   "checks": [
@@ -165,7 +170,8 @@ The validation agent uses the installed `octestra-validation-proof` skill to wri
 }
 ```
 
-Only `outcome` and `summary` are required. To advance to `Human Review`, `outcome` must be exactly `passed`. Any other value moves the task issue to `Blocked`.
+`kind`, `outcome`, and `summary` are required. `kind` is always `validation-result`; `outcome` is
+`passed` or `failed`. `passed` advances the task to `Human Review`; `failed` moves it to `Blocked`.
 
 ### Describe Individual Checks
 
@@ -184,15 +190,36 @@ replace the placeholder in
 `epic-config` sets `skip_triage: true`. The workflow starts one matrix job per remaining EPIC,
 with at most three agent jobs running concurrently. `loop/prepare-triage` reads `triage_skill` and the
 optional `epic-triage-prompt` block from that EPIC, then renders
-`.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill` and `epicTriagePrompt`.
+`.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill`, `epicTriagePrompt`, and `resultPath`.
 
-Keep task discovery, selection, limits, mutation rules and domain knowledge in the triage skill
-rather than in the workflow or prompt. Octestra only discovers its EPIC configuration units,
-renders the prompt, and runs the local agent action.
+Keep task discovery, selection, limits, readiness policy, issue preparation and domain knowledge in
+the triage skill rather than in the workflow or prompt. The agent may update issue bodies and other
+issue data required by repository policy, but it must not change the `AI Task Status` Issue Field.
+After completing every required preparation step, it writes:
+
+```json
+{
+  "kind": "triage-result",
+  "readyIssues": [12, 34],
+  "summary": "Optional summary"
+}
+```
+
+`readyIssues` contains unique positive repository issue numbers for tasks that were fully processed
+and are considered ready; an empty array is valid.
+`loop/finalize-triage` fails closed on a missing or invalid result. Before any status update it
+checks every reported issue is open, a direct sub-issue of the current eligible EPIC, has a valid
+task body, and is currently `Todo` or `Ready`. `Ready` is an idempotent no-op. It rechecks each
+status immediately before changing `Todo` to `Ready` and never overwrites another status.
 If any open, non-opted-out EPIC has no `triage_skill` or has invalid `epic-config`, discovery fails
 the run and names that EPIC instead of silently skipping it.
 
-The workflow passes the rendered `prompt` to the local triage action.
+The workflow passes the rendered `prompt` to the local triage action. Finalization runs only when
+that action succeeds.
+
+Loop workflows, prompts, and local actions are preserved on update. If they were installed before
+`loop/finalize-triage` existed, migrate the preserved workflow and prompt from the current templates;
+the installer reports this condition but does not overwrite repository policy.
 
 ## Prompt Templates
 
@@ -214,9 +241,10 @@ Templates can use configuration and prompts from the EPIC and task issue. The ma
 - `validationSkill`: Validation skill configured by the EPIC
 - `target`: Task target, when configured
 - `issueNumber`: Task issue number
+- `branchName`: Exact task branch during implementation
 - `pullNumber`: Associated pull request number, when available
 - `draftFlag`: `--draft` when draft pull requests are configured
-- `resultPath`: Result path during validation; available only in the validation workflow
+- `resultPath`: Result path during validation or triage
 - `artifactPath`: Artifact directory during validation; available only in the validation workflow
 
 ## Change Configuration

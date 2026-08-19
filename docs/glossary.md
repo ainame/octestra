@@ -62,17 +62,24 @@ What the `operation:` input names. Two spellings are both correct and the differ
 (D9): `lifecycle/<verb>` for anything tied to one task's state, `loop/<verb>` for preparing
 scheduled agent work, and a bare verb for scope-neutral pieces such as `update-status`.
 
-### proof
+### result file
 
-The JSON file an agent writes to `result_path`. Octestra renders it as an issue comment and reads
-`outcome`; it checks nothing inside `acceptance` or `checks`.
+The JSON document a triage or validation agent writes to `result_path`. A `kind` field identifies
+the phase result. Octestra validates the document before using it.
 
-> a proof file — the JSON document your validation agent writes to `result_path`
+> a result file — the JSON document your agent writes to `result_path`
+
+### `/octestra`
+
+The framework-owned agent skill that defines Octestra's task, triage and validation workflow
+contracts. Repository skills still decide how to implement, triage or validate.
+
+> the installed `/octestra` workflow-contract skill
 
 ### loop
 
 A consumer-scheduled agent run. The Todo loop discovers enabled EPIC issues and starts one local
-agent action per EPIC; the repository's triage skill decides what task work to do.
+agent action per EPIC; the repository's triage skill decides what task work is ready.
 
 > a scheduled agent loop
 

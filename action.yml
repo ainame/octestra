@@ -1,15 +1,15 @@
 name: Octestra
-description: Portable GitHub issue task lifecycle operations
+description: Portable GitHub issue lifecycle and agent loop operations
 
 inputs:
   operation:
-    description: Operation to run. Anything tied to one task's state is lifecycle/<verb>; the scope-neutral pieces are a bare <verb>.
+    description: Operation to run. Task-state operations use lifecycle/<verb>, loops use loop/<verb>, and scope-neutral pieces use a bare <verb>.
     required: true
   github-token:
     description: GitHub App token used for API requests
     required: true
   issue-number:
-    description: Issue number; lifecycle operations use a task and loop/prepare-triage uses an EPIC
+    description: Issue number; lifecycle operations use a task and loop operations use an EPIC
     required: false
   trigger-actor:
     description: User that initiated or started the task
@@ -30,7 +30,10 @@ inputs:
     description: Explicit branch name for the individual resolve-task-pr operation
     required: false
   proof-path:
-    description: Path to a consumer-generated proof JSON file
+    description: Deprecated path to a validation result JSON file; use result-path
+    required: false
+  result-path:
+    description: Path to an agent-generated validation or triage result JSON file
     required: false
   pull-number:
     description: Task pull request number
@@ -70,7 +73,7 @@ outputs:
   pull_number:
     description: Linked task pull request number
   result_path:
-    description: Path where the validation agent must write its result
+    description: Path where a validation or triage agent must write its result
   artifact_path:
     description: Directory where the validation agent must save artifacts
   target:
@@ -80,13 +83,15 @@ outputs:
   task_owner:
     description: Human responsible for the task and pull request
   outcome:
-    description: Outcome read from a proof JSON file
+    description: Outcome read from a validation result JSON file
   summary:
-    description: Summary read from a proof JSON file
+    description: Summary read from a validation result JSON file
   epics:
-    description: JSON array of open EPIC issue numbers enabled for Todo triage
+    description: JSON matrix entries for open EPIC issue numbers enabled for Todo triage
   count:
     description: Number of EPICs enabled for Todo triage
+  ready_count:
+    description: Number of Todo tasks moved to Ready by loop/finalize-triage
 
 runs:
   using: node24

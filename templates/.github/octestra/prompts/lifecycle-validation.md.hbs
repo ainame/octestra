@@ -16,6 +16,8 @@ Available variables:
 - resultPath: path where the validation result must be saved
 - artifactPath: directory for validation artifacts
 --}}
+/octestra
+Follow the `validation` phase contract.
 Validate the already checked-out head of PR #{{pullNumber}} for the following task.
 Do not create, switch, or push a branch.
 {{#if validationSkill}}
@@ -30,4 +32,4 @@ Task issue: #{{issueNumber}}
 {{validationPrompt}}
 
 Do not modify files or create commits. Save validation evidence under `{{artifactPath}}`.
-After validation, use /octestra-validation-proof to write the result to `{{resultPath}}`.
+Write and check the validation result at `{{resultPath}}` as required by /octestra.

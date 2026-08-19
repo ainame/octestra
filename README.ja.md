@@ -52,8 +52,8 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
 - エージェントスキル
   - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
   - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
-  - `.agents/skills/octestra-validation-proof/SKILL.md`
-  - `.agents/skills/octestra-validation-proof/scripts/check.sh`
+  - `.agents/skills/octestra/SKILL.md`
+  - `.agents/skills/octestra/scripts/check-output.sh`
 
 ### エージェントを設定する
 
@@ -77,8 +77,10 @@ EPIC と task issue の書式、各 status option の意味、エージェント
 EPIC issue の `triage_skill` と、必要に応じて `epic-triage-prompt` block を設定してください。
 描画された prompt では `triageSkill` と `epicTriagePrompt` として参照できます。open な
 `octestra-epic` issue はデフォルトで対象になり、除外する EPIC は `skip_triage: true` を
-設定します。Octestra は対象 EPIC ごとに bounded matrix job を起動し、task の探索、選択、
-件数制限、変更は skill が所有します。定期実行は opt-in です。実行間隔を設定し、workflow の
+設定します。Octestra は対象 EPIC ごとに bounded matrix job を起動します。repository skill は
+task の探索、選択、件数制限、readiness policy と必要な issue preparation を所有しますが、
+`AI Task Status` を直接変更してはいけません。完全に処理した task だけを報告し、Octestra が
+結果を検証して対象となる Todo task を Ready に移動します。定期実行は opt-in です。実行間隔を設定し、workflow の
 `schedule` block を uncomment してください。
 実行前に、open なすべての `octestra-epic` issue で `triage_skill` を設定するか opt-out して
 ください。不正な EPIC を黙って除外せず、discovery は明示的に失敗します。
@@ -103,7 +105,10 @@ EPIC issue の `triage_skill` と、必要に応じて `epic-triage-prompt` bloc
 
 インストーラを再実行すると lifecycle workflow は置き換えられます。`config.yml`、すべての
 local agent action、loop workflow とその prompt は保持されます。更新後は、コミット前に
-`git diff` で変更内容を確認してください。
+`git diff` で変更内容を確認してください。framework-owned の `/octestra` skill は置き換えられ、
+古い `/octestra-validation-proof` skill は削除されます。triage finalization より前に作成した
+インストールでは、保持される `octestra-loop-todo.yml` と `loop-todo.md.hbs` に現行 template の
+result contract を手動で反映してください。
 
 ## セキュリティ
 

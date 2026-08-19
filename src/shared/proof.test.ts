@@ -4,10 +4,12 @@ import { parseProofDocument, renderProofComment } from "./proof";
 describe("parseProofDocument", () => {
   it("accepts the small convention while ignoring consumer-specific fields", () => {
     expect(parseProofDocument({
+      kind: "validation-result",
       outcome: "passed",
       summary: "The task works.",
       consumerSpecific: { anything: true },
     })).toEqual({
+      kind: "validation-result",
       outcome: "passed",
       summary: "The task works.",
       details: undefined,
@@ -21,14 +23,16 @@ describe("parseProofDocument", () => {
 
   it("rejects malformed recognized sections", () => {
     expect(() => parseProofDocument({
+      kind: "validation-result",
       outcome: "passed",
       summary: "The task works.",
       checks: "unit tests passed",
-    })).toThrow("Proof checks must be an array of objects");
+    })).toThrow("Validation result checks must be an array of objects");
   });
 
   it("requires a name and result for each check while allowing custom fields", () => {
     expect(parseProofDocument({
+      kind: "validation-result",
       outcome: "passed",
       summary: "The task works.",
       checks: [{
@@ -43,15 +47,21 @@ describe("parseProofDocument", () => {
     }]);
 
     expect(() => parseProofDocument({
+      kind: "validation-result",
       outcome: "passed",
       summary: "The task works.",
       checks: [{ result: "passed" }],
-    })).toThrow("Proof checks[0].name must be a non-empty string");
+    })).toThrow(
+      "Validation result checks[0].name must be a non-empty string",
+    );
     expect(() => parseProofDocument({
+      kind: "validation-result",
       outcome: "passed",
       summary: "The task works.",
       checks: [{ name: "Unit tests" }],
-    })).toThrow("Proof checks[0].result must be a non-empty string");
+    })).toThrow(
+      "Validation result checks[0].result must be a non-empty string",
+    );
   });
 });
 
@@ -59,6 +69,7 @@ describe("renderProofComment", () => {
   it("keeps the result prominent and collapses verbose metadata", () => {
     const comment = renderProofComment(
       parseProofDocument({
+        kind: "validation-result",
         outcome: "passed",
         summary: "The profile flow behaves as expected.",
         acceptance: [{

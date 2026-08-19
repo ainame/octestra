@@ -20,6 +20,7 @@ import {
   type OperationContext,
 } from "./lifecycle/operations";
 import {
+  finalizeTriage,
   listEpics,
   prepareTriage,
 } from "./loop/operations";
@@ -64,6 +65,17 @@ export async function run(): Promise<void> {
   }
 
   const config = await loadOctestraConfig(client, core.getInput("config-ref"));
+  if (operation === "loop/finalize-triage") {
+    await finalizeTriage(
+      {
+        client,
+        epicNumber: requiredNumber("issue-number"),
+        statusFieldId: config.status.field_id,
+      },
+      core.getInput("result-path", { required: true }),
+    );
+    return;
+  }
   function lifecycleOperationContext(): OperationContext {
     const statusFieldName = core.getInput("status-field-name");
     const statusFieldId = core.getInput("status-field-id");
@@ -133,7 +145,10 @@ export async function run(): Promise<void> {
       );
       break;
     case "update-status":
-      await updateStatus(lifecycleOperationContext(), core.getInput("next-status", { required: true }));
+      await updateStatus(
+        lifecycleOperationContext(),
+        core.getInput("next-status", { required: true }),
+      );
       break;
     case "resolve-task-pr":
       await resolveTaskPullRequest(
@@ -147,7 +162,8 @@ export async function run(): Promise<void> {
     case "report-proof":
       await reportProof(
         lifecycleOperationContext(),
-        core.getInput("proof-path", { required: true }),
+        core.getInput("result-path") ||
+          core.getInput("proof-path", { required: true }),
         {
           pullNumber: optionalNumber("pull-number"),
         },
@@ -160,7 +176,8 @@ export async function run(): Promise<void> {
       await finalizeValidation(
         lifecycleOperationContext(),
         requiredNumber("pull-number"),
-        core.getInput("proof-path", { required: true }),
+        core.getInput("result-path") ||
+          core.getInput("proof-path", { required: true }),
       );
       break;
     case "lifecycle/report-failure":
