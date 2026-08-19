@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/ainame/octestra/compare/v0.2.0...v0.2.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* record Todo triage activity ([#7](https://github.com/ainame/octestra/issues/7)) ([8f11af3](https://github.com/ainame/octestra/commit/8f11af3ed2db5c2bb5ad17491061e003c3fb031d))
+
 ## [0.2.0](https://github.com/ainame/octestra/compare/v0.1.1...v0.2.0) (2026-08-19)
 
 
