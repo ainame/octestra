@@ -650,17 +650,13 @@ preserve_installed_consumer_policy() {
   done
 }
 
-remove_legacy_framework_skills() {
-  local legacy_skill=""
+remove_legacy_framework_skill() {
+  local legacy_skill="$TARGET_DIR/.$SKILL_TARGET/skills/octestra-validation-proof"
 
-  for legacy_skill in \
-    "$TARGET_DIR/.$SKILL_TARGET/skills/octestra" \
-    "$TARGET_DIR/.$SKILL_TARGET/skills/octestra-validation-proof"; do
-    if [[ -d "$legacy_skill" ]]; then
-      rm -rf "$legacy_skill"
-      info "removed obsolete /$(basename "$legacy_skill") skill; use /octestra-contracts"
-    fi
-  done
+  if [[ -d "$legacy_skill" ]]; then
+    rm -rf "$legacy_skill"
+    info "removed obsolete /octestra-validation-proof skill; use /octestra-contracts"
+  fi
 }
 
 warn_preserved_loop_migration() {
@@ -723,7 +719,7 @@ copy_and_render_templates() {
   preserve_installed_consumer_policy
   rewrite_preserved_loop_reference
   remove_legacy_workflows
-  remove_legacy_framework_skills
+  remove_legacy_framework_skill
   (cd "$INSTALL_TREE" && tar -cf - .) | (cd "$TARGET_DIR" && tar -xf -)
   [[ -f "$config" ]] || die "Octestra config template was not installed"
   [[ -x "$TARGET_DIR/$MAINTENANCE_SCRIPT" ]] ||

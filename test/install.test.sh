@@ -636,12 +636,11 @@ grep -q 'orchestration: macos-15' "$TEMP_DIR/consumer/.github/octestra/config.ym
 grep -q 'kept the existing config.yml' "$rerun_output"
 grep -q 'config.yml keeps its own github_app.client_id' "$rerun_output"
 grep -q 'removed obsolete /octestra-validation-proof skill' "$rerun_output"
-grep -q 'removed obsolete /octestra skill' "$rerun_output"
 grep -q 'existing Todo loop predates result finalization' "$rerun_output"
 grep -q 'existing Todo loop prompt predates the triage result contract' \
   "$rerun_output"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
-test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra"
+grep -q 'obsolete' "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
 grep -q '^name: octestra-contracts$' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
 grep -q 'repository policy' \
