@@ -52,8 +52,8 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
 - エージェントスキル
   - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
   - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
-  - `.agents/skills/octestra/SKILL.md`
-  - `.agents/skills/octestra/scripts/check-output.sh`
+  - `.agents/skills/octestra-contracts/SKILL.md`
+  - `.agents/skills/octestra-contracts/scripts/check-output.sh`
 
 ### エージェントを設定する
 
@@ -105,8 +105,9 @@ task の探索、選択、件数制限、readiness policy と必要な issue pre
 
 インストーラを再実行すると lifecycle workflow は置き換えられます。`config.yml`、すべての
 local agent action、loop workflow とその prompt は保持されます。更新後は、コミット前に
-`git diff` で変更内容を確認してください。framework-owned の `/octestra` skill は置き換えられ、
-古い `/octestra-validation-proof` skill は削除されます。triage finalization より前に作成した
+`git diff` で変更内容を確認してください。framework-owned の `/octestra-contracts` skill は
+置き換えられ、古い `/octestra` と `/octestra-validation-proof` skill は削除されます。triage
+finalization より前に作成した
 インストールでは、保持される `octestra-loop-todo.yml` と `loop-todo.md.hbs` に現行 template の
 result contract を手動で反映してください。
 

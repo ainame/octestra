@@ -89,9 +89,9 @@ lifecycle workflow is replaced in full; loop workflows and their prompts are con
 preserved. Inside an agent action, use its `inputs.*` for context and
 `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token.
 
-Every rendered agent prompt begins by loading the installed `/octestra` workflow-contract skill and
-names the `task`, `triage`, or `validation` phase. Repository skills own domain policy; `/octestra`
-owns branch, pull request, mutation, and result-file requirements.
+Every rendered agent prompt begins by loading the installed `/octestra-contracts` workflow-contract
+skill and names the `task`, `triage`, or `validation` phase. Repository skills own domain policy;
+`/octestra-contracts` owns branch, pull request, mutation, and result-file requirements.
 
 Composite actions cannot read the GitHub Actions `secrets` context. Configure cloud credentials
 with OIDC, or provide credentials through the selected runner's environment. Run the installer with
@@ -152,7 +152,7 @@ and passes the preparation outputs to `validation-agent/action.yml` as inputs:
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
 
 The action runs in the same job, runner, and checked-out workspace as `lifecycle/prepare-validation`.
-The validation agent uses the installed `/octestra` skill to write JSON to
+The validation agent uses the installed `/octestra-contracts` skill to write JSON to
 `inputs.result_path` and check its format.
 
 ```json

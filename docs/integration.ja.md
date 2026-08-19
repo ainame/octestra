@@ -87,10 +87,10 @@ lifecycle workflow は全体が置き換えられますが、loop workflow と�
 file として保持されます。agent action では context に `inputs.*`、エージェント用 GitHub token
 に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。
 
-描画されるすべての agent prompt は、インストール済みの `/octestra` workflow-contract skill を
-最初に読み込み、`task`、`triage`、`validation` のいずれかの phase を指定します。repository
-skill は domain policy を所有し、`/octestra` は branch、pull request、mutation、result file の
-要件を所有します。
+描画されるすべての agent prompt は、インストール済みの `/octestra-contracts`
+workflow-contract skill を最初に読み込み、`task`、`triage`、`validation` のいずれかの phase を
+指定します。repository skill は domain policy を所有し、`/octestra-contracts` は branch、
+pull request、mutation、result file の要件を所有します。
 
 composite action は GitHub Actions の `secrets` context を直接参照できません。cloud credential
 には OIDC を使うか、選択した runner の環境から credential を渡してください。OIDC が必要な
@@ -147,7 +147,7 @@ Claude Code Action の設定例です。
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub token |
 
 action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済み workspace で実行されます。
-検証エージェントは、インストール済みの `/octestra` skill を使って
+検証エージェントは、インストール済みの `/octestra-contracts` skill を使って
 `inputs.result_path` に JSON を書き込み、その形式を検査します。
 
 ```json

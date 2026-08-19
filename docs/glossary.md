@@ -69,12 +69,12 @@ the phase result. Octestra validates the document before using it.
 
 > a result file — the JSON document your agent writes to `result_path`
 
-### `/octestra`
+### `/octestra-contracts`
 
 The framework-owned agent skill that defines Octestra's task, triage and validation workflow
 contracts. Repository skills still decide how to implement, triage or validate.
 
-> the installed `/octestra` workflow-contract skill
+> the installed `/octestra-contracts` workflow-contract skill
 
 ### loop
 

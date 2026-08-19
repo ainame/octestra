@@ -7,7 +7,7 @@ Available variables:
 - epicTriagePrompt: additional triage instructions from the EPIC
 - resultPath: path where the triage result must be saved
 --}}
-/octestra
+/octestra-contracts
 Follow the `triage` phase contract.
 Use the `{{triageSkill}}` skill to triage the Todo tasks belonging to EPIC #{{epicNumber}}.
 
@@ -21,4 +21,4 @@ The triage skill decides which tasks to inspect, how many to select, what makes 
 which issue preparation changes are required. Follow it instead of inventing triage policy in this
 prompt. Do not change the `AI Task Status` Issue Field directly. Report only tasks whose preparation
 completed successfully. Write and check the triage result at `{{resultPath}}` as required by
-/octestra.
+/octestra-contracts.

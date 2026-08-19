@@ -50,7 +50,8 @@ templates/.github/
   octestra/config.yml          the ONLY file install.sh generates
   octestra/octestra.sh         installed maintenance CLI: doctor, update, vars check|sync, ref
   octestra/prompts/            handlebars prompts, read from the consumer's checkout
-templates/skills/octestra/     framework-owned task, triage and validation phase contracts
+templates/skills/octestra-contracts/
+                               framework-owned task, triage and validation phase contracts
 install.sh, test/install.test.sh
 docs/design.md                 decisions and rationale
 docs/glossary.md               canonical names, and the wording to introduce each one with
@@ -186,9 +187,10 @@ transition. Task discovery, selection, limits and readiness policy remain reposi
 Repository triage may mutate issue bodies and other issue data as its policy requires, but it must
 not update the status field directly.
 
-**Agent workflow contracts.** Every framework prompt starts with `/octestra` and names exactly one
-phase: `task`, `triage`, or `validation`. The installed `/octestra` skill is framework-owned and is
-replaced on update; repository domain skills remain consumer-owned. Task is a side-effect contract.
+**Agent workflow contracts.** Every framework prompt starts with `/octestra-contracts` and names
+exactly one phase: `task`, `triage`, or `validation`. The installed `/octestra-contracts` skill is
+framework-owned and is replaced on update; repository domain skills remain consumer-owned. Task is
+a side-effect contract.
 Triage and validation are result-file contracts with discriminated JSON and no contract version.
 
 **Agent execution stays with preparation.** Lifecycle preparation, agent execution and finalization

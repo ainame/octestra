@@ -1,5 +1,5 @@
 ---
-name: octestra
+name: octestra-contracts
 description: >
   Follow the framework workflow contract for an Octestra task, triage, or validation phase.
 ---
