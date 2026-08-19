@@ -211,6 +211,10 @@ and are considered ready; an empty array is valid.
 checks every reported issue is open, a direct sub-issue of the current eligible EPIC, has a valid
 task body, and is currently `Todo` or `Ready`. `Ready` is an idempotent no-op. It rechecks each
 status immediately before changing `Todo` to `Ready` and never overwrites another status.
+Immediately before each actual `Todo` to `Ready` update, it posts an Octestra activity comment on
+that task with the source EPIC and workflow-run metadata. Comment posting is best-effort, matching
+the lifecycle success path: a comment failure produces a workflow warning but does not prevent the
+status update. A task already in `Ready` receives neither an update nor a duplicate activity comment.
 If any open, non-opted-out EPIC has no `triage_skill` or has invalid `epic-config`, discovery fails
 the run and names that EPIC instead of silently skipping it.
 

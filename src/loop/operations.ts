@@ -1,6 +1,10 @@
 import path from "node:path";
 import * as core from "@actions/core";
 import {
+  type ActivityClient,
+  reportActivityBestEffort,
+} from "../shared/activity";
+import {
   parseEpicConfig,
   parseTaskConfig,
 } from "../shared/issue-config";
@@ -23,7 +27,7 @@ export interface LoopPrepareClient {
   }>;
 }
 
-export interface LoopFinalizeClient extends LoopPrepareClient {
+export interface LoopFinalizeClient extends LoopPrepareClient, ActivityClient {
   getParentNumber(issueNumber: number): Promise<number>;
   getStatus(issueNumber: number, fieldId: number): Promise<string | undefined>;
   updateStatus(
@@ -211,6 +215,21 @@ export async function finalizeTriage(
         `Reported task #${issueNumber} changed to ${status ?? "(unset)"} before update`,
       );
     }
+    await reportActivityBestEffort(
+      {
+        client: context.client,
+        issueNumber,
+      },
+      {
+        status: "Ready",
+        outcome: "succeeded",
+        summary: `Todo triage selected this task from EPIC #${context.epicNumber} and queued it for execution.`,
+        details: [
+          `- Source EPIC: #${context.epicNumber}`,
+          "- AI Task Status transition: `Todo` to `Ready`",
+        ].join("\n"),
+      },
+    );
     // Status changes can trigger lifecycle workflows, so they remain the final side effects.
     await context.client.updateStatus(
       issueNumber,
