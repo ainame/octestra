@@ -161,9 +161,24 @@ export async function run(): Promise<void> {
         core.getInput("branch-name", { required: true }),
       );
       break;
-    case "lifecycle/finalize-task":
-      await finalizeTask(lifecycleOperationContext(), config.branch.task);
+    case "lifecycle/finalize-task": {
+      const branchName = core.getInput("branch-name");
+      const skipValidation = core.getInput("skip-validation");
+      if (Boolean(branchName) !== Boolean(skipValidation)) {
+        throw new Error(
+          "branch-name and skip-validation must be provided together for lifecycle/finalize-task",
+        );
+      }
+      await finalizeTask(
+        lifecycleOperationContext(),
+        branchName || undefined,
+        skipValidation
+          ? core.getBooleanInput("skip-validation")
+          : undefined,
+        config.branch.task,
+      );
       break;
+    }
     case "report-proof":
       await reportProof(
         lifecycleOperationContext(),

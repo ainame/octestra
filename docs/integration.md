@@ -191,6 +191,9 @@ replace the placeholder in
 with at most three agent jobs running concurrently. `loop/prepare-triage` reads `triage_skill` and the
 optional `epic-triage-prompt` block from that EPIC, then renders
 `.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill`, `epicTriagePrompt`, and `resultPath`.
+Like the lifecycle task and validation preparation operations, it also publishes the skill
+separately. The workflow passes `epic_number`, `triage_skill`, `prompt`, and `result_path` to the
+local triage action.
 
 Keep task discovery, selection, limits, readiness policy, issue preparation and domain knowledge in
 the triage skill rather than in the workflow or prompt. The agent may update issue bodies and other
@@ -218,8 +221,7 @@ status update. A task already in `Ready` receives neither an update nor a duplic
 If any open, non-opted-out EPIC has no `triage_skill` or has invalid `epic-config`, discovery fails
 the run and names that EPIC instead of silently skipping it.
 
-The workflow passes the rendered `prompt` to the local triage action. Finalization runs only when
-that action succeeds.
+Finalization runs only when the local triage action succeeds.
 
 Loop workflows, prompts, and local actions are preserved on update. If they were installed before
 `loop/finalize-triage` existed, migrate the preserved workflow and prompt from the current templates;

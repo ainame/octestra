@@ -74,13 +74,14 @@ The installed `.github/workflows/octestra-loop-todo.yml` can run a Todo triage a
 Customize `.github/octestra/prompts/loop-todo.md.hbs` and
 `.github/octestra/actions/triage-agent/action.yml`.
 
-Set `triage_skill` and, optionally, the `epic-triage-prompt` block in the EPIC issue. The rendered
-prompt exposes them as `triageSkill` and `epicTriagePrompt`. Open `octestra-epic` issues participate
-by default; set `skip_triage: true` in an EPIC to opt out. Octestra starts one bounded matrix
-job per participating EPIC. The repository skill owns task discovery, selection, limits and
-readiness policy, including required issue preparation, but must not change AI Task Status. It
-reports only fully processed tasks; Octestra validates the result and moves eligible Todo tasks to
-Ready.
+Set `triage_skill` and, optionally, the `epic-triage-prompt` block in the EPIC issue. The local
+triage action receives the EPIC number, triage skill, rendered prompt, and result path as inputs.
+The prompt also exposes the issue configuration as `triageSkill` and `epicTriagePrompt`. Open
+`octestra-epic` issues participate by default; set `skip_triage: true` in an EPIC to opt out.
+Octestra starts one bounded matrix job per participating EPIC. The repository skill owns task
+discovery, selection, limits and readiness policy, including required issue preparation, but must
+not change AI Task Status. It reports only fully processed tasks; Octestra validates the result and
+moves eligible Todo tasks to Ready.
 Scheduled execution is opt-in: choose a cadence and uncomment the workflow's `schedule` block.
 Before running it, every open `octestra-epic` issue must either configure `triage_skill` or opt out;
 discovery fails loudly rather than silently omitting an invalid EPIC.

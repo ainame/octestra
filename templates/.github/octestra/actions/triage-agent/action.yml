@@ -9,8 +9,17 @@ name: Octestra triage agent
 description: Repository-configured setup and agent execution for Todo triage
 
 inputs:
+  epic_number:
+    description: EPIC issue number being triaged
+    required: true
+  triage_skill:
+    description: Triage agent skill configured by the EPIC
+    required: true
   prompt:
     description: Rendered instructions to invoke the repository's Todo triage skill
+    required: true
+  result_path:
+    description: Path where the triage result JSON must be written
     required: true
 runs:
   using: composite

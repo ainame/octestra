@@ -186,6 +186,10 @@ describe("prepareTriage", () => {
       ].join("\n"),
     );
     expect(core.setOutput).toHaveBeenCalledWith(
+      "triage_skill",
+      "migration-triage",
+    );
+    expect(core.setOutput).toHaveBeenCalledWith(
       "result_path",
       path.join(workspace, "octestra-triage-result.json"),
     );
