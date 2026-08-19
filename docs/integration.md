@@ -192,8 +192,10 @@ with at most three agent jobs running concurrently. `loop/prepare-triage` reads 
 optional `epic-triage-prompt` block from that EPIC, then renders
 `.github/octestra/prompts/loop-todo.md.hbs` with `triageSkill`, `epicTriagePrompt`, and `resultPath`.
 
-Keep task discovery, selection, limits, readiness policy and domain knowledge in the triage skill
-rather than in the workflow or prompt. The agent does not mutate issues. It writes:
+Keep task discovery, selection, limits, readiness policy, issue preparation and domain knowledge in
+the triage skill rather than in the workflow or prompt. The agent may update issue bodies and other
+issue data required by repository policy, but it must not change the `AI Task Status` Issue Field.
+After completing every required preparation step, it writes:
 
 ```json
 {
@@ -203,7 +205,8 @@ rather than in the workflow or prompt. The agent does not mutate issues. It writ
 }
 ```
 
-`readyIssues` contains unique positive repository issue numbers; an empty array is valid.
+`readyIssues` contains unique positive repository issue numbers for tasks that were fully processed
+and are considered ready; an empty array is valid.
 `loop/finalize-triage` fails closed on a missing or invalid result. Before any status update it
 checks every reported issue is open, a direct sub-issue of the current eligible EPIC, has a valid
 task body, and is currently `Todo` or `Ready`. `Ready` is an idempotent no-op. It rechecks each

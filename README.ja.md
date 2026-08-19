@@ -78,8 +78,9 @@ EPIC issue の `triage_skill` と、必要に応じて `epic-triage-prompt` bloc
 描画された prompt では `triageSkill` と `epicTriagePrompt` として参照できます。open な
 `octestra-epic` issue はデフォルトで対象になり、除外する EPIC は `skip_triage: true` を
 設定します。Octestra は対象 EPIC ごとに bounded matrix job を起動します。repository skill は
-task の探索、選択、件数制限、readiness policy を所有し、Octestra は結果を検証して対象となる
-Todo task だけを Ready に移動します。定期実行は opt-in です。実行間隔を設定し、workflow の
+task の探索、選択、件数制限、readiness policy と必要な issue preparation を所有しますが、
+`AI Task Status` を直接変更してはいけません。完全に処理した task だけを報告し、Octestra が
+結果を検証して対象となる Todo task を Ready に移動します。定期実行は opt-in です。実行間隔を設定し、workflow の
 `schedule` block を uncomment してください。
 実行前に、open なすべての `octestra-epic` issue で `triage_skill` を設定するか opt-out して
 ください。不正な EPIC を黙って除外せず、discovery は明示的に失敗します。

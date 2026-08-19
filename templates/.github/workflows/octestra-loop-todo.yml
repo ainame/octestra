@@ -79,7 +79,8 @@ jobs:
           github-token: ${{ steps.app-token.outputs.token }}
           issue-number: ${{ matrix.epic.number }}
       # This action owns agent setup and execution. The triage skill available to that agent owns
-      # task discovery, selection, limits and readiness policy, but does not mutate issues.
+      # task discovery, selection, limits, readiness policy and issue preparation. It must not
+      # change AI Task Status; the finalizer below owns Todo -> Ready.
       - name: Run triage agent
         uses: ./.github/octestra/actions/triage-agent
         env:

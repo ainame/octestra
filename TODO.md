@@ -7,8 +7,8 @@ The configuration restructuring has shipped: the config control plane, the singl
 topology, operation namespacing, and the minimal Todo triage loop. Earlier fan-out and aggregate
 loop designs owned too much policy and were removed. The retained loop kernel discovers enabled
 EPIC configuration units and renders a prompt for each; the repository's triage skill owns task
-discovery, selection, limits, domain knowledge and readiness policy. Octestra validates its result
-before applying eligible `Todo` to `Ready` updates.
+discovery, selection, limits, domain knowledge, readiness policy and issue preparation. Octestra
+validates its result before exclusively applying eligible `Todo` to `Ready` updates.
 
 ## 1. Put agent execution behind a trust boundary
 

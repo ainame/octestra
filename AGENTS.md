@@ -27,8 +27,9 @@ schedule ───────────▶ octestra-loop-todo.yml ─▶ list
 ```
 
 Loops discover open EPIC configuration units and honor each EPIC's triage opt-out. The repository's
-triage skill decides which task work is ready and reports issue numbers; Octestra validates the
-complete result and performs only eligible `Todo` to `Ready` updates.
+triage skill decides which task work is ready, performs repository-owned issue preparation, and
+reports fully processed issue numbers; Octestra validates the complete result and exclusively
+performs eligible `Todo` to `Ready` updates.
 
 ## Layout
 
@@ -182,6 +183,8 @@ and are preserved in full. Their schedule and work policy cannot be reconstructe
 templates. Framework-owned loop behavior belongs in discovering enabled EPIC configuration units,
 `loop/prepare-triage`, validating the agent result, and applying the fixed `Todo` to `Ready`
 transition. Task discovery, selection, limits and readiness policy remain repository-owned.
+Repository triage may mutate issue bodies and other issue data as its policy requires, but it must
+not update the status field directly.
 
 **Agent workflow contracts.** Every framework prompt starts with `/octestra` and names exactly one
 phase: `task`, `triage`, or `validation`. The installed `/octestra` skill is framework-owned and is

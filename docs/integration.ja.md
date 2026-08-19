@@ -188,8 +188,10 @@ job を起動し、同時に実行する agent job は最大3つです。`loop/p
 `epicTriagePrompt`、`resultPath` を使って
 `.github/octestra/prompts/loop-todo.md.hbs` を描画します。
 
-task の探索、選択、件数制限、readiness policy、domain knowledge は workflow や prompt ではなく、
-triage skill に置いてください。agent は issue を変更せず、次の JSON を書き込みます。
+task の探索、選択、件数制限、readiness policy、issue preparation、domain knowledge は workflow
+や prompt ではなく、triage skill に置いてください。agent は repository policy に必要な issue
+body やその他の issue data を変更できますが、`AI Task Status` Issue Field を直接変更してはいけません。
+必要な preparation がすべて成功したあと、次の JSON を書き込みます。
 
 ```json
 {
@@ -199,7 +201,8 @@ triage skill に置いてください。agent は issue を変更せず、次の
 }
 ```
 
-`readyIssues` は一意な正の repository issue 番号です。空配列も有効です。
+`readyIssues` は完全に処理され、ready と判断した task の一意な正の repository issue 番号です。
+空配列も有効です。
 `loop/finalize-triage` は result がない場合や不正な場合に fail closed します。status を更新する
 前に、報告されたすべての issue が open で、対象 EPIC の direct sub-issue であり、有効な task
 body を持ち、現在 `Todo` または `Ready` であることを確認します。`Ready` は no-op です。

@@ -289,6 +289,10 @@ grep -q '<skill-directory>/scripts/check.sh validation "<result-path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
 grep -q '<skill-directory>/scripts/check.sh triage "<result-path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+grep -q 'the `AI Task Status` Issue Field or its status option directly' \
+  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+! grep -q 'Do not change issues' \
+  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
 grep -q '.github/octestra/octestra.sh doctor' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 ruby -c "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/scripts/setup_epic.rb" >/dev/null

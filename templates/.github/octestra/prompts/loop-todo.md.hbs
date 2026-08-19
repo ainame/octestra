@@ -17,6 +17,8 @@ Additional instructions from the EPIC:
 {{epicTriagePrompt}}
 {{/if}}
 
-The triage skill decides which tasks to inspect, how many to select, and what makes a task ready.
-Follow it instead of inventing triage policy in this prompt. Do not mutate issues. Write and check
-the triage result at `{{resultPath}}` as required by /octestra.
+The triage skill decides which tasks to inspect, how many to select, what makes a task ready, and
+which issue preparation changes are required. Follow it instead of inventing triage policy in this
+prompt. Do not change the `AI Task Status` Issue Field directly. Report only tasks whose preparation
+completed successfully. Write and check the triage result at `{{resultPath}}` as required by
+/octestra.

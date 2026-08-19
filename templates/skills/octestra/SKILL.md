@@ -24,11 +24,14 @@ the expected branch and pull request after the agent exits.
 
 Use the repository triage skill named by the prompt to inspect the current EPIC's Todo tasks and
 decide which are ready. The repository skill owns discovery, selection limits, ordering, and domain
-readiness policy.
+readiness policy, including any issue preparation or other repository-owned issue mutations that
+policy requires.
 
-Do not change issues, labels, assignees, comments, sub-issue relationships, or status options.
-Octestra validates the selected tasks and performs the allowed status changes after the agent
-exits.
+You may update issue bodies and other issue data as the repository skill requires. Do not change
+the `AI Task Status` Issue Field or its status option directly. Octestra validates the selected
+tasks and exclusively performs the allowed `Todo` to `Ready` status changes after the agent exits.
+Include a task in `readyIssues` only after every required preparation step succeeded and the
+repository skill considers that task ready.
 
 Write this JSON object to the exact result path from the prompt:
 
