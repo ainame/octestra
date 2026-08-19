@@ -18,8 +18,8 @@ The installer and installed maintenance script resolve the newest stable `vMAJOR
 ## Create a release
 
 1. Merge a [Conventional Commit](https://www.conventionalcommits.org/) to `main`. Use `fix:` for a
-   patch release, `feat:` for a minor release, and `!` or a `BREAKING CHANGE:` footer for a major
-   release.
+   patch release and `feat:` for a minor release. Before `1.0.0`, `!` or a `BREAKING CHANGE:`
+   footer also produces a minor release; from `1.0.0` onward it produces a major release.
 2. Release Please opens or updates its release pull request. Review its version changes and generated
    release notes.
 3. Merge the release pull request. Release Please publishes the immutable version tag and GitHub

@@ -1,13 +1,20 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## [0.3.0](https://github.com/ainame/octestra/compare/v0.2.3...v0.3.0) (2026-08-19)
 
-### Breaking Changes
 
-- All public inputs for `ainame/octestra` now use `snake_case`. Existing workflows must rename
-  kebab-case inputs such as `github-token`, `issue-number`, `branch-name`, `skip-validation`, and
-  `result-path` to `github_token`, `issue_number`, `branch_name`, `skip_validation`, and
-  `result_path`. Kebab-case aliases are not supported.
+### ⚠ BREAKING CHANGES
+
+* standardize action inputs on snake_case ([#15](https://github.com/ainame/octestra/issues/15))
+
+### Features
+
+* standardize action inputs on snake_case ([#15](https://github.com/ainame/octestra/issues/15)) ([883f7e7](https://github.com/ainame/octestra/commit/883f7e7f08c44519d4fe21d69c25ddfb08280161))
+
+
+### Bug Fixes
+
+* align agent preparation contracts ([#13](https://github.com/ainame/octestra/issues/13)) ([f5b23d1](https://github.com/ainame/octestra/commit/f5b23d1310da2a3fc4080bb27389abd793fdeff4))
 
 ## [0.2.3](https://github.com/ainame/octestra/compare/v0.2.2...v0.2.3) (2026-08-19)
 
