@@ -52,8 +52,8 @@ The installer adds the following files.
 - Agent skills
   - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
   - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
-  - `.agents/skills/octestra/SKILL.md`
-  - `.agents/skills/octestra/scripts/check-output.sh`
+  - `.agents/skills/octestra-contracts/SKILL.md`
+  - `.agents/skills/octestra-contracts/scripts/check-output.sh`
 
 ### Configure an Agent
 
@@ -105,7 +105,7 @@ discovery fails loudly rather than silently omitting an invalid EPIC.
 
 Rerunning the installer replaces the lifecycle workflow and keeps `config.yml`, all local agent
 actions, and the loop workflow and prompt. Review `git diff` before committing changes from an
-update. The framework-owned `/octestra` skill is replaced, and the obsolete
+update. The framework-owned `/octestra-contracts` skill is replaced, and the obsolete
 `/octestra-validation-proof` skill is removed. Existing loop workflow and prompt files are
 preserved; installations created before triage finalization must manually adopt the current
 `octestra-loop-todo.yml` and `loop-todo.md.hbs` contract.

@@ -280,19 +280,20 @@ grep -q 'Follow the `task` phase contract' \
 grep -q 'Follow the `triage` phase contract' \
   "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
 test -f "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
-test -f "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
-test -x "$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check-output.sh"
+test -f "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
+test -x "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/scripts/check-output.sh"
+test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-loop-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-gbat-goal"
 grep -q '<skill-directory>/scripts/check-output.sh validation "<result-path>"' \
-  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+  "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
 grep -q '<skill-directory>/scripts/check-output.sh triage "<result-path>"' \
-  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+  "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
 grep -q 'the `AI Task Status` Issue Field or its status option directly' \
-  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+  "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
 ! grep -q 'Do not change issues' \
-  "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+  "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
 grep -q '.github/octestra/octestra.sh doctor' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/SKILL.md"
 ruby -c "$TEMP_DIR/consumer/.codex/skills/octestra-setup-migration-epic/scripts/setup_epic.rb" >/dev/null
@@ -345,10 +346,10 @@ cat > "$validation_result" <<'EOF'
   ]
 }
 EOF
-"$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check-output.sh" \
+"$TEMP_DIR/consumer/.codex/skills/octestra-contracts/scripts/check-output.sh" \
   validation "$validation_result"
 
-result_checker="$TEMP_DIR/consumer/.codex/skills/octestra/scripts/check-output.sh"
+result_checker="$TEMP_DIR/consumer/.codex/skills/octestra-contracts/scripts/check-output.sh"
 assert_invalid_validation_result() {
   local name="$1"
   local contents="$2"
@@ -581,7 +582,7 @@ git -C "$TEMP_DIR/consumer-piped" remote add origin git@github.com:example-org/c
 )
 test -f "$TEMP_DIR/consumer-piped/.github/workflows/octestra-lifecycle.yml"
 test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-setup-migration-epic/SKILL.md"
-test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra/SKILL.md"
+test -f "$TEMP_DIR/consumer-piped/.agents/skills/octestra-contracts/SKILL.md"
 # Templates are downloaded from the same ref the generated workflow calls.
 grep -q '^v1\.10\.0$' "$TEMP_DIR/tarball-ref"
 grep -q 'uses: ainame/octestra@v1\.10\.0' \
@@ -595,8 +596,11 @@ printf 'runners:\n  orchestration: macos-15\n' >>"$TEMP_DIR/consumer/.github/oct
 mkdir -p "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
 printf 'obsolete\n' \
   >"$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof/SKILL.md"
-printf 'consumer edit\n' \
+mkdir -p "$TEMP_DIR/consumer/.codex/skills/octestra"
+printf 'obsolete\n' \
   >"$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+printf 'consumer edit\n' \
+  >"$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
 mkdir -p "$TEMP_DIR/consumer/.codex/skills/repository-domain"
 printf 'repository policy\n' \
   >"$TEMP_DIR/consumer/.codex/skills/repository-domain/SKILL.md"
@@ -636,7 +640,9 @@ grep -q 'existing Todo loop predates result finalization' "$rerun_output"
 grep -q 'existing Todo loop prompt predates the triage result contract' \
   "$rerun_output"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
-grep -q '^name: octestra$' "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+grep -q 'obsolete' "$TEMP_DIR/consumer/.codex/skills/octestra/SKILL.md"
+grep -q '^name: octestra-contracts$' \
+  "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
 grep -q 'repository policy' \
   "$TEMP_DIR/consumer/.codex/skills/repository-domain/SKILL.md"
 ! grep -q '^  private_key_secret_key_name:' "$TEMP_DIR/consumer/.github/octestra/config.yml"
