@@ -6,6 +6,7 @@
       "include-component-in-tag": false,
       "include-v-in-tag": true,
       "include-v-in-release-name": true,
+      "bump-minor-pre-major": true,
       "initial-version": "0.1.0"
     }
   }
