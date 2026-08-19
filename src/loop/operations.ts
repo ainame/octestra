@@ -2,7 +2,7 @@ import path from "node:path";
 import * as core from "@actions/core";
 import {
   type ActivityClient,
-  reportActivitySafely,
+  reportActivityBestEffort,
 } from "../shared/activity";
 import {
   parseEpicConfig,
@@ -215,7 +215,7 @@ export async function finalizeTriage(
         `Reported task #${issueNumber} changed to ${status ?? "(unset)"} before update`,
       );
     }
-    await reportActivitySafely(
+    await reportActivityBestEffort(
       {
         client: context.client,
         issueNumber,

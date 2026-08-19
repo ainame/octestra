@@ -63,7 +63,7 @@ export async function reportActivity(
   );
 }
 
-export async function reportActivitySafely(
+export async function reportActivityBestEffort(
   context: ActivityContext,
   activity: ActivityReport,
 ): Promise<void> {
