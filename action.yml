@@ -5,50 +5,50 @@ inputs:
   operation:
     description: Operation to run. Task-state operations use lifecycle/<verb>, loops use loop/<verb>, and scope-neutral pieces use a bare <verb>.
     required: true
-  github-token:
+  github_token:
     description: GitHub App token used for API requests
     required: true
-  issue-number:
+  issue_number:
     description: Issue number; lifecycle operations use a task and loop operations use an EPIC
     required: false
-  trigger-actor:
+  trigger_actor:
     description: User that initiated or started the task
     required: false
-  trigger-actor-type:
+  trigger_actor_type:
     description: GitHub sender type that initiated the field change
     required: false
-  previous-status:
+  previous_status:
     description: AI Task Status before the observed transition
     required: false
-  current-status:
+  current_status:
     description: AI Task Status after the observed transition
     required: false
-  config-ref:
+  config_ref:
     description: Optional config branch/ref; default is the repository default branch
     required: false
-  branch-name:
+  branch_name:
     description: Explicit branch name for the individual resolve-task-pr operation
     required: false
-  skip-validation:
+  skip_validation:
     description: Whether task finalization should bypass validation
     required: false
-  proof-path:
-    description: Deprecated path to a validation result JSON file; use result-path
+  proof_path:
+    description: Deprecated path to a validation result JSON file; use result_path
     required: false
-  result-path:
+  result_path:
     description: Path to an agent-generated validation or triage result JSON file
     required: false
-  pull-number:
+  pull_number:
     description: Task pull request number
     required: false
-  next-status:
+  next_status:
     description: Status used by the individual update-status operation
     required: false
-  status-field-name:
-    description: Organization issue field name override; must be paired with status-field-id
+  status_field_name:
+    description: Organization issue field name override; must be paired with status_field_id
     required: false
-  status-field-id:
-    description: Organization issue field ID override; must be paired with status-field-name
+  status_field_id:
+    description: Organization issue field ID override; must be paired with status_field_name
     required: false
 outputs:
   status_key:

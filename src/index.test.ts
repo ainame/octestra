@@ -39,8 +39,8 @@ beforeEach(() => {
 describe("run", () => {
   it("dispatches loop/prepare-triage with the EPIC context", async () => {
     const inputs: Record<string, string> = {
-      "github-token": "token",
-      "issue-number": "42",
+      github_token: "token",
+      issue_number: "42",
       "operation": "loop/prepare-triage",
     };
     mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
@@ -67,10 +67,10 @@ describe("run", () => {
 
   it("dispatches loop/finalize-triage with status configuration", async () => {
     const inputs: Record<string, string> = {
-      "github-token": "token",
-      "issue-number": "42",
+      github_token: "token",
+      issue_number: "42",
       "operation": "loop/finalize-triage",
-      "result-path": "/tmp/triage-result.json",
+      result_path: "/tmp/triage-result.json",
     };
     mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
     mocks.loadOctestraConfig.mockResolvedValue({

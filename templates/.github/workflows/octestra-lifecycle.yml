@@ -43,12 +43,12 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/validate-transition
-          github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ github.event.issue.number }}
-          previous-status: ${{ github.event.changes.issue_field_value.from.option.name }}
-          current-status: ${{ github.event.issue_field_value.option.name }}
-          trigger-actor: ${{ github.actor }}
-          trigger-actor-type: ${{ github.event.sender.type }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          issue_number: ${{ github.event.issue.number }}
+          previous_status: ${{ github.event.changes.issue_field_value.from.option.name }}
+          current_status: ${{ github.event.issue_field_value.option.name }}
+          trigger_actor: ${{ github.actor }}
+          trigger_actor_type: ${{ github.event.sender.type }}
 
   # Runs the repository-configured implementation agent when a task enters In Progress.
   in-progress:
@@ -101,10 +101,10 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/prepare-task
-          github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ github.event.issue.number }}
-          trigger-actor: ${{ github.actor }}
-          trigger-actor-type: ${{ github.event.sender.type }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          issue_number: ${{ github.event.issue.number }}
+          trigger_actor: ${{ github.actor }}
+          trigger_actor_type: ${{ github.event.sender.type }}
 
       # The local composite action groups every repository-defined setup and agent step behind this
       # one condition. It runs in this job, on the same runner and workspace as prepare-task.
@@ -140,10 +140,10 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/finalize-task
-          github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ github.event.issue.number }}
-          branch-name: ${{ steps.epic.outputs.branch_name }}
-          skip-validation: ${{ steps.epic.outputs.skip_validation }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          issue_number: ${{ github.event.issue.number }}
+          branch_name: ${{ steps.epic.outputs.branch_name }}
+          skip_validation: ${{ steps.epic.outputs.skip_validation }}
 
   # Runs the repository-configured validation agent when a task enters Validation.
   validation:
@@ -183,8 +183,8 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/prepare-validation
-          github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ github.event.issue.number }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          issue_number: ${{ github.event.issue.number }}
 
       - name: Checkout task branch
         uses: actions/checkout@v7
@@ -221,10 +221,10 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/finalize-validation
-          github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ github.event.issue.number }}
-          result-path: ${{ steps.epic.outputs.result_path }}
-          pull-number: ${{ steps.epic.outputs.pull_number }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          issue_number: ${{ github.event.issue.number }}
+          result_path: ${{ steps.epic.outputs.result_path }}
+          pull_number: ${{ steps.epic.outputs.pull_number }}
 
   report-failure:
     name: Report lifecycle failure
@@ -261,8 +261,8 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/report-failure
-          github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ github.event.issue.number }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          issue_number: ${{ github.event.issue.number }}
 
   # Finalize tasks closed because their linked pull request was merged.
   merged-task-finalization:
@@ -284,5 +284,5 @@ jobs:
       - uses: ainame/octestra@main
         with:
           operation: lifecycle/finalize-merged-task
-          github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ github.event.issue.number }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          issue_number: ${{ github.event.issue.number }}

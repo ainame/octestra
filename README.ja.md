@@ -111,6 +111,12 @@ local agent action、loop workflow とその prompt は保持されます。更�
 インストールでは、保持される `octestra-loop-todo.yml` と `loop-todo.md.hbs` に現行 template の
 result contract を手動で反映してください。
 
+**v0.3.0 の破壊的変更:** `ainame/octestra` のすべての input は `snake_case` を使います。保持される
+loop workflow では、Octestra step の input を手動で変更してください（例:
+`github-token` から `github_token`、`issue-number` から `issue_number`、`result-path` から
+`result_path`）。lifecycle workflow は installer が新しい名前のものへ置き換えます。
+kebab-case input の alias はありません。
+
 ## セキュリティ
 
 現在の Octestra は、**メンバーを信頼できるプライベートリポジトリ**を前提としています。

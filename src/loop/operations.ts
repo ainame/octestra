@@ -164,7 +164,7 @@ export async function finalizeTriage(
   resultPath: string,
 ): Promise<void> {
   if (!resultPath) {
-    throw new Error("result-path is required for loop/finalize-triage");
+    throw new Error("result_path is required for loop/finalize-triage");
   }
   const result = parseTriageResult(await readJsonResult(resultPath));
   await requireEligibleEpic(context);

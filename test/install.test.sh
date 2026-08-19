@@ -13,6 +13,77 @@ count_references() {
   { grep -R -o -- "$pattern" "$path" || true; } | wc -l | tr -d ' '
 }
 
+assert_snake_case_action_interface() {
+  local action="$1"
+
+  node - "$action" <<'NODE'
+const fs = require("fs");
+const yaml = require("yaml");
+
+const action = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
+const names = [
+  ...Object.keys(action.inputs ?? {}),
+  ...Object.keys(action.outputs ?? {}),
+];
+const invalid = names.filter((name) => !/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/.test(name));
+if (invalid.length > 0) {
+  throw new Error(`action interface names are not snake_case: ${invalid}`);
+}
+NODE
+}
+
+assert_public_action_interface() {
+  local action="$1"
+  shift
+
+  node - "$action" "$@" <<'NODE'
+const fs = require("fs");
+const yaml = require("yaml");
+
+const action = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
+const expectedInputs = [
+  "branch_name",
+  "config_ref",
+  "current_status",
+  "github_token",
+  "issue_number",
+  "next_status",
+  "operation",
+  "previous_status",
+  "proof_path",
+  "pull_number",
+  "result_path",
+  "skip_validation",
+  "status_field_id",
+  "status_field_name",
+  "trigger_actor",
+  "trigger_actor_type",
+];
+const declaredInputs = Object.keys(action.inputs).sort();
+if (JSON.stringify(declaredInputs) !== JSON.stringify(expectedInputs)) {
+  throw new Error(
+    `public action inputs differ: declared=${declaredInputs} expected=${expectedInputs}`,
+  );
+}
+
+const declared = new Set(declaredInputs);
+for (const path of process.argv.slice(3)) {
+  const workflow = yaml.parse(fs.readFileSync(path, "utf8"));
+  for (const job of Object.values(workflow.jobs)) {
+    for (const step of job.steps ?? []) {
+      if (!step.uses?.startsWith("ainame/octestra@")) {
+        continue;
+      }
+      const unknown = Object.keys(step.with ?? {}).filter((name) => !declared.has(name));
+      if (unknown.length > 0) {
+        throw new Error(`${path} passes undeclared Octestra inputs: ${unknown}`);
+      }
+    }
+  }
+}
+NODE
+}
+
 assert_task_action_interface() {
   local workflow="$1"
   local action="$2"
@@ -125,6 +196,18 @@ if (workflow.jobs.triage.strategy.matrix.epic !== "${{ fromJSON(needs.discover.o
 }
 NODE
 }
+
+assert_snake_case_action_interface "$ROOT/action.yml"
+assert_snake_case_action_interface \
+  "$ROOT/templates/.github/octestra/actions/task-agent/action.yml"
+assert_snake_case_action_interface \
+  "$ROOT/templates/.github/octestra/actions/validation-agent/action.yml"
+assert_snake_case_action_interface \
+  "$ROOT/templates/.github/octestra/actions/triage-agent/action.yml"
+assert_public_action_interface \
+  "$ROOT/action.yml" \
+  "$ROOT/templates/.github/workflows/octestra-lifecycle.yml" \
+  "$ROOT/templates/.github/workflows/octestra-loop-todo.yml"
 
 mkdir -p "$TEMP_DIR/bin" "$TEMP_DIR/consumer"
 git -C "$TEMP_DIR/consumer" init --quiet
@@ -297,9 +380,9 @@ test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-loop-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-gbat-goal"
-grep -q '<skill-directory>/scripts/check-output.sh validation "<result-path>"' \
+grep -q '<skill-directory>/scripts/check-output.sh validation "<result_path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
-grep -q '<skill-directory>/scripts/check-output.sh triage "<result-path>"' \
+grep -q '<skill-directory>/scripts/check-output.sh triage "<result_path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
 grep -q 'the `AI Task Status` Issue Field or its status option directly' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
@@ -323,7 +406,7 @@ grep -q "secrets\\[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET" "$orchestrator"
 grep -q 'operation: loop/prepare-triage' "$triage_workflow"
 grep -q 'operation: loop/list-epics' "$triage_workflow"
 grep -q 'operation: loop/finalize-triage' "$triage_workflow"
-grep -q 'result-path: \${{ steps.loop.outputs.result_path }}' "$triage_workflow"
+grep -q 'result_path: \${{ steps.loop.outputs.result_path }}' "$triage_workflow"
 ! grep -q 'operation: loop/report-run' "$triage_workflow"
 grep -q '^  # schedule:' "$triage_workflow"
 grep -q '^  workflow_dispatch:' "$triage_workflow"
