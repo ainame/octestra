@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/ainame/octestra/compare/v0.1.1...v0.2.0) (2026-08-19)
+
+
+### Features
+
+* add generic Octestra workflow contracts ([#6](https://github.com/ainame/octestra/issues/6)) ([bc18d3c](https://github.com/ainame/octestra/commit/bc18d3c30a002851ab11d1b6812e2776db0e8412))
+* add skill-driven Todo loop ([#4](https://github.com/ainame/octestra/issues/4)) ([5d34f90](https://github.com/ainame/octestra/commit/5d34f900d68b9273c465cb1d4fe4f0a3d701a464))
+
 ## [0.1.1](https://github.com/ainame/octestra/compare/v0.1.0...v0.1.1) (2026-08-08)
 
 
