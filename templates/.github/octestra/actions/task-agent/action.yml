@@ -38,7 +38,7 @@ inputs:
     required: false
   task_owner:
     description: Human assigned to the task issue
-    required: false
+    required: true
 
 runs:
   using: composite

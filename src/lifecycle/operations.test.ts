@@ -476,9 +476,17 @@ describe("finalizeMergedTask", () => {
 
 describe("finalizeTask", () => {
   it("queues validation and leaves the pull request as the agent opened it", async () => {
-    const client = createClient();
+    const client = createClient({
+      getIssue: vi.fn().mockRejectedValue(
+        new Error("finalization must not reload the EPIC"),
+      ),
+    });
 
-    await finalizeTask(createContext(client));
+    await finalizeTask(
+      createContext(client),
+      "octestra/example/issue-123",
+      false,
+    );
 
     expect(client.comment).toHaveBeenCalledWith(
       123,
@@ -493,22 +501,29 @@ describe("finalizeTask", () => {
     );
   });
 
-  it("skips validation and requests review when configured", async () => {
-    const client = createClient({
-      getIssue: vi.fn().mockResolvedValue({
-        title: "EPIC",
-        body: [
-          "```epic-config",
-          "id: example",
-          "task_skill: example-task",
-          "validation_skill:",
-          "skip_validation: true",
-          "```",
-        ].join("\n"),
-      }),
-    });
+  it("supports callers that do not pass prepared task context", async () => {
+    const client = createClient();
 
     await finalizeTask(createContext(client));
+
+    expect(client.branchExists).toHaveBeenCalledWith(
+      "octestra/example/issue-123",
+    );
+    expect(client.updateStatus).toHaveBeenCalledWith(
+      123,
+      456,
+      "Validation",
+    );
+  });
+
+  it("skips validation and requests review when configured", async () => {
+    const client = createClient();
+
+    await finalizeTask(
+      createContext(client),
+      "octestra/example/issue-123",
+      true,
+    );
 
     expect(client.markPullRequestReadyForReview).toHaveBeenCalledWith(42);
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
@@ -524,7 +539,11 @@ describe("finalizeTask", () => {
       branchExists: vi.fn().mockResolvedValue(false),
     });
 
-    await finalizeTask(createContext(client));
+    await finalizeTask(
+      createContext(client),
+      "octestra/example/issue-123",
+      false,
+    );
 
     expect(client.findOpenPullRequest).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(

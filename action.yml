@@ -29,6 +29,9 @@ inputs:
   branch-name:
     description: Explicit branch name for the individual resolve-task-pr operation
     required: false
+  skip-validation:
+    description: Whether task finalization should bypass validation
+    required: false
   proof-path:
     description: Deprecated path to a validation result JSON file; use result-path
     required: false
@@ -58,6 +61,8 @@ outputs:
     description: Optional task skill configured by the parent EPIC
   validation_skill:
     description: Validation skill configured by the parent EPIC
+  triage_skill:
+    description: Triage skill configured by the EPIC
   epic_id:
     description: Stable identifier configured by the parent EPIC
   branch_name:
@@ -69,7 +74,7 @@ outputs:
   skip_validation:
     description: Whether the task goes straight to Human Review instead of Validation
   prompt:
-    description: Rendered task prompt
+    description: Rendered task, validation, or triage instructions
   pull_number:
     description: Linked task pull request number
   result_path:

@@ -133,7 +133,8 @@ jobs:
       # - Moves the task to its next status and comments on the issue with the result.
       # `operation: request-review` and `operation: update-status` do these one at a time.
       #
-      # **Keep this step last: it reports what the agent steps above did.**
+      # **Keep this step last: it reports what the agent steps above did using the branch and
+      # validation policy fixed by prepare-task.**
       - name: Finalize task lifecycle
         if: steps.epic.outputs.task_ready == 'true'
         uses: ainame/octestra@main
@@ -141,6 +142,8 @@ jobs:
           operation: lifecycle/finalize-task
           github-token: ${{ steps.app-token.outputs.token }}
           issue-number: ${{ github.event.issue.number }}
+          branch-name: ${{ steps.epic.outputs.branch_name }}
+          skip-validation: ${{ steps.epic.outputs.skip_validation }}
 
   # Runs the repository-configured validation agent when a task enters Validation.
   validation:

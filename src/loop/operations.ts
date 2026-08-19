@@ -134,6 +134,7 @@ export async function prepareTriage(
     resultPath,
   };
   const prompt = await renderPrompt(templatePath, variables);
+  core.setOutput("triage_skill", epic.triageSkill);
   core.setOutput("prompt", prompt);
   core.setOutput("result_path", resultPath);
 }

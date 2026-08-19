@@ -187,6 +187,9 @@ job を起動し、同時に実行する agent job は最大3つです。`loop/p
 `triage_skill` と任意の `epic-triage-prompt` block を読み、`triageSkill`、
 `epicTriagePrompt`、`resultPath` を使って
 `.github/octestra/prompts/loop-todo.md.hbs` を描画します。
+lifecycle の task と validation の prepare operation と同様に、skill も独立した output として
+公開します。workflow は local triage action に `epic_number`、`triage_skill`、`prompt`、
+`result_path` を渡します。
 
 task の探索、選択、件数制限、readiness policy、issue preparation、domain knowledge は workflow
 や prompt ではなく、triage skill に置いてください。agent は repository policy に必要な issue

@@ -480,14 +480,29 @@ export async function resolveTaskPullRequest(
 
 export async function finalizeTask(
   context: OperationContext,
+  preparedBranchName?: string,
+  preparedSkipValidation?: boolean,
   branchTemplate = defaultBranchTemplate,
 ): Promise<void> {
-  const { config } = await loadEpicConfig(context);
-  const branchName = resolveTaskBranchName(
-    config.id,
-    context.issueNumber,
-    branchTemplate,
-  );
+  if (
+    (preparedBranchName === undefined) !==
+      (preparedSkipValidation === undefined)
+  ) {
+    throw new Error(
+      "prepared branch name and validation policy must be provided together",
+    );
+  }
+  let branchName = preparedBranchName;
+  let skipValidation = preparedSkipValidation;
+  if (branchName === undefined || skipValidation === undefined) {
+    const { config } = await loadEpicConfig(context);
+    branchName = resolveTaskBranchName(
+      config.id,
+      context.issueNumber,
+      branchTemplate,
+    );
+    skipValidation = config.skipValidation;
+  }
   const failureStatus = "Blocked";
 
   if (!(await context.client.branchExists(branchName))) {
@@ -507,7 +522,7 @@ export async function finalizeTask(
     return;
   }
 
-  const nextStatus = config.skipValidation ? "Human Review" : "Validation";
+  const nextStatus = skipValidation ? "Human Review" : "Validation";
   const pullNumber = await resolveTaskPullRequest(context, branchName);
   const reviewer = nextStatus === "Human Review"
     ? await requestReview(context, pullNumber)

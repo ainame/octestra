@@ -97,6 +97,17 @@ const passed = Object.keys(step.with).sort();
 if (JSON.stringify(declared) !== JSON.stringify(passed)) {
   throw new Error(`triage-agent inputs differ: declared=${declared} passed=${passed}`);
 }
+const expectedInputs = {
+  epic_number: "${{ matrix.epic.number }}",
+  triage_skill: "${{ steps.loop.outputs.triage_skill }}",
+  prompt: "${{ steps.loop.outputs.prompt }}",
+  result_path: "${{ steps.loop.outputs.result_path }}",
+};
+for (const [name, value] of Object.entries(expectedInputs)) {
+  if (step.with[name] !== value) {
+    throw new Error(`triage-agent input ${name} is ${step.with[name]}, expected ${value}`);
+  }
+}
 if (step.env.OCTESTRA_AGENT_GITHUB_TOKEN !== "${{ steps.app-token.outputs.token }}") {
   throw new Error("triage-agent GitHub token is not passed through its stable environment name");
 }
