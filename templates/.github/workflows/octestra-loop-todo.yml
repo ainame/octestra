@@ -39,7 +39,7 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: loop/list-epics
-          github-token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ steps.app-token.outputs.token }}
 
   triage:
     name: Triage EPIC #${{ matrix.epic.number }}
@@ -82,8 +82,8 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: loop/prepare-triage
-          github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ matrix.epic.number }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          issue_number: ${{ matrix.epic.number }}
       # This action owns agent setup and execution. The triage skill available to that agent owns
       # task discovery, selection, limits, readiness policy and issue preparation. It must not
       # change AI Task Status; the finalizer below owns Todo -> Ready.
@@ -103,6 +103,6 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: loop/finalize-triage
-          github-token: ${{ steps.app-token.outputs.token }}
-          issue-number: ${{ matrix.epic.number }}
-          result-path: ${{ steps.loop.outputs.result_path }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          issue_number: ${{ matrix.epic.number }}
+          result_path: ${{ steps.loop.outputs.result_path }}

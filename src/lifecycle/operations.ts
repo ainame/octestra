@@ -163,7 +163,7 @@ async function configureCoauthor(
   triggerActor: string,
 ): Promise<void> {
   if (!triggerActor) {
-    throw new Error("trigger-actor is required for prepare");
+    throw new Error("trigger_actor is required for prepare");
   }
 
   const displayName = await client.getUserDisplayName(triggerActor);
@@ -380,7 +380,7 @@ export async function updateStatus(
   nextStatus: string,
 ): Promise<void> {
   if (!nextStatus) {
-    throw new Error("next-status is required for update-status");
+    throw new Error("next_status is required for update-status");
   }
   await context.client.updateStatus(
     context.issueNumber,
@@ -395,7 +395,7 @@ export async function assignOwner(
   triggerActorType: string,
 ): Promise<void> {
   if (!triggerActor) {
-    throw new Error("trigger-actor is required for assign-owner");
+    throw new Error("trigger_actor is required for assign-owner");
   }
   if (triggerActorType !== "User") {
     core.info(`Keeping the existing task owner for ${triggerActorType} actor ${triggerActor}`);
@@ -426,7 +426,7 @@ export async function reportProof(
   options: ProofReportOptions = {},
 ): Promise<ProofDocument> {
   if (!proofPath) {
-    throw new Error("proof-path is required for report-proof");
+    throw new Error("proof_path is required for report-proof");
   }
 
   const proof = await readProofDocument(proofPath);
@@ -468,7 +468,7 @@ export async function resolveTaskPullRequest(
   branchName: string,
 ): Promise<number> {
   if (!branchName) {
-    throw new Error("branch-name is required for resolve-task-pr");
+    throw new Error("branch_name is required for resolve-task-pr");
   }
   const pullNumber = await context.client.findOpenPullRequest(branchName);
   if (!pullNumber) {

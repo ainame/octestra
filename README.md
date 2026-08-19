@@ -111,6 +111,12 @@ update. The framework-owned `/octestra-contracts` skill is replaced, and the obs
 preserved; installations created before triage finalization must manually adopt the current
 `octestra-loop-todo.yml` and `loop-todo.md.hbs` contract.
 
+**v0.3.0 breaking change:** all inputs to `ainame/octestra` use `snake_case`. Because installed loop
+workflows are preserved, update their Octestra steps manually (for example, `github-token` becomes
+`github_token`, `issue-number` becomes `issue_number`, and `result-path` becomes `result_path`).
+The installer replaces the lifecycle workflow with the new names. Kebab-case input aliases are not
+supported.
+
 ## Security
 
 Octestra currently assumes a **private repository with trusted members**.

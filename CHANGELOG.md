@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+### Breaking Changes
+
+- All public inputs for `ainame/octestra` now use `snake_case`. Existing workflows must rename
+  kebab-case inputs such as `github-token`, `issue-number`, `branch-name`, `skip-validation`, and
+  `result-path` to `github_token`, `issue_number`, `branch_name`, `skip_validation`, and
+  `result_path`. Kebab-case aliases are not supported.
+
 ## [0.2.3](https://github.com/ainame/octestra/compare/v0.2.2...v0.2.3) (2026-08-19)
 
 
