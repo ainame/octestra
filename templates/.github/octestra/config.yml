@@ -26,3 +26,4 @@ branch:
 prompts:
   lifecycle_in_progress: .github/octestra/prompts/lifecycle-in-progress.md.hbs
   lifecycle_validation: .github/octestra/prompts/lifecycle-validation.md.hbs
+  loop_todo: .github/octestra/prompts/loop-todo.md.hbs

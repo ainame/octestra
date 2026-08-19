@@ -55,11 +55,16 @@ export async function run(): Promise<void> {
     return;
   }
   if (operation === "loop/prepare-triage") {
+    const config = await loadOctestraConfig(
+      client,
+      core.getInput("config-ref"),
+    );
     await prepareTriage(
       {
         client,
         epicNumber: requiredNumber("issue-number"),
       },
+      config.prompts.loop_todo,
     );
     return;
   }

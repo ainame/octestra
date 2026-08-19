@@ -302,6 +302,8 @@ grep -q 'field_id: "9001"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 grep -q 'field_name: "AI Task Status"' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 grep -q 'private_key_secret_key_name: "OCTESTRA_GITHUB_APP_PRIVATE_KEY"' \
   "$TEMP_DIR/consumer/.github/octestra/config.yml"
+grep -q 'loop_todo: .github/octestra/prompts/loop-todo.md.hbs' \
+  "$TEMP_DIR/consumer/.github/octestra/config.yml"
 # Operations address statuses by name, so no option IDs are written to config.yml.
 ! grep -q 'options:' "$TEMP_DIR/consumer/.github/octestra/config.yml"
 node -e 'require("yaml").parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$TEMP_DIR/consumer/.github/octestra/config.yml"
@@ -606,9 +608,12 @@ sed 's/{{resultPath}}/{{legacyResultPath}}/g' \
   >"$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs.legacy"
 mv "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs.legacy" \
   "$TEMP_DIR/consumer/.github/octestra/prompts/loop-todo.md.hbs"
-# Existing installations do not have private_key_secret_key_name. The installed maintenance CLI must use
-# the legacy secret name until the consumer explicitly adds the new config key.
-sed '/^  private_key_secret_key_name:/d' "$TEMP_DIR/consumer/.github/octestra/config.yml" \
+# Existing installations do not have these keys. The installed maintenance CLI must use
+# their legacy defaults until the consumer explicitly adds them.
+sed \
+  -e '/^  private_key_secret_key_name:/d' \
+  -e '/^  loop_todo:/d' \
+  "$TEMP_DIR/consumer/.github/octestra/config.yml" \
   > "$TEMP_DIR/consumer/.github/octestra/config.yml.legacy"
 mv "$TEMP_DIR/consumer/.github/octestra/config.yml.legacy" \
   "$TEMP_DIR/consumer/.github/octestra/config.yml"

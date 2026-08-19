@@ -253,7 +253,7 @@ Templates can use configuration and prompts from the EPIC and task issue. The ma
 
 ## Change Configuration
 
-`.github/octestra/config.yml` configures the GitHub Actions runners, the GitHub App Octestra uses, task branch naming, and prompt template paths. Set `github_app.private_key_secret_key_name` to the name of the Actions secret holding the GitHub App private key. The secret value is never written to `config.yml`.
+`.github/octestra/config.yml` configures the GitHub Actions runners, the GitHub App Octestra uses, task branch naming, and prompt template paths. Use `prompts.loop_todo` to move the Todo triage prompt from its default `.github/octestra/prompts/loop-todo.md.hbs` path. Existing installations without this key continue to use the default path. Set `github_app.private_key_secret_key_name` to the name of the Actions secret holding the GitHub App private key. The secret value is never written to `config.yml`.
 
 After changing `github_app.client_id`, `github_app.private_key_secret_key_name`, a value under `runners`, or `status.field_id`, copy the new values to the repository's Actions variables.
 

@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import * as core from "@actions/core";
 import {
   reportActivity,
-  reportActivityBestEffort,
+  reportActivitySafely,
 } from "../shared/activity";
 import { renderBranchTemplate } from "../shared/branch";
 import {
@@ -225,7 +225,7 @@ export async function buildTaskContext(
         branchExists ? `branch \`${branchName}\`` : undefined,
         linkedPullNumber ? `open PR #${linkedPullNumber}` : undefined,
       ].filter(Boolean).join(" and ");
-      await reportActivityBestEffort(context, {
+      await reportActivitySafely(context, {
         status: "Blocked",
         outcome: "blocked",
         summary: "Task execution was not started because existing work was found.",
@@ -513,7 +513,7 @@ export async function finalizeTask(
     ? await requestReview(context, pullNumber)
     : undefined;
 
-  await reportActivityBestEffort(context, {
+  await reportActivitySafely(context, {
     status: nextStatus,
     outcome: "succeeded",
     summary: reviewer

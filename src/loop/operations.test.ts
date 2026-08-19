@@ -138,15 +138,17 @@ describe("listEpics", () => {
 });
 
 describe("prepareTriage", () => {
-  it("renders the EPIC triage prompt", async () => {
+  const defaultPromptTemplate = ".github/octestra/prompts/loop-todo.md.hbs";
+
+  it("renders the configured EPIC triage prompt", async () => {
     const workspace = await mkdtemp(path.join(tmpdir(), "loop-prompt-"));
     temporaryDirectories.push(workspace);
     process.env.GITHUB_WORKSPACE = workspace;
     process.env.RUNNER_TEMP = workspace;
-    const promptDirectory = path.join(workspace, ".github/octestra/prompts");
+    const promptDirectory = path.join(workspace, "custom/prompts");
     await mkdir(promptDirectory, { recursive: true });
     await writeFile(
-      path.join(promptDirectory, "loop-todo.md.hbs"),
+      path.join(promptDirectory, "todo.hbs"),
       "Use {{triageSkill}} for EPIC #{{epicNumber}}.\n{{epicTriagePrompt}}",
     );
     const client = {
@@ -173,6 +175,7 @@ describe("prepareTriage", () => {
         client,
         epicNumber: 42,
       },
+      "custom/prompts/todo.hbs",
     );
 
     expect(core.setOutput).toHaveBeenCalledWith(
@@ -211,6 +214,7 @@ describe("prepareTriage", () => {
         client,
         epicNumber: 42,
       },
+      defaultPromptTemplate,
     );
 
     const promptCall = vi.mocked(core.setOutput).mock.calls.find(
@@ -240,6 +244,7 @@ describe("prepareTriage", () => {
         client,
         epicNumber: 42,
       },
+      defaultPromptTemplate,
     )).rejects.toThrow("triage_skill must be a non-empty string");
   });
 
@@ -265,6 +270,7 @@ describe("prepareTriage", () => {
         client,
         epicNumber: 42,
       },
+      defaultPromptTemplate,
     )).rejects.toThrow("EPIC #42 has skip_triage enabled");
   });
 
@@ -290,6 +296,7 @@ describe("prepareTriage", () => {
         client,
         epicNumber: 42,
       },
+      defaultPromptTemplate,
     )).rejects.toThrow(
       "EPIC #42 is no longer an open octestra-epic issue",
     );
