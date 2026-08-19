@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/ainame/octestra/compare/v0.2.2...v0.2.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* rename workflow contract skill ([#11](https://github.com/ainame/octestra/issues/11)) ([f0e6037](https://github.com/ainame/octestra/commit/f0e6037f53ff13efd47eecc2a1ef37ac1530dacc))
+
 ## [0.2.2](https://github.com/ainame/octestra/compare/v0.2.1...v0.2.2) (2026-08-19)
 
 
