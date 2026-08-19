@@ -449,14 +449,20 @@ check_prompts() {
   if [[ ! -f "$CONFIG_PATH" ]]; then
     return
   fi
-  for key in lifecycle_in_progress lifecycle_validation; do
-    path=$(config_scalar prompts "$key") || continue
+  for key in lifecycle_in_progress lifecycle_validation loop_todo; do
+    path=$(config_scalar prompts "$key" || true)
+    if [[ -z "$path" && "$key" == "loop_todo" ]]; then
+      path=".github/octestra/prompts/loop-todo.md.hbs"
+    fi
+    if [[ -z "$path" ]]; then
+      continue
+    fi
     if [[ ! -f "$path" ]]; then
       report fail "prompts.$key points at $path, which is not in this checkout"
     fi
   done
   if (( FAILURES == before )); then
-    report ok "both lifecycle prompts are in this checkout"
+    report ok "every configured prompt is in this checkout"
   fi
 }
 

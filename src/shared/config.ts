@@ -6,9 +6,14 @@ export interface OctestraConfig {
   runners: { orchestration: string; agent: string };
   status: { field_name: string; field_id: number };
   branch: { task: string };
-  prompts: { lifecycle_in_progress: string; lifecycle_validation: string };
+  prompts: {
+    lifecycle_in_progress: string;
+    lifecycle_validation: string;
+    loop_todo: string;
+  };
 }
 export interface ConfigClient { getContent(path: string, ref?: string): Promise<string>; }
+const defaultLoopTodoPrompt = ".github/octestra/prompts/loop-todo.md.hbs";
 function mapping(value: unknown, name: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`config.yml ${name} must be a mapping`);
   return value as Record<string, unknown>;
@@ -41,7 +46,19 @@ export function parseOctestraConfig(raw: string): OctestraConfig {
       field_id: requiredPositiveInteger(status.field_id, "status.field_id"),
     },
     branch: { task: requiredString(branch.task, "branch.task") },
-    prompts: { lifecycle_in_progress: requiredString(prompts.lifecycle_in_progress, "prompts.lifecycle_in_progress"), lifecycle_validation: requiredString(prompts.lifecycle_validation, "prompts.lifecycle_validation") },
+    prompts: {
+      lifecycle_in_progress: requiredString(
+        prompts.lifecycle_in_progress,
+        "prompts.lifecycle_in_progress",
+      ),
+      lifecycle_validation: requiredString(
+        prompts.lifecycle_validation,
+        "prompts.lifecycle_validation",
+      ),
+      loop_todo: prompts.loop_todo === undefined
+        ? defaultLoopTodoPrompt
+        : requiredString(prompts.loop_todo, "prompts.loop_todo"),
+    },
   };
 }
 export async function loadOctestraConfig(client: ConfigClient, ref?: string): Promise<OctestraConfig> {

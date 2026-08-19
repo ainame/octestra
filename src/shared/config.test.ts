@@ -7,7 +7,7 @@ status:
   field_name: AI Task Status
   field_id: "1"
 branch: { task: 'octestra/{epic_id}/issue-{issue_number}' }
-prompts: { lifecycle_in_progress: task.hbs, lifecycle_validation: validation.hbs }
+prompts: { lifecycle_in_progress: task.hbs, lifecycle_validation: validation.hbs, loop_todo: loop.hbs }
 `;
 describe("parseOctestraConfig", () => {
   it("rejects missing required keys", () => expect(() => parseOctestraConfig("version: 1")).toThrow("github_app"));
@@ -23,6 +23,17 @@ describe("parseOctestraConfig", () => {
     runners: { orchestration: "ubuntu-latest", agent: "ubuntu-latest" },
     status: { field_name: "AI Task Status", field_id: 1 },
     branch: { task: "octestra/{epic_id}/issue-{issue_number}" },
-    prompts: { lifecycle_in_progress: "task.hbs", lifecycle_validation: "validation.hbs" },
+    prompts: {
+      lifecycle_in_progress: "task.hbs",
+      lifecycle_validation: "validation.hbs",
+      loop_todo: "loop.hbs",
+    },
   }));
+  it("uses the installed loop prompt path for legacy configs", () => {
+    const legacy = base.replace(", loop_todo: loop.hbs", "");
+
+    expect(parseOctestraConfig(legacy).prompts.loop_todo).toBe(
+      ".github/octestra/prompts/loop-todo.md.hbs",
+    );
+  });
 });

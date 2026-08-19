@@ -16,7 +16,6 @@ import {
 } from "../shared/result";
 
 const maximumMatrixEntries = 256;
-const todoPromptPath = ".github/octestra/prompts/loop-todo.md.hbs";
 
 export interface LoopPrepareClient {
   getIssue(issueNumber: number): Promise<{
@@ -102,6 +101,7 @@ export async function listEpics(client: LoopDiscoveryClient): Promise<void> {
 
 export async function prepareTriage(
   context: LoopPrepareContext,
+  promptTemplate: string,
 ): Promise<void> {
   const issue = await context.client.getIssue(context.epicNumber);
   if (issue.state !== "open" || !issue.labels.includes("octestra-epic")) {
@@ -125,7 +125,7 @@ export async function prepareTriage(
   const resultPath = path.join(runnerTemp, "octestra-triage-result.json");
   const templatePath = path.join(
     process.env.GITHUB_WORKSPACE ?? process.cwd(),
-    todoPromptPath,
+    promptTemplate,
   );
   const variables: LoopPromptVariables = {
     epicNumber: context.epicNumber,

@@ -44,6 +44,11 @@ describe("run", () => {
       "operation": "loop/prepare-triage",
     };
     mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
+    mocks.loadOctestraConfig.mockResolvedValue({
+      prompts: {
+        loop_todo: "custom/loop-prompt.hbs",
+      },
+    });
 
     await run();
 
@@ -52,8 +57,12 @@ describe("run", () => {
         client: mocks.client,
         epicNumber: 42,
       },
+      "custom/loop-prompt.hbs",
     );
-    expect(mocks.loadOctestraConfig).not.toHaveBeenCalled();
+    expect(mocks.loadOctestraConfig).toHaveBeenCalledWith(
+      mocks.client,
+      "",
+    );
   });
 
   it("dispatches loop/finalize-triage with status configuration", async () => {
