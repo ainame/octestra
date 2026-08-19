@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/ainame/octestra/compare/v0.2.1...v0.2.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* make Todo triage prompt configurable ([#9](https://github.com/ainame/octestra/issues/9)) ([c58c3fd](https://github.com/ainame/octestra/commit/c58c3fd1124bf1d385444b4744b1b48d8c1a5e80))
+
 ## [0.2.1](https://github.com/ainame/octestra/compare/v0.2.0...v0.2.1) (2026-08-19)
 
 
