@@ -13,6 +13,9 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
              ▲            │                              ▲
              │            └──────────────────────────────┘  skip_validation が true の場合
              └──────────── Blocked ◀──── 上記いずれかが失敗
+
+Blocked ──────────▶ Validation   タスクのプルリクエストが open のまま
+Human Review ─────▶ Validation   なら検証を再実行できる
 ```
 
 | ステータス     | 動作                                                                    |
@@ -20,9 +23,9 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
 | `Todo`         | タスクは作成済み                                                        |
 | `Ready`        | GitHub ワークフローを開始できる状態                                     |
 | `In Progress`  | `octestra-lifecycle.yml` の `in-progress` job が実装エージェントを実行 |
-| `Validation`   | `octestra-lifecycle.yml` の `validation` job が検証エージェントを実行  |
+| `Validation`   | `octestra-lifecycle.yml` の `validation` job が検証エージェントを実行。`Blocked` または `Human Review` のタスクをここへ戻すと、open のプルリクエストに対して検証を再実行する |
 | `Human Review` | task owner にプルリクエストのレビューを依頼                             |
-| `Blocked`      | 失敗内容と Actions 実行へのリンクをコメント。`Ready` に戻すと再試行可能 |
+| `Blocked`      | 失敗内容と Actions 実行へのリンクをコメント。プルリクエストが open のままなら `Validation` に移すと検証を再実行、`Ready` に戻すとやり直し |
 | `Done`         | タスクは完了                                                            |
 
 関連する task issue は EPIC issue の下にまとめます。EPIC issue は、本文の `epic-config` block で配下の task issue に共通の設定を与える親 issue です。task issue はエージェントが処理する一つの作業単位で、EPIC の sub-issue として作成します。

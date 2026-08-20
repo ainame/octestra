@@ -13,6 +13,9 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
              ▲            │                              ▲
              │            └──────────────────────────────┘  when skip_validation is true
              └──────────── Blocked ◀──── any failure above
+
+Blocked ──────────▶ Validation   runs validation again while the task's
+Human Review ─────▶ Validation   pull request is open
 ```
 
 | Status | Behavior |
@@ -20,9 +23,9 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
 | `Todo` | The task has been created. |
 | `Ready` | The task is ready to start a GitHub workflow. |
 | `In Progress` | The `in-progress` job in `octestra-lifecycle.yml` runs the implementation agent. |
-| `Validation` | The `validation` job in `octestra-lifecycle.yml` runs the validation agent. |
+| `Validation` | The `validation` job in `octestra-lifecycle.yml` runs the validation agent. Moving a `Blocked` or `Human Review` task back here runs validation again on its open pull request. |
 | `Human Review` | Requests pull request review from the task owner. |
-| `Blocked` | Comments with the failure and a link to the Actions run. Move the task back to `Ready` to retry. |
+| `Blocked` | Comments with the failure and a link to the Actions run. Move the task to `Validation` to run validation again while its pull request is open, or back to `Ready` to restart it. |
 | `Done` | The task is complete. |
 
 Organize related task issues under an EPIC issue. An EPIC issue is the parent issue whose `epic-config` block supplies shared configuration for its task issues. A task issue is one unit of agent work and a sub-issue of an EPIC.

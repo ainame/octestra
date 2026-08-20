@@ -56,6 +56,8 @@ export interface OperationsClient {
 export interface ProofReportOptions {
   pullNumber?: number;
   subjectSha?: string;
+  // Rendered as a "Next steps" section, only when the proof outcome is not `passed`.
+  failureGuidance?: string;
 }
 
 export const defaultBranchTemplate = "octestra/{epic_id}/issue-{issue_number}";
@@ -74,14 +76,17 @@ export function resolveTaskBranchName(
 
 const execFileAsync = promisify(execFile);
 
+// Human Review and Blocked may re-enter Validation: it re-runs validation against the task's
+// existing open pull request without discarding the work. Re-entering In Progress is deliberately
+// not allowed — the only task re-run is the destructive one through Ready (D20).
 const allowedTransitions = new Map<string, Set<string>>([
   ["", new Set(["Todo"])],
   ["Todo", new Set(["Ready"])],
   ["Ready", new Set(["In Progress", "Blocked"])],
   ["In Progress", new Set(["Validation", "Human Review", "Blocked"])],
   ["Validation", new Set(["Human Review", "Blocked"])],
-  ["Human Review", new Set(["Done", "Blocked"])],
-  ["Blocked", new Set(["Ready"])],
+  ["Human Review", new Set(["Done", "Blocked", "Validation"])],
+  ["Blocked", new Set(["Ready", "Validation"])],
   ["Done", new Set()],
 ]);
 
@@ -231,9 +236,12 @@ export async function buildTaskContext(
         summary: "Task execution was not started because existing work was found.",
         details: [
           `Found ${existingWork}.`,
+          linkedPullNumber
+            ? "To validate the existing pull request instead of restarting, move this task to `Validation`."
+            : undefined,
           `@${taskOwner} Close the existing PR, if any, and delete its source branch before retrying.`,
           "Then move this task to `Ready`, followed by `In Progress`.",
-        ].join("\n\n"),
+        ].filter(Boolean).join("\n\n"),
       });
       await context.client.updateStatus(
         context.issueNumber,
@@ -440,6 +448,7 @@ export async function reportProof(
     actor: process.env.GITHUB_ACTOR,
     runUrl: workflowRunUrl(),
     runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+    nextSteps: proof.outcome !== "passed" ? options.failureGuidance : undefined,
   });
   await context.client.comment(context.issueNumber, comment);
   core.setOutput("outcome", proof.outcome);
@@ -557,6 +566,10 @@ export async function finalizeValidation(
 ): Promise<void> {
   const proof = await reportProof(context, proofPath, {
     pullNumber,
+    failureGuidance: [
+      "Move the task to `Validation` to run validation again on this pull request,",
+      "or to `Ready` to restart the task after closing the pull request and deleting its branch.",
+    ].join(" "),
   });
   if (proof.outcome !== "passed") {
     // Updating status can trigger the next workflow, so all Octestra work must finish first.
@@ -580,7 +593,11 @@ export async function reportFailure(
       status: failureStatus,
       outcome: "failed",
       summary: "The task workflow failed or was cancelled.",
-      details: `- Failed workflow run: ${runUrl}\n- Move the task to \`Ready\` after resolving the blocker to retry.`,
+      details: [
+        `- Failed workflow run: ${runUrl}`,
+        "- Move the task to `Validation` to run validation again while its pull request is open,",
+        "  or to `Ready` to restart the task after resolving the blocker.",
+      ].join("\n"),
     });
   } catch (error) {
     core.warning(`Failed to post the task failure report: ${String(error)}`);

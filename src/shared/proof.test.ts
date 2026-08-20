@@ -114,5 +114,31 @@ describe("renderProofComment", () => {
     expect(comment.indexOf("The profile flow behaves as expected.")).toBeLessThan(
       comment.indexOf("<summary>Technical metadata</summary>"),
     );
+    expect(comment).not.toContain("### Next steps");
+  });
+
+  it("renders next steps ahead of the collapsed sections when provided", () => {
+    const comment = renderProofComment(
+      parseProofDocument({
+        kind: "validation-result",
+        outcome: "failed",
+        summary: "The profile flow does not load.",
+        details: "Executed the consumer-defined validation prompt.",
+      }),
+      {
+        issueNumber: 123,
+        pullNumber: 42,
+        recordedAt: "2026-07-24T21:00:00.000Z",
+        nextSteps: "Move the task to `Validation` to run validation again.",
+      },
+    );
+
+    expect(comment).toContain("### Next steps");
+    expect(comment).toContain(
+      "Move the task to `Validation` to run validation again.",
+    );
+    expect(comment.indexOf("### Next steps")).toBeLessThan(
+      comment.indexOf("<summary>Additional details</summary>"),
+    );
   });
 });
