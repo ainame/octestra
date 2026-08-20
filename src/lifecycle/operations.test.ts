@@ -219,6 +219,12 @@ describe("prepareTask", () => {
       123,
       expect.stringContaining("@task-owner"),
     );
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining(
+        "To validate the existing pull request instead of restarting, move this task to `Validation`.",
+      ),
+    );
     expect(setOutput).toHaveBeenCalledWith("task_ready", "false");
   });
 });
@@ -317,8 +323,10 @@ describe("validateTransition", () => {
     ["In Progress", "Validation"],
     ["Validation", "Human Review"],
     ["Human Review", "Done"],
+    ["Human Review", "Validation"],
     ["In Progress", "Blocked"],
     ["Blocked", "Ready"],
+    ["Blocked", "Validation"],
   ])("allows %s -> %s", async (previousStatus, currentStatus) => {
     const client = createClient({
       getStatus: vi.fn().mockResolvedValue(currentStatus || undefined),
@@ -724,6 +732,7 @@ describe("finalizeValidation", () => {
       123,
       expect.stringContaining("## ✅ Passed validation proof"),
     );
+    expect(vi.mocked(client.comment).mock.calls[0][1]).not.toContain("Next steps");
     expect(client.markPullRequestReadyForReview).toHaveBeenCalledWith(42);
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
@@ -743,7 +752,16 @@ describe("finalizeValidation", () => {
       proofPath,
     );
 
-    expect(client.comment).toHaveBeenCalled();
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining("### Next steps"),
+    );
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining(
+        "Move the task to `Validation` to run validation again on this pull request,",
+      ),
+    );
     expect(client.markPullRequestReadyForReview).not.toHaveBeenCalled();
     expect(client.requestReviewer).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(
@@ -755,6 +773,26 @@ describe("finalizeValidation", () => {
 });
 
 describe("reportFailure", () => {
+  it("blocks the task and offers both re-run paths", async () => {
+    const client = createClient();
+
+    await reportFailure(createContext(client));
+
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining("Move the task to `Validation` to run validation again"),
+    );
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining("or to `Ready` to restart the task"),
+    );
+    expect(client.updateStatus).toHaveBeenCalledWith(
+      123,
+      456,
+      "Blocked",
+    );
+  });
+
   it("updates status even when posting the failure comment fails", async () => {
     const client = createClient({
       comment: vi.fn().mockRejectedValue(new Error("comment failed")),

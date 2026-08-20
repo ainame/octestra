@@ -18,6 +18,8 @@ export interface ProofCommentContext {
   runUrl?: string;
   runAttempt?: string;
   recordedAt?: string;
+  // What the reader should do with this result, e.g. how to re-run validation.
+  nextSteps?: string;
 }
 
 export function parseProofDocument(raw: unknown): ProofDocument {
@@ -170,6 +172,9 @@ export function renderProofComment(
       "",
       proof.knownGaps.map((gap) => `- ${gap}`).join("\n"),
     );
+  }
+  if (context.nextSteps) {
+    sections.push("", "### Next steps", "", context.nextSteps);
   }
   if (proof.details) {
     sections.push(
