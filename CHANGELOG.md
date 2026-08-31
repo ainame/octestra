@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/ainame/octestra/compare/v0.3.0...v0.4.0) (2026-08-31)
+
+
+### Features
+
+* allow re-running validation from Human Review and Blocked ([#16](https://github.com/ainame/octestra/issues/16)) ([c33d769](https://github.com/ainame/octestra/commit/c33d7699719c4ad0ff1d9718c677d74abf81016d))
+
 ## [0.3.0](https://github.com/ainame/octestra/compare/v0.2.3...v0.3.0) (2026-08-19)
 
 
