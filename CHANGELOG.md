@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/ainame/octestra/compare/v0.4.0...v0.5.0) (2026-09-01)
+
+
+### Features
+
+* preserve prompts during update ([#20](https://github.com/ainame/octestra/issues/20)) ([bfcb6b9](https://github.com/ainame/octestra/commit/bfcb6b91e511b90ad4e3951f00ae8b935652bbae))
+
+
+### Bug Fixes
+
+* update to latest stable release by default ([#18](https://github.com/ainame/octestra/issues/18)) ([b004d0a](https://github.com/ainame/octestra/commit/b004d0ac0feb0e6fada762dfb6bdb8344943a506))
+
 ## [0.4.0](https://github.com/ainame/octestra/compare/v0.3.0...v0.4.0) (2026-08-31)
 
 
