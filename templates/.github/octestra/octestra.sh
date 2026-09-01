@@ -11,8 +11,8 @@
 #
 # Requires the GitHub CLI, authenticated with 'gh auth login'. 'doctor' and 'vars check'
 # only read; 'vars sync' writes this repository's Actions variables, 'ref' edits the workflow
-# files in this checkout, and 'update' replaces the installed files and re-syncs those
-# variables. No command reads or writes a secret value.
+# files in this checkout, and 'update' replaces framework files and re-syncs those variables.
+# No command reads or writes a secret value.
 #
 # install.sh overwrites this file on every run, so put anything you want to change in
 # config.yml beside it, not here.
@@ -68,7 +68,7 @@ Commands:
   doctor          Report every problem this installation has (default)
   update [SPEC]   Install the latest stable release from the Octestra the workflow
                   calls, or install from SPEC (OWNER/REPO@REF, @REF, OWNER/REPO, or
-                  --latest). Keeps config.yml and the installed agent actions
+                  --latest). Keeps config.yml, local agent actions, and prompts
   vars check      Exit non-zero when a repository variable disagrees with config.yml
   vars sync       Write the config.yml values into this repository's variables
   ref             Show which Octestra repository and ref the workflow calls
@@ -76,7 +76,7 @@ Commands:
   help            Show this help
 
 Options:
-  --yes           Do not ask before update replaces the installed files
+  --yes           Do not ask before update replaces framework files
 EOF
 }
 
@@ -530,6 +530,102 @@ latest_version_tag() {
     tail -n 1
 }
 
+stable_release_version() {
+  local ref="$1"
+
+  if [[ "$ref" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+    printf '%s' "${ref#v}"
+    return
+  fi
+  return 1
+}
+
+changelog_versions() {
+  local changelog="$1"
+
+  awk '
+    /^## \[/ {
+      version = $0
+      sub(/^## \[/, "", version)
+      sub(/\].*$/, "", version)
+      print version
+      next
+    }
+    /^## [0-9]/ {
+      version = $0
+      sub(/^## /, "", version)
+      sub(/ .*/, "", version)
+      print version
+    }
+  ' "$changelog"
+}
+
+show_update_changelog() {
+  local source_dir="$1"
+  local target="$2"
+  local current_repository="${INSTALLED_ACTION%@*}"
+  local current_ref="${INSTALLED_ACTION##*@}"
+  local target_repository="${target%@*}"
+  local target_ref="${target##*@}"
+  local current_version=""
+  local target_version=""
+  local changelog="$source_dir/CHANGELOG.md"
+  local notes=""
+
+  if ! current_version=$(stable_release_version "$current_ref") ||
+    ! target_version=$(stable_release_version "$target_ref") ||
+    [[ "$current_repository" != "$target_repository" ]]; then
+    info "could not show changelog entries for $INSTALLED_ACTION to $target"
+    info "review the changelog at https://github.com/$target_repository/blob/$target_ref/CHANGELOG.md"
+    if [[ "$current_repository" == "$target_repository" ]]; then
+      info "review changes at https://github.com/$target_repository/compare/$current_ref...$target_ref"
+    fi
+    return
+  fi
+
+  if [[ "$current_version" == "$target_version" ]]; then
+    return
+  fi
+  if [[ "$(printf '%s\n%s\n' "$current_version" "$target_version" | sort -V | head -n 1)" != "$current_version" ]]; then
+    info "could not show changelog entries because $target_ref is not newer than $current_ref"
+    info "review changes at https://github.com/$target_repository/compare/$current_ref...$target_ref"
+    return
+  fi
+  if [[ ! -f "$changelog" ]] ||
+    ! changelog_versions "$changelog" | grep -Fqx "$current_version"; then
+    info "could not find $current_ref in the changelog for $target"
+    info "review the changelog at https://github.com/$target_repository/blob/$target_ref/CHANGELOG.md"
+    return
+  fi
+
+  notes=$(awk -v current_version="$current_version" '
+    /^## \[/ {
+      version = $0
+      sub(/^## \[/, "", version)
+      sub(/\].*$/, "", version)
+      if (version == current_version) {
+        exit
+      }
+      printing = 1
+    }
+    /^## [0-9]/ {
+      version = $0
+      sub(/^## /, "", version)
+      sub(/ .*/, "", version)
+      if (version == current_version) {
+        exit
+      }
+      printing = 1
+    }
+    printing {
+      print
+    }
+  ' "$changelog")
+  [[ -n "$notes" ]] || return
+
+  printf 'Octestra: changes since %s:\n\n%s\n' "$current_ref" "$notes"
+}
+
 # Resolves a reference spec against the installed one. Both 'ref' and 'update' accept the
 # same forms, so they cannot disagree about what `@2` or `--latest` means.
 resolve_action_spec() {
@@ -639,7 +735,7 @@ confirm_update() {
 Update $REPOSITORY from $target?
   .github/workflows/octestra-lifecycle.yml  replaced
   .github/octestra/actions/         kept as they are
-  .github/octestra/prompts/         replaced
+  .github/octestra/prompts/         kept as they are
   .github/octestra/octestra.sh      replaced
   the installed agent skill         replaced
   .github/octestra/config.yml       kept as it is
@@ -662,7 +758,6 @@ update_command() {
   local skill_target=""
   local status_field=""
   local client_id=""
-  local tag=""
   local oidc=()
 
   while (( $# > 0 )); do
@@ -701,13 +796,14 @@ update_command() {
     oidc=(--enable-oidc)
   fi
 
-  confirm_update "$target" "$assume_yes"
   trap cleanup EXIT
   info "downloading $target"
   source_dir=$(download_source "$target")
   [[ -f "$source_dir/install.sh" ]] || die "$target ships no install.sh"
+  show_update_changelog "$source_dir" "$target"
+  confirm_update "$target" "$assume_yes"
 
-  # The installer that just arrived does the work: it preserves the agent actions, replaces the
+  # The installer that just arrived does the work: it preserves consumer policy, replaces the
   # lifecycle workflow, rewrites action references and syncs the variables. This script must not
   # hold a second copy of any of that. `${oidc[@]}` is expanded through `+` because an empty array under
   # `set -u` is a fatal error in the bash that ships with macOS.

@@ -102,11 +102,12 @@ discovery fails loudly rather than silently omitting an invalid EPIC.
 | `vars check`      | Check whether the repository's Actions variables match `config.yml`        |
 | `vars sync`       | Copy the required values from `config.yml` to Actions variables            |
 | `ref`             | Show the Octestra repository and ref used by the installed workflow        |
-| `update`          | Install the latest stable release while preserving agent actions and `config.yml` |
+| `update`          | Install the latest stable release while preserving local policy and `config.yml` |
 
 Rerunning the installer replaces the lifecycle workflow and keeps `config.yml`, all local agent
-actions, and the loop workflow and prompt. Review `git diff` before committing changes from an
-update. The framework-owned `/octestra-contracts` skill is replaced, and the obsolete
+actions, prompts, and loop workflow. Before installing a newer stable release, update prints its
+release notes. Review `git diff` before committing changes from an update. The framework-owned
+`/octestra-contracts` skill is replaced, and the obsolete
 `/octestra-validation-proof` skill is removed. Existing loop workflow and prompt files are
 preserved; installations created before triage finalization must manually adopt the current
 `octestra-loop-todo.yml` and `loop-todo.md.hbs` contract.
