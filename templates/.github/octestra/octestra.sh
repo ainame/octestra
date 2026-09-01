@@ -3,7 +3,7 @@
 # Octestra maintenance CLI for this repository.
 #
 #   .github/octestra/octestra.sh doctor       diagnose this installation
-#   .github/octestra/octestra.sh update       reinstall from the Octestra the workflow calls
+#   .github/octestra/octestra.sh update       install the latest stable release from the workflow's Octestra
 #   .github/octestra/octestra.sh vars check   compare config.yml with repository variables
 #   .github/octestra/octestra.sh vars sync    write config.yml values to repository variables
 #   .github/octestra/octestra.sh ref          show which Octestra the workflow calls
@@ -66,8 +66,8 @@ Usage:
 
 Commands:
   doctor          Report every problem this installation has (default)
-  update [SPEC]   Reinstall the workflow, prompts and skill from the Octestra the
-                  workflow calls, or from SPEC (OWNER/REPO@REF, @REF, OWNER/REPO, or
+  update [SPEC]   Install the latest stable release from the Octestra the workflow
+                  calls, or install from SPEC (OWNER/REPO@REF, @REF, OWNER/REPO, or
                   --latest). Keeps config.yml and the installed agent actions
   vars check      Exit non-zero when a repository variable disagrees with config.yml
   vars sync       Write the config.yml values into this repository's variables
@@ -689,14 +689,10 @@ update_command() {
   skill_target=$(installed_skill_target) ||
     die "no Octestra skill directory found; run install.sh with --skill-target instead"
 
-  target="$INSTALLED_ACTION"
   if [[ -n "$spec" ]]; then
     target=$(resolve_action_spec "$spec")
   else
-    tag=$(latest_version_tag "${target%@*}") || true
-    if [[ -n "$tag" && "$tag" != "${target##*@}" ]]; then
-      info "reinstalling from $target; 'update --latest' would take $tag instead"
-    fi
+    target=$(resolve_action_spec --latest)
   fi
 
   # `id-token: write` is one commented line in octestra-lifecycle.yml, outside every marker
