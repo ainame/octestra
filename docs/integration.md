@@ -88,7 +88,7 @@ empty until an individual issue needs them. `skip_triage` defaults to `false`; w
 placeholder in each file with the configuration and execution steps for your agent.
 
 Octestra installs each agent action once and preserves the whole file on later updates. The
-lifecycle workflow is replaced in full; loop workflows and their prompts are consumer-owned and
+lifecycle workflow is replaced in full; all prompts and loop workflows are consumer-owned and
 preserved. Inside an agent action, use its `inputs.*` for context and
 `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token.
 

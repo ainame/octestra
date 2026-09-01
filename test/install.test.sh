@@ -948,7 +948,7 @@ grep -q "must be a git ref" "$malformed_ref_output"
 printf 'Maintenance script tests passed\n'
 
 # ---------------------------------------------------------------------------
-# Updating an installation: workflows are replaced and agent actions are preserved.
+# Updating an installation: workflows are replaced and consumer policy is preserved.
 # ---------------------------------------------------------------------------
 new_consumer() {
   local target="$1"
@@ -1006,6 +1006,8 @@ update_validation_agent="$update_dir/.github/octestra/actions/validation-agent/a
 update_triage_agent="$update_dir/.github/octestra/actions/triage-agent/action.yml"
 update_triage_workflow="$update_dir/.github/workflows/octestra-loop-todo.yml"
 update_triage_prompt="$update_dir/.github/octestra/prompts/loop-todo.md.hbs"
+update_lifecycle_prompt="$update_dir/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
+update_validation_prompt="$update_dir/.github/octestra/prompts/lifecycle-validation.md.hbs"
 new_consumer "$update_dir"
 install_into "$update_dir" >/dev/null
 
@@ -1014,6 +1016,8 @@ customize_action "$update_validation_agent" "./scripts/validation-agent.sh"
 customize_action "$update_triage_agent" "./scripts/triage-agent.sh"
 printf '\n# Consumer schedule customization\n' >>"$update_triage_workflow"
 printf '\nConsumer triage instructions.\n' >>"$update_triage_prompt"
+printf '\nConsumer lifecycle instructions.\n' >>"$update_lifecycle_prompt"
+printf '\nConsumer validation instructions.\n' >>"$update_validation_prompt"
 # Consumer content is preserved, but the loop must move to the newly installed Octestra ref.
 PATH="$TEMP_DIR/bin:$PATH" \
   bash "$update_dir/.github/octestra/octestra.sh" ref @1.0.0 >/dev/null
@@ -1031,6 +1035,8 @@ grep -q 'run: ./scripts/validation-agent.sh' "$update_validation_agent"
 grep -q 'run: ./scripts/triage-agent.sh' "$update_triage_agent"
 grep -q 'Consumer schedule customization' "$update_triage_workflow"
 grep -q 'Consumer triage instructions' "$update_triage_prompt"
+grep -q 'Consumer lifecycle instructions' "$update_lifecycle_prompt"
+grep -q 'Consumer validation instructions' "$update_validation_prompt"
 grep -q 'uses: ainame/octestra@main' "$update_triage_workflow"
 ! grep -q 'uses: ainame/octestra@1\.0\.0' "$update_triage_workflow"
 grep -q 'timeout-minutes: 60' "$update_entry"
@@ -1055,7 +1061,9 @@ before_rerun=$(
     "$update_validation_agent" \
     "$update_triage_agent" \
     "$update_triage_workflow" \
-    "$update_triage_prompt"
+    "$update_triage_prompt" \
+    "$update_lifecycle_prompt" \
+    "$update_validation_prompt"
 )
 install_into "$update_dir" >/dev/null
 after_rerun=$(
@@ -1065,7 +1073,9 @@ after_rerun=$(
     "$update_validation_agent" \
     "$update_triage_agent" \
     "$update_triage_workflow" \
-    "$update_triage_prompt"
+    "$update_triage_prompt" \
+    "$update_lifecycle_prompt" \
+    "$update_validation_prompt"
 )
 if [[ "$before_rerun" != "$after_rerun" ]]; then
   echo "a second identical install changed installed files" >&2
@@ -1078,6 +1088,7 @@ fi
 mkdir -p "$TEMP_DIR/update-archive/octestra-main"
 cp "$ROOT/install.sh" "$TEMP_DIR/update-archive/octestra-main/install.sh"
 cp -R "$ROOT/templates" "$TEMP_DIR/update-archive/octestra-main/templates"
+cp "$ROOT/CHANGELOG.md" "$TEMP_DIR/update-archive/octestra-main/CHANGELOG.md"
 tar -czf "$TEMP_DIR/octestra-update.tar.gz" -C "$TEMP_DIR/update-archive" octestra-main
 
 run_update() {
@@ -1096,22 +1107,33 @@ cli_dir="$TEMP_DIR/consumer-cli-update"
 cli_entry="$cli_dir/.github/workflows/octestra-lifecycle.yml"
 cli_agent="$cli_dir/.github/octestra/actions/task-agent/action.yml"
 cli_config="$cli_dir/.github/octestra/config.yml"
+cli_lifecycle_prompt="$cli_dir/.github/octestra/prompts/lifecycle-in-progress.md.hbs"
 new_consumer "$cli_dir"
 install_into "$cli_dir" --enable-oidc >/dev/null
 customize_action "$cli_agent" "./scripts/cli-agent.sh"
 printf 'runners:\n  agent: macos-15\n' >>"$cli_config"
-# Something Octestra owns, to prove the update really reinstalled it.
+printf '\nConsumer lifecycle update instructions.\n' >>"$cli_lifecycle_prompt"
+# A deleted policy template is seeded again when there is no consumer file to preserve.
 rm "$cli_dir/.github/octestra/prompts/lifecycle-validation.md.hbs"
 
+# The current stable tag marks the beginning of the release-note range that update prints.
+PATH="$TEMP_DIR/bin:$PATH" \
+  bash "$cli_dir/.github/octestra/octestra.sh" ref @v0.1.1 >/dev/null
+
 cli_output="$TEMP_DIR/cli-update-output"
-OCTESTRA_TEST_TAGS="v1.11.0 v1.12.0 v1.12.0-rc1" \
+OCTESTRA_TEST_TAGS="v0.3.0 v0.4.0 v0.4.0-rc1" \
   run_update "$cli_dir" bash >"$cli_output"
 grep -q 'run: ./scripts/cli-agent.sh' "$cli_agent"
 grep -q 'agent: macos-15' "$cli_config"
 test -f "$cli_dir/.github/octestra/prompts/lifecycle-validation.md.hbs"
-grep -q "updated to ainame/octestra@v1.12.0" "$cli_output"
-grep -q '^v1\.12\.0$' "$TEMP_DIR/update-tarball-ref"
-grep -q 'uses: ainame/octestra@v1\.12\.0' "$cli_entry"
+grep -q 'Consumer lifecycle update instructions' "$cli_lifecycle_prompt"
+grep -q "updated to ainame/octestra@v0.4.0" "$cli_output"
+grep -q '^v0\.4\.0$' "$TEMP_DIR/update-tarball-ref"
+grep -q 'uses: ainame/octestra@v0\.4\.0' "$cli_entry"
+grep -q 'Octestra: changes since v0.1.1:' "$cli_output"
+grep -q '## \[0.4.0\]' "$cli_output"
+grep -q '## \[0.2.0\]' "$cli_output"
+! grep -q '## \[0.1.1\]' "$cli_output"
 # OIDC is reconstructed from the installed workflow by update.
 if grep -q '^  # id-token: write$' "$cli_entry"; then
   echo "update reverted the OIDC permission" >&2
@@ -1130,10 +1152,20 @@ grep -q 'run: ./scripts/cli-agent.sh' "$cli_agent"
 
 # --latest remains an explicit equivalent of the default, even after a consumer selects another
 # ref. It selects a stable semantic-version tag and ignores release candidates.
+latest_output="$TEMP_DIR/cli-update-latest-output"
 OCTESTRA_TEST_TAGS="v2.0.0 v2.1.0 v2.1.0-rc1" \
-  run_update "$cli_dir" bash --latest >/dev/null
+  run_update "$cli_dir" bash --latest >"$latest_output"
 grep -q '^v2\.1\.0$' "$TEMP_DIR/update-tarball-ref"
 grep -q 'uses: ainame/octestra@v2\.1\.0' "$cli_entry"
+grep -q 'could not show changelog entries for ainame/octestra@9.9.9 to ainame/octestra@v2.1.0' \
+  "$latest_output"
+
+# Explicit downgrades replace framework files, but must not print a changelog as though the
+# selected version were newer than the installed stable release.
+downgrade_output="$TEMP_DIR/cli-update-downgrade-output"
+run_update "$cli_dir" bash @v0.4.0 >"$downgrade_output"
+grep -q 'could not show changelog entries because v0.4.0 is not newer than v2.1.0' \
+  "$downgrade_output"
 
 # Updating without a spec must not fall back to an unpinned or currently installed ref when
 # GitHub cannot provide a stable release tag.

@@ -629,18 +629,18 @@ preserve_installed_config() {
   fi
 }
 
-# Agent actions and loop examples are consumer policy surfaces. Templates seed them on first
-# install, but a rerun must preserve each existing file in full rather than merge Octestra-owned
-# content into it.
+# Agent actions, prompts, and loop workflows are consumer policy surfaces. Templates seed them on
+# first install, but a rerun must preserve each existing file in full rather than merge
+# Octestra-owned content into it.
 preserve_installed_consumer_policy() {
   local relative=""
   local installed=""
+  local prompt=""
 
   for relative in \
     ".github/octestra/actions/task-agent/action.yml" \
     ".github/octestra/actions/validation-agent/action.yml" \
     ".github/octestra/actions/triage-agent/action.yml" \
-    ".github/octestra/prompts/loop-todo.md.hbs" \
     ".github/workflows/octestra-loop-todo.yml"; do
     installed="$TARGET_DIR/$relative"
     if [[ -f "$installed" ]]; then
@@ -648,6 +648,15 @@ preserve_installed_consumer_policy() {
       info "kept the existing $relative"
     fi
   done
+
+  while IFS= read -r prompt; do
+    relative=${prompt#"$INSTALL_TREE/"}
+    installed="$TARGET_DIR/$relative"
+    if [[ -f "$installed" ]]; then
+      cp "$installed" "$prompt"
+      info "kept the existing $relative"
+    fi
+  done < <(find "$INSTALL_TREE/.github/octestra/prompts" -type f -print)
 }
 
 remove_legacy_framework_skill() {

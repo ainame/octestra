@@ -14,6 +14,9 @@ A release has two tags:
 - A moving `vMAJOR` tag, such as `v0`, for consumers that deliberately follow compatible releases.
 
 The installer and installed maintenance script resolve the newest stable `vMAJOR.MINOR.PATCH` tag.
+When an installation updates between two such tags, `octestra.sh update` prints every intervening
+versioned entry from `CHANGELOG.md`. Keep prior release entries in that file so consumers can review
+the policy changes they need to adopt in their preserved actions and prompts.
 
 ## Create a release
 
