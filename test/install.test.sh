@@ -944,11 +944,14 @@ printf 'runners:\n  agent: macos-15\n' >>"$cli_config"
 rm "$cli_dir/.github/octestra/prompts/lifecycle-validation.md.hbs"
 
 cli_output="$TEMP_DIR/cli-update-output"
-run_update "$cli_dir" bash >"$cli_output"
+OCTESTRA_TEST_TAGS="v1.11.0 v1.12.0 v1.12.0-rc1" \
+  run_update "$cli_dir" bash >"$cli_output"
 grep -q 'run: ./scripts/cli-agent.sh' "$cli_agent"
 grep -q 'agent: macos-15' "$cli_config"
 test -f "$cli_dir/.github/octestra/prompts/lifecycle-validation.md.hbs"
-grep -q "updated to ainame/octestra@main" "$cli_output"
+grep -q "updated to ainame/octestra@v1.12.0" "$cli_output"
+grep -q '^v1\.12\.0$' "$TEMP_DIR/update-tarball-ref"
+grep -q 'uses: ainame/octestra@v1\.12\.0' "$cli_entry"
 # OIDC is reconstructed from the installed workflow by update.
 if grep -q '^  # id-token: write$' "$cli_entry"; then
   echo "update reverted the OIDC permission" >&2
@@ -965,10 +968,26 @@ test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$cli_dir/.github/octestra/octestra.sh" 
   "ainame/octestra@9.9.9"
 grep -q 'run: ./scripts/cli-agent.sh' "$cli_agent"
 
+# --latest remains an explicit equivalent of the default, even after a consumer selects another
+# ref. It selects a stable semantic-version tag and ignores release candidates.
+OCTESTRA_TEST_TAGS="v2.0.0 v2.1.0 v2.1.0-rc1" \
+  run_update "$cli_dir" bash --latest >/dev/null
+grep -q '^v2\.1\.0$' "$TEMP_DIR/update-tarball-ref"
+grep -q 'uses: ainame/octestra@v2\.1\.0' "$cli_entry"
+
+# Updating without a spec must not fall back to an unpinned or currently installed ref when
+# GitHub cannot provide a stable release tag.
+missing_tag_output="$TEMP_DIR/update-missing-tag-output"
+if OCTESTRA_TEST_TAGS="" run_update "$cli_dir" bash >"$missing_tag_output" 2>&1; then
+  echo "update unexpectedly accepted a repository without stable version tags" >&2
+  exit 1
+fi
+grep -q 'ainame/octestra has no version tags' "$missing_tag_output"
+
 # install.sh and octestra.sh run on consumer machines, where /bin/bash may be 3.2. An empty
 # array expanded under `set -u` is fatal there, so one update runs through it end to end.
 if [[ -x /bin/bash ]]; then
-  run_update "$cli_dir" /bin/bash >/dev/null
+  OCTESTRA_TEST_TAGS="v2.1.0" run_update "$cli_dir" /bin/bash >/dev/null
   grep -q 'run: ./scripts/cli-agent.sh' "$cli_agent"
 fi
 

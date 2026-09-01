@@ -89,7 +89,7 @@ discovery fails loudly rather than silently omitting an invalid EPIC.
 .github/octestra/octestra.sh vars check
 .github/octestra/octestra.sh vars sync
 .github/octestra/octestra.sh ref
-.github/octestra/octestra.sh update --latest
+.github/octestra/octestra.sh update
 ```
 
 | Command           | Purpose                                                                    |
@@ -98,7 +98,7 @@ discovery fails loudly rather than silently omitting an invalid EPIC.
 | `vars check`      | Check whether the repository's Actions variables match `config.yml`        |
 | `vars sync`       | Copy the required values from `config.yml` to Actions variables            |
 | `ref`             | Show the Octestra repository and ref used by the installed workflow        |
-| `update --latest` | Install the latest release while preserving agent actions and `config.yml` |
+| `update`          | Install the latest stable release while preserving agent actions and `config.yml` |
 
 Rerunning the installer replaces the lifecycle workflow and keeps `config.yml`, all local agent
 actions, and the loop workflow and prompt. Review `git diff` before committing changes from an
