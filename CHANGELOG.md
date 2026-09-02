@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/ainame/octestra/compare/v0.6.1...v0.6.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* pass agent debug flag directly ([#25](https://github.com/ainame/octestra/issues/25)) ([ff1fdb9](https://github.com/ainame/octestra/commit/ff1fdb984fdf041b68576968086e83aec8e5cf6a))
+
 ## [0.6.1](https://github.com/ainame/octestra/compare/v0.6.0...v0.6.1) (2026-09-02)
 
 
