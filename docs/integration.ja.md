@@ -90,8 +90,9 @@ lifecycle workflow は全体が置き換えられますが、loop workflow と�
 file として保持されます。agent action では context に `inputs.*`、エージェント用 GitHub token
 に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。出荷時の workflow に含まれるすべての
 local agent action には、同名の任意の repository variable から正規化した
-`env.OCTESTRA_AGENT_DEBUG` も渡されます。既存の consumer-owned loop workflow には、下記の 1 回の
-変更が必要です。その値で何をするかは Octestra ではなく repository-owned action が決めます。
+`env.OCTESTRA_AGENT_DEBUG` も渡されます。正規化は準備時に行います。既存の consumer-owned loop
+workflow には、下記の 1 回の変更が必要です。その値で何をするかは
+Octestra ではなく repository-owned action が決めます。
 
 描画されるすべての agent prompt は、インストール済みの `/octestra-contracts`
 workflow-contract skill を最初に読み込み、`task`、`triage`、`validation` のいずれかの phase を
@@ -169,20 +170,19 @@ Octestra が注入するのはこの正規化した boolean だけです。consu
 
 新規インストールでは、3 つすべての action workflow が flag を渡します。既存インストールの update
 では lifecycle workflow が置き換わるため task と validation action は受け取ります。一方 Todo loop
-workflow は consumer-owned として全体が保持されるため、既存の triage action の前に次の step を 1 回
-追加してください。
+workflow は consumer-owned として全体が保持されるため、既存の `Prepare loop prompt` step に次の
+environment value を 1 回追加してください。
 
 ```yaml
-- name: Normalize agent debug flag
+- name: Prepare loop prompt
+  id: loop
+  uses: ainame/octestra@main
   env:
     OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
-  shell: bash
-  run: |
-    if [ "$OCTESTRA_AGENT_DEBUG_VALUE" = "true" ]; then
-      echo "OCTESTRA_AGENT_DEBUG=true" >> "$GITHUB_ENV"
-    else
-      echo "OCTESTRA_AGENT_DEBUG=false" >> "$GITHUB_ENV"
-    fi
+  with:
+    operation: loop/prepare-triage
+    github_token: ${{ steps.app-token.outputs.token }}
+    issue_number: ${{ matrix.epic.number }}
 ```
 
 インストール時の Claude の設定例では、次のように値を渡します。

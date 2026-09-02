@@ -87,51 +87,24 @@ NODE
 assert_agent_debug_flag() {
   local workflow="$1"
   local job_name="$2"
-  local action_path="$3"
+  local operation="$3"
 
-  node - "$workflow" "$job_name" "$action_path" <<'NODE'
+  node - "$workflow" "$job_name" "$operation" <<'NODE'
 const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const { execFileSync } = require("child_process");
 const yaml = require("yaml");
 
 const workflow = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
 const jobName = process.argv[3];
-const actionPath = process.argv[4];
+const operation = process.argv[4];
 const steps = workflow.jobs[jobName]?.steps ?? [];
-const actionIndex = steps.findIndex((candidate) => candidate.uses === actionPath);
-const debugIndex = steps.findIndex(
-  (candidate) => candidate.name === "Normalize agent debug flag",
+const debugStep = steps.find(
+  (candidate) => candidate.uses === "ainame/octestra@main" && candidate.with?.operation === operation,
 );
-if (actionIndex === -1 || debugIndex === -1 || debugIndex !== actionIndex - 1) {
-  throw new Error(`${jobName} does not normalize the agent debug flag before ${actionPath}`);
+if (!debugStep) {
+  throw new Error(`${jobName} does not normalize the agent debug flag during ${operation}`);
 }
-const debugStep = steps[debugIndex];
 if (debugStep.env?.OCTESTRA_AGENT_DEBUG_VALUE !== "${{ vars.OCTESTRA_AGENT_DEBUG }}") {
   throw new Error(`${jobName} does not read the repository agent debug variable`);
-}
-if (debugStep.shell !== "bash") {
-  throw new Error(`${jobName} does not normalize the agent debug flag with bash`);
-}
-if (!debugStep.run?.includes('[ "$OCTESTRA_AGENT_DEBUG_VALUE" = "true" ]')) {
-  throw new Error(`${jobName} does not case-sensitively normalize the agent debug flag`);
-}
-for (const [value, expected] of [["true", "true"], ["TRUE", "false"]]) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "octestra-agent-debug-"));
-  const environmentFile = path.join(directory, "github-env");
-  execFileSync("bash", ["-c", debugStep.run], {
-    env: {
-      ...process.env,
-      OCTESTRA_AGENT_DEBUG_VALUE: value,
-      GITHUB_ENV: environmentFile,
-    },
-  });
-  const output = fs.readFileSync(environmentFile, "utf8");
-  fs.rmSync(directory, { force: true, recursive: true });
-  if (output !== `OCTESTRA_AGENT_DEBUG=${expected}\n`) {
-    throw new Error(`${jobName} maps ${value} to ${output}`);
-  }
 }
 NODE
 }
@@ -470,11 +443,11 @@ assert_triage_action_interface \
   "$triage_workflow" \
   "$TEMP_DIR/consumer/.github/octestra/actions/triage-agent/action.yml"
 assert_agent_debug_flag "$orchestrator" "in-progress" \
-  "./.github/octestra/actions/task-agent"
+  "lifecycle/prepare-task"
 assert_agent_debug_flag "$orchestrator" "validation" \
-  "./.github/octestra/actions/validation-agent"
+  "lifecycle/prepare-validation"
 assert_agent_debug_flag "$triage_workflow" "triage" \
-  "./.github/octestra/actions/triage-agent"
+  "loop/prepare-triage"
 grep -q "issue_field_value.option.name != 'Todo'" "$orchestrator"
 grep -q "issue_field_value.option.name != 'Ready'" "$orchestrator"
 grep -q "issue_field_value.option.name != 'Done'" "$orchestrator"
@@ -1086,9 +1059,9 @@ const yaml = require("yaml");
 
 const file = process.argv[2];
 const workflow = yaml.parse(fs.readFileSync(file, "utf8"));
-workflow.jobs.triage.steps = workflow.jobs.triage.steps.filter(
-  (step) => step.name !== "Normalize agent debug flag",
-);
+delete workflow.jobs.triage.steps.find(
+  (step) => step.with?.operation === "loop/prepare-triage",
+).env;
 fs.writeFileSync(file, yaml.stringify(workflow));
 NODE
 ! grep -q 'OCTESTRA_AGENT_DEBUG' "$update_triage_workflow"
@@ -1121,9 +1094,9 @@ grep -q 'timeout-minutes: 60' "$update_entry"
 assert_validation_action_interface "$update_entry" "$update_validation_agent"
 assert_triage_action_interface "$update_triage_workflow" "$update_triage_agent"
 assert_agent_debug_flag "$update_entry" "in-progress" \
-  "./.github/octestra/actions/task-agent"
+  "lifecycle/prepare-task"
 assert_agent_debug_flag "$update_entry" "validation" \
-  "./.github/octestra/actions/validation-agent"
+  "lifecycle/prepare-validation"
 ! grep -q 'OCTESTRA_AGENT_DEBUG' "$update_triage_workflow"
 test ! -e "$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
 test ! -e "$update_dir/.github/workflows/octestra-lifecycle-validation.yml"

@@ -80,6 +80,8 @@ jobs:
       - name: Prepare loop prompt
         id: loop
         uses: ainame/octestra@main
+        env:
+          OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
         with:
           operation: loop/prepare-triage
           github_token: ${{ steps.app-token.outputs.token }}
@@ -87,17 +89,6 @@ jobs:
       # This action owns agent setup and execution. The triage skill available to that agent owns
       # task discovery, selection, limits, readiness policy and issue preparation. It must not
       # change AI Task Status; the finalizer below owns Todo -> Ready.
-      - name: Normalize agent debug flag
-        env:
-          OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
-        shell: bash
-        run: |
-          if [ "$OCTESTRA_AGENT_DEBUG_VALUE" = "true" ]; then
-            echo "OCTESTRA_AGENT_DEBUG=true" >> "$GITHUB_ENV"
-          else
-            echo "OCTESTRA_AGENT_DEBUG=false" >> "$GITHUB_ENV"
-          fi
-
       - name: Run triage agent
         uses: ./.github/octestra/actions/triage-agent
         env:

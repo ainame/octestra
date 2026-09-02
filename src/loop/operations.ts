@@ -1,5 +1,6 @@
 import path from "node:path";
 import * as core from "@actions/core";
+import { normalizeAgentDebugFlag } from "../shared/operations";
 import {
   type ActivityClient,
   reportActivityBestEffort,
@@ -137,6 +138,7 @@ export async function prepareTriage(
   core.setOutput("triage_skill", epic.triageSkill);
   core.setOutput("prompt", prompt);
   core.setOutput("result_path", resultPath);
+  normalizeAgentDebugFlag(process.env.OCTESTRA_AGENT_DEBUG_VALUE ?? "");
 }
 
 async function requireEligibleEpic(
