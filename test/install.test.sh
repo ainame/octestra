@@ -87,24 +87,24 @@ NODE
 assert_agent_debug_flag() {
   local workflow="$1"
   local job_name="$2"
-  local operation="$3"
+  local action_path="$3"
 
-  node - "$workflow" "$job_name" "$operation" <<'NODE'
+  node - "$workflow" "$job_name" "$action_path" <<'NODE'
 const fs = require("fs");
 const yaml = require("yaml");
 
 const workflow = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
 const jobName = process.argv[3];
-const operation = process.argv[4];
+const actionPath = process.argv[4];
 const steps = workflow.jobs[jobName]?.steps ?? [];
 const debugStep = steps.find(
-  (candidate) => candidate.uses === "ainame/octestra@main" && candidate.with?.operation === operation,
+  (candidate) => candidate.uses === actionPath,
 );
 if (!debugStep) {
-  throw new Error(`${jobName} does not normalize the agent debug flag during ${operation}`);
+  throw new Error(`${jobName} does not pass the agent debug flag to ${actionPath}`);
 }
-if (debugStep.env?.OCTESTRA_AGENT_DEBUG_VALUE !== "${{ vars.OCTESTRA_AGENT_DEBUG }}") {
-  throw new Error(`${jobName} does not read the repository agent debug variable`);
+if (debugStep.env?.OCTESTRA_AGENT_DEBUG !== "${{ vars.OCTESTRA_AGENT_DEBUG == 'true' }}") {
+  throw new Error(`${jobName} does not set the agent debug variable directly`);
 }
 NODE
 }
@@ -443,11 +443,11 @@ assert_triage_action_interface \
   "$triage_workflow" \
   "$TEMP_DIR/consumer/.github/octestra/actions/triage-agent/action.yml"
 assert_agent_debug_flag "$orchestrator" "in-progress" \
-  "lifecycle/prepare-task"
+  "./.github/octestra/actions/task-agent"
 assert_agent_debug_flag "$orchestrator" "validation" \
-  "lifecycle/prepare-validation"
+  "./.github/octestra/actions/validation-agent"
 assert_agent_debug_flag "$triage_workflow" "triage" \
-  "loop/prepare-triage"
+  "./.github/octestra/actions/triage-agent"
 grep -q "issue_field_value.option.name != 'Todo'" "$orchestrator"
 grep -q "issue_field_value.option.name != 'Ready'" "$orchestrator"
 grep -q "issue_field_value.option.name != 'Done'" "$orchestrator"
@@ -1060,8 +1060,8 @@ const yaml = require("yaml");
 const file = process.argv[2];
 const workflow = yaml.parse(fs.readFileSync(file, "utf8"));
 delete workflow.jobs.triage.steps.find(
-  (step) => step.with?.operation === "loop/prepare-triage",
-).env;
+  (step) => step.uses === "./.github/octestra/actions/triage-agent",
+).env.OCTESTRA_AGENT_DEBUG;
 fs.writeFileSync(file, yaml.stringify(workflow));
 NODE
 ! grep -q 'OCTESTRA_AGENT_DEBUG' "$update_triage_workflow"
@@ -1094,9 +1094,9 @@ grep -q 'timeout-minutes: 60' "$update_entry"
 assert_validation_action_interface "$update_entry" "$update_validation_agent"
 assert_triage_action_interface "$update_triage_workflow" "$update_triage_agent"
 assert_agent_debug_flag "$update_entry" "in-progress" \
-  "lifecycle/prepare-task"
+  "./.github/octestra/actions/task-agent"
 assert_agent_debug_flag "$update_entry" "validation" \
-  "lifecycle/prepare-validation"
+  "./.github/octestra/actions/validation-agent"
 ! grep -q 'OCTESTRA_AGENT_DEBUG' "$update_triage_workflow"
 test ! -e "$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
 test ! -e "$update_dir/.github/workflows/octestra-lifecycle-validation.yml"

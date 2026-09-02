@@ -90,8 +90,8 @@ lifecycle workflow は全体が置き換えられますが、loop workflow と�
 file として保持されます。agent action では context に `inputs.*`、エージェント用 GitHub token
 に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。出荷時の workflow に含まれるすべての
 local agent action には、同名の任意の repository variable から正規化した
-`env.OCTESTRA_AGENT_DEBUG` も渡されます。正規化は準備時に行います。既存の consumer-owned loop
-workflow には、下記の 1 回の変更が必要です。その値で何をするかは
+`env.OCTESTRA_AGENT_DEBUG` も渡されます。正規化は workflow から action を呼び出すときに行います。
+既存の consumer-owned loop workflow には、下記の 1 回の変更が必要です。その値で何をするかは
 Octestra ではなく repository-owned action が決めます。
 
 描画されるすべての agent prompt は、インストール済みの `/octestra-contracts`
@@ -170,19 +170,20 @@ Octestra が注入するのはこの正規化した boolean だけです。consu
 
 新規インストールでは、3 つすべての action workflow が flag を渡します。既存インストールの update
 では lifecycle workflow が置き換わるため task と validation action は受け取ります。一方 Todo loop
-workflow は consumer-owned として全体が保持されるため、既存の `Prepare loop prompt` step に次の
+workflow は consumer-owned として全体が保持されるため、既存の `Run triage agent` step に次の
 environment value を 1 回追加してください。
 
 ```yaml
-- name: Prepare loop prompt
-  id: loop
-  uses: ainame/octestra@main
+- name: Run triage agent
+  uses: ./.github/octestra/actions/triage-agent
   env:
-    OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
+    OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+    OCTESTRA_AGENT_DEBUG: ${{ vars.OCTESTRA_AGENT_DEBUG == 'true' }}
   with:
-    operation: loop/prepare-triage
-    github_token: ${{ steps.app-token.outputs.token }}
-    issue_number: ${{ matrix.epic.number }}
+    epic_number: ${{ matrix.epic.number }}
+    triage_skill: ${{ steps.loop.outputs.triage_skill }}
+    prompt: ${{ steps.loop.outputs.prompt }}
+    result_path: ${{ steps.loop.outputs.result_path }}
 ```
 
 インストール時の Claude の設定例では、次のように値を渡します。
@@ -235,7 +236,7 @@ Octestra は task issue の検証結果コメントに、check ごとに 1 行�
 
 triage action には、lifecycle の agent action と同じように、正規化された
 `env.OCTESTRA_AGENT_DEBUG` が渡されます。既存の loop workflow では Octestra の update がその
-workflow を保持するため、上記の正規化 step を追加してください。
+workflow を保持するため、上記の environment value を追加してください。
 
 `loop/list-epics` は `octestra-epic` label を持つ open issue を探し、`epic-config` に
 `skip_triage: true` を設定した EPIC を除外します。workflow は残った EPIC ごとに matrix
