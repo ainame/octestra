@@ -13,6 +13,7 @@ vi.mock("@actions/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@actions/core")>();
   return {
     ...actual,
+    exportVariable: vi.fn(),
     setOutput: vi.fn(),
     warning: vi.fn(),
     summary: {
@@ -31,11 +32,13 @@ beforeEach(() => {
   process.env.GITHUB_RUN_ID = "123456";
   process.env.GITHUB_RUN_ATTEMPT = "2";
   process.env.GITHUB_SERVER_URL = "https://github.com";
+  process.env.OCTESTRA_AGENT_DEBUG_VALUE = "true";
 });
 
 afterEach(async () => {
   delete process.env.GITHUB_WORKSPACE;
   delete process.env.RUNNER_TEMP;
+  delete process.env.OCTESTRA_AGENT_DEBUG_VALUE;
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, {
     force: true,
     recursive: true,
@@ -192,6 +195,10 @@ describe("prepareTriage", () => {
     expect(core.setOutput).toHaveBeenCalledWith(
       "result_path",
       path.join(workspace, "octestra-triage-result.json"),
+    );
+    expect(core.exportVariable).toHaveBeenCalledWith(
+      "OCTESTRA_AGENT_DEBUG",
+      "true",
     );
   });
 

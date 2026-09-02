@@ -3,6 +3,7 @@ import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import * as core from "@actions/core";
+import { normalizeAgentDebugFlag } from "../shared/operations";
 import {
   reportActivity,
   reportActivityBestEffort,
@@ -200,7 +201,7 @@ export async function buildTaskContext(
   triggerActorType: string,
   branchTemplate = defaultBranchTemplate,
   checkForExistingWork = false,
-): Promise<void> {
+): Promise<boolean> {
   const workspace = process.env.GITHUB_WORKSPACE;
   if (!workspace) {
     throw new Error("GITHUB_WORKSPACE must be set");
@@ -250,7 +251,7 @@ export async function buildTaskContext(
       );
       core.setOutput("branch_name", branchName);
       core.setOutput("task_ready", "false");
-      return;
+      return false;
     }
   }
   const draftFlag = config.draftPr ? "--draft" : "";
@@ -285,6 +286,7 @@ export async function buildTaskContext(
   core.setOutput("prompt", prompt);
   core.setOutput("target", taskConfig.target ?? "");
   core.setOutput("task_owner", taskOwner);
+  return true;
 }
 
 // Aggregate lifecycle preparation used by the boilerplate workflow. Consumers can
@@ -297,7 +299,7 @@ export async function prepareTask(
   branchTemplate = defaultBranchTemplate,
 ): Promise<void> {
   await assignOwner(context, triggerActor, triggerActorType);
-  await buildTaskContext(
+  const taskReady = await buildTaskContext(
     context,
     promptTemplate,
     triggerActor,
@@ -305,6 +307,9 @@ export async function prepareTask(
     branchTemplate,
     true,
   );
+  if (taskReady) {
+    normalizeAgentDebugFlag(process.env.OCTESTRA_AGENT_DEBUG_VALUE ?? "");
+  }
 }
 
 async function loadEpicConfig(
@@ -381,6 +386,7 @@ export async function prepareValidation(
   branchTemplate = defaultBranchTemplate,
 ): Promise<void> {
   await buildValidationContext(context, promptTemplate, branchTemplate);
+  normalizeAgentDebugFlag(process.env.OCTESTRA_AGENT_DEBUG_VALUE ?? "");
 }
 
 export async function updateStatus(

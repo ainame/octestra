@@ -92,7 +92,8 @@ lifecycle workflow is replaced in full; all prompts and loop workflows are consu
 preserved. Inside an agent action, use its `inputs.*` for context and
 `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token. Every local agent action in the
 shipped workflows also receives `env.OCTESTRA_AGENT_DEBUG`, normalized from the optional repository
-variable of the same name. Existing consumer-owned loop workflows need the one-time change below.
+variable of the same name during preparation. Existing consumer-owned loop workflows need the
+one-time change below.
 Octestra does not assign the value a behavior; the repository-owned action does.
 
 Every rendered agent prompt begins by loading the installed `/octestra-contracts` workflow-contract
@@ -174,19 +175,19 @@ repository-owned behavior.
 
 New installations receive the flag in all three action workflows. Updating an existing installation
 replaces the lifecycle workflow, so task and validation actions receive it. The Todo loop workflow
-is consumer-owned and preserved in full, so add this step before its local triage action once:
+is consumer-owned and preserved in full, so add this environment value to its existing `Prepare loop
+prompt` step once:
 
 ```yaml
-- name: Normalize agent debug flag
+- name: Prepare loop prompt
+  id: loop
+  uses: ainame/octestra@main
   env:
     OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
-  shell: bash
-  run: |
-    if [ "$OCTESTRA_AGENT_DEBUG_VALUE" = "true" ]; then
-      echo "OCTESTRA_AGENT_DEBUG=true" >> "$GITHUB_ENV"
-    else
-      echo "OCTESTRA_AGENT_DEBUG=false" >> "$GITHUB_ENV"
-    fi
+  with:
+    operation: loop/prepare-triage
+    github_token: ${{ steps.app-token.outputs.token }}
+    issue_number: ${{ matrix.epic.number }}
 ```
 
 The installed Claude example forwards the value as follows:
