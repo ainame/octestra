@@ -92,8 +92,8 @@ lifecycle workflow is replaced in full; all prompts and loop workflows are consu
 preserved. Inside an agent action, use its `inputs.*` for context and
 `env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token. Every local agent action in the
 shipped workflows also receives `env.OCTESTRA_AGENT_DEBUG`, normalized from the optional repository
-variable of the same name during preparation. Existing consumer-owned loop workflows need the
-one-time change below.
+variable of the same name when the workflow invokes the action. Existing consumer-owned loop
+workflows need the one-time change below.
 Octestra does not assign the value a behavior; the repository-owned action does.
 
 Every rendered agent prompt begins by loading the installed `/octestra-contracts` workflow-contract
@@ -175,19 +175,20 @@ repository-owned behavior.
 
 New installations receive the flag in all three action workflows. Updating an existing installation
 replaces the lifecycle workflow, so task and validation actions receive it. The Todo loop workflow
-is consumer-owned and preserved in full, so add this environment value to its existing `Prepare loop
-prompt` step once:
+is consumer-owned and preserved in full, so add this environment value to its existing `Run triage
+agent` step once:
 
 ```yaml
-- name: Prepare loop prompt
-  id: loop
-  uses: ainame/octestra@main
+- name: Run triage agent
+  uses: ./.github/octestra/actions/triage-agent
   env:
-    OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
+    OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+    OCTESTRA_AGENT_DEBUG: ${{ vars.OCTESTRA_AGENT_DEBUG == 'true' }}
   with:
-    operation: loop/prepare-triage
-    github_token: ${{ steps.app-token.outputs.token }}
-    issue_number: ${{ matrix.epic.number }}
+    epic_number: ${{ matrix.epic.number }}
+    triage_skill: ${{ steps.loop.outputs.triage_skill }}
+    prompt: ${{ steps.loop.outputs.prompt }}
+    result_path: ${{ steps.loop.outputs.result_path }}
 ```
 
 The installed Claude example forwards the value as follows:
@@ -238,7 +239,7 @@ replace the placeholder in
 
 The triage action receives `env.OCTESTRA_AGENT_DEBUG` with the same normalized value as the
 lifecycle agent actions in the shipped loop workflow. For an existing loop workflow, add the
-normalization step above because Octestra preserves that workflow on update.
+environment value above because Octestra preserves that workflow on update.
 
 `loop/list-epics` finds open issues carrying the `octestra-epic` label and excludes those whose
 `epic-config` sets `skip_triage: true`. The workflow starts one matrix job per remaining EPIC,

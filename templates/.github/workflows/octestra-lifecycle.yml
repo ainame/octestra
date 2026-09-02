@@ -99,8 +99,6 @@ jobs:
       - name: Prepare task lifecycle
         id: epic
         uses: ainame/octestra@main
-        env:
-          OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
         with:
           operation: lifecycle/prepare-task
           github_token: ${{ steps.app-token.outputs.token }}
@@ -115,6 +113,7 @@ jobs:
         uses: ./.github/octestra/actions/task-agent
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          OCTESTRA_AGENT_DEBUG: ${{ vars.OCTESTRA_AGENT_DEBUG == 'true' }}
         with:
           issue_number: ${{ github.event.issue.number }}
           parent_number: ${{ steps.epic.outputs.parent_number }}
@@ -183,8 +182,6 @@ jobs:
       - name: Prepare validation lifecycle
         id: epic
         uses: ainame/octestra@main
-        env:
-          OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
         with:
           operation: lifecycle/prepare-validation
           github_token: ${{ steps.app-token.outputs.token }}
@@ -202,6 +199,7 @@ jobs:
         uses: ./.github/octestra/actions/validation-agent
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          OCTESTRA_AGENT_DEBUG: ${{ vars.OCTESTRA_AGENT_DEBUG == 'true' }}
         with:
           issue_number: ${{ github.event.issue.number }}
           parent_number: ${{ steps.epic.outputs.parent_number }}

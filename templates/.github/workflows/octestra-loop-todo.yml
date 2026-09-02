@@ -80,8 +80,6 @@ jobs:
       - name: Prepare loop prompt
         id: loop
         uses: ainame/octestra@main
-        env:
-          OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
         with:
           operation: loop/prepare-triage
           github_token: ${{ steps.app-token.outputs.token }}
@@ -93,6 +91,7 @@ jobs:
         uses: ./.github/octestra/actions/triage-agent
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          OCTESTRA_AGENT_DEBUG: ${{ vars.OCTESTRA_AGENT_DEBUG == 'true' }}
         with:
           epic_number: ${{ matrix.epic.number }}
           triage_skill: ${{ steps.loop.outputs.triage_skill }}

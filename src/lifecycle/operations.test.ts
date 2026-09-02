@@ -25,7 +25,6 @@ vi.mock("@actions/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@actions/core")>();
   return {
     ...actual,
-    exportVariable: vi.fn(),
     setOutput: vi.fn(),
   };
 });
@@ -92,14 +91,12 @@ beforeEach(() => {
   process.env.GITHUB_REPOSITORY = "example-org/example-repo";
   process.env.GITHUB_RUN_ID = "123456";
   process.env.GITHUB_SERVER_URL = "https://github.com";
-  process.env.OCTESTRA_AGENT_DEBUG_VALUE = "true";
 });
 
 afterEach(async () => {
   vi.restoreAllMocks();
   delete process.env.GITHUB_WORKSPACE;
   delete process.env.RUNNER_TEMP;
-  delete process.env.OCTESTRA_AGENT_DEBUG_VALUE;
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, {
     force: true,
     recursive: true,
@@ -178,10 +175,6 @@ describe("prepareTask", () => {
     );
     expect(setOutput).toHaveBeenCalledWith("task_skill", "example-task");
     expect(setOutput).toHaveBeenCalledWith("task_ready", "true");
-    expect(core.exportVariable).toHaveBeenCalledWith(
-      "OCTESTRA_AGENT_DEBUG",
-      "true",
-    );
   });
 
   it("blocks and instructs the task owner when existing work is found", async () => {
@@ -319,10 +312,6 @@ describe("prepareValidation", () => {
       ].join("\n"),
     );
     expect(setOutput).toHaveBeenCalledWith("target", "");
-    expect(core.exportVariable).toHaveBeenCalledWith(
-      "OCTESTRA_AGENT_DEBUG",
-      "true",
-    );
   });
 });
 
