@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/ainame/octestra/compare/v0.6.0...v0.6.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* normalize agent debug during preparation ([397f59b](https://github.com/ainame/octestra/commit/397f59b4cfccd3624c4ebe5e2985170089e4ffd7))
+
 ## [0.6.0](https://github.com/ainame/octestra/compare/v0.5.0...v0.6.0) (2026-09-02)
 
 
