@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/ainame/octestra/compare/v0.5.0...v0.6.0) (2026-09-02)
+
+
+### Features
+
+* inject a generic agent debug flag ([#21](https://github.com/ainame/octestra/issues/21)) ([d7d075e](https://github.com/ainame/octestra/commit/d7d075e6d885f296c897c3114e42c3b50b15c05b))
+
 ## [0.5.0](https://github.com/ainame/octestra/compare/v0.4.0...v0.5.0) (2026-09-01)
 
 
