@@ -92,6 +92,14 @@ A job in `octestra-lifecycle.yml` that runs when a task reaches one status optio
 The environment variable through which a lifecycle workflow passes the agent's GitHub token to its
 local composite action.
 
+### `OCTESTRA_AGENT_DEBUG`
+
+An optional repository Actions variable for agent actions. New lifecycle and loop workflows pass
+`true` only when the variable is exactly `true`; consumer-owned actions decide what debug behavior
+it enables.
+
+> the `OCTESTRA_AGENT_DEBUG` repository variable
+
 ### issue body blocks
 
 The fenced blocks Octestra parses out of issue bodies: `epic-config`, `epic-task-prompt`, and the

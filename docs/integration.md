@@ -90,7 +90,10 @@ placeholder in each file with the configuration and execution steps for your age
 Octestra installs each agent action once and preserves the whole file on later updates. The
 lifecycle workflow is replaced in full; all prompts and loop workflows are consumer-owned and
 preserved. Inside an agent action, use its `inputs.*` for context and
-`env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token.
+`env.OCTESTRA_AGENT_GITHUB_TOKEN` for the agent's GitHub token. Every local agent action in the
+shipped workflows also receives `env.OCTESTRA_AGENT_DEBUG`, normalized from the optional repository
+variable of the same name. Existing consumer-owned loop workflows need the one-time change below.
+Octestra does not assign the value a behavior; the repository-owned action does.
 
 Every rendered agent prompt begins by loading the installed `/octestra-contracts` workflow-contract
 skill and names the `task`, `triage`, or `validation` phase. Repository skills own domain policy;
@@ -118,6 +121,7 @@ with OIDC, or provide credentials through the selected runner's environment. Run
 | `inputs.task_skill` | Optional task skill specified by the EPIC |
 | `inputs.target` | Optional file, class, feature, or other task target |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
+| `env.OCTESTRA_AGENT_DEBUG` | `true` only when the repository variable is exactly `true`; otherwise `false` |
 
 The workflow checks `task_ready` before invoking the composite action. Steps inside the action do
 not need to repeat that condition, and they run in the same job, runner, and workspace as
@@ -131,6 +135,7 @@ Example configuration for Claude Code Action:
     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
     branch_prefix: ${{ inputs.branch_name }}
     branch_name_template: "{{prefix}}"
+    show_full_output: ${{ env.OCTESTRA_AGENT_DEBUG }}
     prompt: ${{ inputs.prompt }}
 ```
 
@@ -153,10 +158,51 @@ and passes the preparation outputs to `validation-agent/action.yml` as inputs:
 | `inputs.validation_skill` | Validation skill specified by the EPIC |
 | `inputs.target` | Optional file, class, feature, or other task target |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | GitHub token for the agent |
+| `env.OCTESTRA_AGENT_DEBUG` | `true` only when the repository variable is exactly `true`; otherwise `false` |
 
 The action runs in the same job, runner, and checked-out workspace as `lifecycle/prepare-validation`.
 The validation agent uses the installed `/octestra-contracts` skill to write JSON to
 `inputs.result_path` and check its format.
+
+### Use the agent debug flag
+
+Set the repository Actions variable `OCTESTRA_AGENT_DEBUG` to `true` when a task, validation, or
+triage rerun needs the repository's debug behavior. An unset value, or any value other than the
+lowercase string `true`, passes `false` to every local agent action. Octestra only injects this
+normalized boolean; a consumer action may use it for extra logs, tool settings, or any other
+repository-owned behavior.
+
+New installations receive the flag in all three action workflows. Updating an existing installation
+replaces the lifecycle workflow, so task and validation actions receive it. The Todo loop workflow
+is consumer-owned and preserved in full, so add this step before its local triage action once:
+
+```yaml
+- name: Normalize agent debug flag
+  env:
+    OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
+  shell: bash
+  run: |
+    if [ "$OCTESTRA_AGENT_DEBUG_VALUE" = "true" ]; then
+      echo "OCTESTRA_AGENT_DEBUG=true" >> "$GITHUB_ENV"
+    else
+      echo "OCTESTRA_AGENT_DEBUG=false" >> "$GITHUB_ENV"
+    fi
+```
+
+The installed Claude example forwards the value as follows:
+
+```yaml
+show_full_output: ${{ env.OCTESTRA_AGENT_DEBUG }}
+```
+
+This is only one use of the generic flag. Add it, or another repository-specific use of
+`env.OCTESTRA_AGENT_DEBUG`, to each existing consumer-owned agent action once. Octestra updates
+preserve those files and will not edit them for you; the updated lifecycle and loop workflows already
+provide the environment variable, so future reruns only change the repository variable.
+
+Full output can place Claude tool inputs and results, including prompts, file contents, and command
+output, in GitHub Actions logs. Enable it only for trusted log viewers and for as long as needed;
+GitHub secret masking does not make those diagnostic records safe to expose.
 
 ```json
 {
@@ -188,6 +234,10 @@ Octestra renders one row per check in the validation proof comment. `checks` mak
 manual runs immediately. To schedule it, choose a cadence and uncomment its `schedule` block. Then
 replace the placeholder in
 `.github/octestra/actions/triage-agent/action.yml`.
+
+The triage action receives `env.OCTESTRA_AGENT_DEBUG` with the same normalized value as the
+lifecycle agent actions in the shipped loop workflow. For an existing loop workflow, add the
+normalization step above because Octestra preserves that workflow on update.
 
 `loop/list-epics` finds open issues carrying the `octestra-epic` label and excludes those whose
 `epic-config` sets `skip_triage: true`. The workflow starts one matrix job per remaining EPIC,
