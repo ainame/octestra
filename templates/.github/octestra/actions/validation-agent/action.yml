@@ -65,6 +65,9 @@ runs:
     #     claude_args: >-
     #       --model ${{ env.BEDROCK_DEFAULT_OPUS_MODEL }}
     #       --allowedTools "Bash,Read,Write,Edit,Grep,Glob,mcp__XcodeBuildMCP__*"
+    #     # OCTESTRA_AGENT_DEBUG is true only when the repository variable has that exact value.
+    #     # Consumer actions choose how they use it; this Claude example enables full output.
+    #     show_full_output: ${{ env.OCTESTRA_AGENT_DEBUG }}
     #     prompt: ${{ inputs.prompt }}
 
     # Upload partial evidence even when the validation agent fails.

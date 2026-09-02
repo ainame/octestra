@@ -85,7 +85,10 @@ target: Sources/Feature.swift # 任意の変更対象ファイルまたはコン
 Octestra は各 agent action を初回だけインストールし、以後の更新ではファイル全体を保持します。
 lifecycle workflow は全体が置き換えられますが、loop workflow とその prompt は consumer-owned
 file として保持されます。agent action では context に `inputs.*`、エージェント用 GitHub token
-に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。
+に `env.OCTESTRA_AGENT_GITHUB_TOKEN` を使用してください。出荷時の workflow に含まれるすべての
+local agent action には、同名の任意の repository variable から正規化した
+`env.OCTESTRA_AGENT_DEBUG` も渡されます。既存の consumer-owned loop workflow には、下記の 1 回の
+変更が必要です。その値で何をするかは Octestra ではなく repository-owned action が決めます。
 
 描画されるすべての agent prompt は、インストール済みの `/octestra-contracts`
 workflow-contract skill を最初に読み込み、`task`、`triage`、`validation` のいずれかの phase を
@@ -113,6 +116,7 @@ composite action は GitHub Actions の `secrets` context を直接参照でき�
 | `inputs.task_skill`                   | EPIC で指定された任意の task スキル       |
 | `inputs.target`                       | ファイル、クラス、機能などの任意のタスク対象 |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN`     | エージェント用の GitHub token            |
+| `env.OCTESTRA_AGENT_DEBUG`     | repository variable が文字列 `true` の場合だけ `true`。それ以外は `false` |
 
 ワークフローは composite action の呼び出し前に `task_ready` を確認します。action 内の各ステップで同じ条件を繰り返す必要はなく、`lifecycle/prepare-task` と同じ job、runner、workspace で実行されます。
 
@@ -124,6 +128,7 @@ Claude Code Action の設定例です。
     github_token: ${{ env.OCTESTRA_AGENT_GITHUB_TOKEN }}
     branch_prefix: ${{ inputs.branch_name }}
     branch_name_template: "{{prefix}}"
+    show_full_output: ${{ env.OCTESTRA_AGENT_DEBUG }}
     prompt: ${{ inputs.prompt }}
 ```
 
@@ -145,10 +150,54 @@ Claude Code Action の設定例です。
 | `inputs.validation_skill` | EPIC で指定された検証スキル |
 | `inputs.target` | ファイル、クラス、機能などの任意のタスク対象 |
 | `env.OCTESTRA_AGENT_GITHUB_TOKEN` | エージェント用の GitHub token |
+| `env.OCTESTRA_AGENT_DEBUG` | repository variable が文字列 `true` の場合だけ `true`。それ以外は `false` |
 
 action は `lifecycle/prepare-validation` と同じ job、runner、checkout 済み workspace で実行されます。
 検証エージェントは、インストール済みの `/octestra-contracts` skill を使って
 `inputs.result_path` に JSON を書き込み、その形式を検査します。
+
+### agent の debug flag を使う
+
+task、validation、triage の rerun で repository 独自の debug 動作が必要な場合は、repository
+Actions variable `OCTESTRA_AGENT_DEBUG` を `true` に設定します。variable が未設定の場合、または
+小文字の文字列 `true` 以外の場合は、すべての local agent action には `false` が渡されます。
+Octestra が注入するのはこの正規化した boolean だけです。consumer action は追加の log、tool の設定、
+その他の repository-owned の動作に自由に利用できます。
+
+新規インストールでは、3 つすべての action workflow が flag を渡します。既存インストールの update
+では lifecycle workflow が置き換わるため task と validation action は受け取ります。一方 Todo loop
+workflow は consumer-owned として全体が保持されるため、既存の triage action の前に次の step を 1 回
+追加してください。
+
+```yaml
+- name: Normalize agent debug flag
+  env:
+    OCTESTRA_AGENT_DEBUG_VALUE: ${{ vars.OCTESTRA_AGENT_DEBUG }}
+  shell: bash
+  run: |
+    if [ "$OCTESTRA_AGENT_DEBUG_VALUE" = "true" ]; then
+      echo "OCTESTRA_AGENT_DEBUG=true" >> "$GITHUB_ENV"
+    else
+      echo "OCTESTRA_AGENT_DEBUG=false" >> "$GITHUB_ENV"
+    fi
+```
+
+インストール時の Claude の設定例では、次のように値を渡します。
+
+```yaml
+show_full_output: ${{ env.OCTESTRA_AGENT_DEBUG }}
+```
+
+これは generic flag の用途の一例です。既存の consumer-owned agent action には、この行または
+`env.OCTESTRA_AGENT_DEBUG` の repository 独自の利用をそれぞれ 1 回追加してください。Octestra の
+update はそれらのファイルを保持するため自動では変更しませんが、更新済み lifecycle と loop の
+workflow は environment variable をすでに渡しているので、以後の rerun は repository variable を
+変更するだけで実行できます。
+
+full output では Claude の tool input と result（prompt、ファイル内容、command output を含む）が
+GitHub Actions log に出力される可能性があります。必要な期間だけ有効にし、log を閲覧できる人を
+信頼できる範囲に限定してください。GitHub の secret masking が、これらの診断記録を安全に公開
+できるようにするものではありません。
 
 ```json
 {
@@ -180,6 +229,10 @@ Octestra は task issue の検証結果コメントに、check ごとに 1 行�
 `.github/workflows/octestra-loop-todo.yml` は consumer-owned の Todo triage 例です。手動では
 すぐ実行できます。定期実行する場合は実行間隔を設定して `schedule` block を uncomment し、
 `.github/octestra/actions/triage-agent/action.yml` の placeholder を置き換えてください。
+
+triage action には、lifecycle の agent action と同じように、正規化された
+`env.OCTESTRA_AGENT_DEBUG` が渡されます。既存の loop workflow では Octestra の update がその
+workflow を保持するため、上記の正規化 step を追加してください。
 
 `loop/list-epics` は `octestra-epic` label を持つ open issue を探し、`epic-config` に
 `skip_triage: true` を設定した EPIC を除外します。workflow は残った EPIC ごとに matrix

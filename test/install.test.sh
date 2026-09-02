@@ -84,6 +84,58 @@ for (const path of process.argv.slice(3)) {
 NODE
 }
 
+assert_agent_debug_flag() {
+  local workflow="$1"
+  local job_name="$2"
+  local action_path="$3"
+
+  node - "$workflow" "$job_name" "$action_path" <<'NODE'
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { execFileSync } = require("child_process");
+const yaml = require("yaml");
+
+const workflow = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
+const jobName = process.argv[3];
+const actionPath = process.argv[4];
+const steps = workflow.jobs[jobName]?.steps ?? [];
+const actionIndex = steps.findIndex((candidate) => candidate.uses === actionPath);
+const debugIndex = steps.findIndex(
+  (candidate) => candidate.name === "Normalize agent debug flag",
+);
+if (actionIndex === -1 || debugIndex === -1 || debugIndex !== actionIndex - 1) {
+  throw new Error(`${jobName} does not normalize the agent debug flag before ${actionPath}`);
+}
+const debugStep = steps[debugIndex];
+if (debugStep.env?.OCTESTRA_AGENT_DEBUG_VALUE !== "${{ vars.OCTESTRA_AGENT_DEBUG }}") {
+  throw new Error(`${jobName} does not read the repository agent debug variable`);
+}
+if (debugStep.shell !== "bash") {
+  throw new Error(`${jobName} does not normalize the agent debug flag with bash`);
+}
+if (!debugStep.run?.includes('[ "$OCTESTRA_AGENT_DEBUG_VALUE" = "true" ]')) {
+  throw new Error(`${jobName} does not case-sensitively normalize the agent debug flag`);
+}
+for (const [value, expected] of [["true", "true"], ["TRUE", "false"]]) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "octestra-agent-debug-"));
+  const environmentFile = path.join(directory, "github-env");
+  execFileSync("bash", ["-c", debugStep.run], {
+    env: {
+      ...process.env,
+      OCTESTRA_AGENT_DEBUG_VALUE: value,
+      GITHUB_ENV: environmentFile,
+    },
+  });
+  const output = fs.readFileSync(environmentFile, "utf8");
+  fs.rmSync(directory, { force: true, recursive: true });
+  if (output !== `OCTESTRA_AGENT_DEBUG=${expected}\n`) {
+    throw new Error(`${jobName} maps ${value} to ${output}`);
+  }
+}
+NODE
+}
+
 assert_task_action_interface() {
   local workflow="$1"
   local action="$2"
@@ -417,6 +469,12 @@ grep -q 'skip_triage: {{skipTriage}}' \
 assert_triage_action_interface \
   "$triage_workflow" \
   "$TEMP_DIR/consumer/.github/octestra/actions/triage-agent/action.yml"
+assert_agent_debug_flag "$orchestrator" "in-progress" \
+  "./.github/octestra/actions/task-agent"
+assert_agent_debug_flag "$orchestrator" "validation" \
+  "./.github/octestra/actions/validation-agent"
+assert_agent_debug_flag "$triage_workflow" "triage" \
+  "./.github/octestra/actions/triage-agent"
 grep -q "issue_field_value.option.name != 'Todo'" "$orchestrator"
 grep -q "issue_field_value.option.name != 'Ready'" "$orchestrator"
 grep -q "issue_field_value.option.name != 'Done'" "$orchestrator"
@@ -762,6 +820,12 @@ grep -q 'uses: ./.github/octestra/actions/task-agent' "$orchestrator"
 grep -q "if: steps.epic.outputs.task_ready == 'true'" "$orchestrator"
 grep -q 'branch_name: \${{ steps.epic.outputs.branch_name }}' "$orchestrator"
 grep -q 'operation: lifecycle/prepare-validation' "$orchestrator"
+grep -q 'OCTESTRA_AGENT_DEBUG' "$orchestrator"
+grep -q 'OCTESTRA_AGENT_DEBUG' "$triage_workflow"
+for action in task-agent validation-agent triage-agent; do
+  grep -q 'show_full_output: \${{ env.OCTESTRA_AGENT_DEBUG }}' \
+    "$TEMP_DIR/consumer/.github/octestra/actions/$action/action.yml"
+done
 grep -q 'owner: \${{ github.repository_owner }}' "$orchestrator"
 grep -q 'repositories: \${{ github.repository }}' "$orchestrator"
 for variable in OCTESTRA_GITHUB_APP_CLIENT_ID OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET OCTESTRA_ORCHESTRATION_RUNNER OCTESTRA_AGENT_RUNNER OCTESTRA_STATUS_FIELD_ID; do
@@ -1012,6 +1076,20 @@ install_into "$update_dir" >/dev/null
 customize_action "$update_agent" "./scripts/agent.sh"
 customize_action "$update_validation_agent" "./scripts/validation-agent.sh"
 customize_action "$update_triage_agent" "./scripts/triage-agent.sh"
+# Simulate a consumer-owned Todo loop installed before OCTESTRA_AGENT_DEBUG existed. Updates
+# preserve this workflow in full, so they must not claim to inject the new flag into it.
+node - "$update_triage_workflow" <<'NODE'
+const fs = require("fs");
+const yaml = require("yaml");
+
+const file = process.argv[2];
+const workflow = yaml.parse(fs.readFileSync(file, "utf8"));
+workflow.jobs.triage.steps = workflow.jobs.triage.steps.filter(
+  (step) => step.name !== "Normalize agent debug flag",
+);
+fs.writeFileSync(file, yaml.stringify(workflow));
+NODE
+! grep -q 'OCTESTRA_AGENT_DEBUG' "$update_triage_workflow"
 printf '\n# Consumer schedule customization\n' >>"$update_triage_workflow"
 printf '\nConsumer triage instructions.\n' >>"$update_triage_prompt"
 # Consumer content is preserved, but the loop must move to the newly installed Octestra ref.
@@ -1034,6 +1112,13 @@ grep -q 'Consumer triage instructions' "$update_triage_prompt"
 grep -q 'uses: ainame/octestra@main' "$update_triage_workflow"
 ! grep -q 'uses: ainame/octestra@1\.0\.0' "$update_triage_workflow"
 grep -q 'timeout-minutes: 60' "$update_entry"
+assert_validation_action_interface "$update_entry" "$update_validation_agent"
+assert_triage_action_interface "$update_triage_workflow" "$update_triage_agent"
+assert_agent_debug_flag "$update_entry" "in-progress" \
+  "./.github/octestra/actions/task-agent"
+assert_agent_debug_flag "$update_entry" "validation" \
+  "./.github/octestra/actions/validation-agent"
+! grep -q 'OCTESTRA_AGENT_DEBUG' "$update_triage_workflow"
 test ! -e "$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
 test ! -e "$update_dir/.github/workflows/octestra-lifecycle-validation.yml"
 if grep -q "Replace this step with the repository's task agent configuration" \
