@@ -14,21 +14,21 @@ Each node represents the `AI Task Status` of a task issue; each arrow represents
 
 ![Octestra task lifecycle](docs/assets/lifecycle.svg)
 
-## What Octestra Provides
+## Features
 
-Octestra does not provide an AI agent. You choose and configure the implementation, triage, and
-validation agents that fit your repository. Octestra provides the GitHub-based system around them:
+Octestra provides GitHub-native task orchestration for AI agents. It does not include an AI
+agent; bring the implementation, triage, and validation agents you want to run on GitHub Actions.
 
-- **An issue-driven task lifecycle:** from implementation and validation through human review and
-  merge.
-- **GitHub Actions boilerplate:** routing events, preparing agent runs, checking result formats,
-  updating task status, and reporting failures. Prompts, skills, and local composite actions are
-  clear customization points for how your agents run.
-- **A proof-of-work trail:** Octestra activity comments record lifecycle outcomes and workflow
-  metadata. Validation proof comments connect agent-reported checks, evidence, and known gaps to
-  the pull request and validated commit.
-- **Task ownership and human handoffs:** the person who starts a task becomes its issue assignee, is
-  added to agent commits as a co-author, and is requested to review the resulting pull request.
+- **Issue-based task management** — Move tasks through implementation, validation, human review,
+  and completion using the `AI Task Status` Issue Field.
+- **Ready-to-use GitHub Actions automation** — Installed workflows handle event routing, agent
+  preparation, result-format validation, status updates, and failure reporting. Prompts, skills,
+  and local composite actions provide focused extension points for agent setup and execution.
+- **Traceable results** — Octestra activity comments record lifecycle outcomes and workflow
+  metadata. Validation proof comments link agent-reported checks, evidence, and known gaps to the
+  pull request and validated commit.
+- **Built-in task ownership** — The user who starts a task becomes its issue assignee, co-author on
+  agent commits, and reviewer for the resulting pull request.
 
 ## Getting Started
 
@@ -49,16 +49,16 @@ Run the installer from the root directory of the repository that will use Octest
 curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/install.sh | bash
 ```
 
-### How Octestra Fits Together
+### How It Works
 
-An Octestra setup has three parts:
+An Octestra installation consists of three parts:
 
-1. **Files in your repository:** installed workflows, configuration, prompts, skills, and local
-   composite actions. Customize agent setup and execution here.
-2. **The hosted Octestra GitHub Action:** called by the workflows to prepare work, check agent
-   output, and update issues and pull requests.
-3. **A GitHub Project:** a table or board for viewing task issues and their status. Octestra does
-   not currently create or configure this Project.
+1. **Repository files** — Workflows, configuration, prompts, skills, and local composite actions.
+   This is where you integrate and configure your agents.
+2. **The Octestra GitHub Action** — Hosted by this repository and called by the installed workflows
+   to handle shared orchestration and GitHub updates.
+3. **A GitHub Project** — A table or board for tracking task issues and their status. Project setup
+   is currently outside the scope of Octestra.
 
 ### Configure an Agent
 
