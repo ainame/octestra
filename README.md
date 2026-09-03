@@ -56,7 +56,8 @@ Octestra has three parts:
 
 ### Configure an Agent
 
-The installed agent actions contain placeholders for running agents. Configure an implementation agent and validation agent by following the [integration guide](docs/integration.md).
+The installed agent actions contain placeholders for running agents. Configure implementation,
+validation, and triage agents by following the [integration guide](docs/integration.md).
 
 ### Run Your First Task
 
@@ -66,56 +67,6 @@ The installed agent actions contain placeholders for running agents. Configure a
 4. Octestra creates a pull request and moves the task to `Human Review` after validation.
 
 For the EPIC and task issue format, the meaning of each status option, and agent inputs, see the [integration guide](docs/integration.md).
-
-### Configure the Todo Triage Loop
-
-The installed `.github/workflows/octestra-loop-todo.yml` can run a Todo triage agent manually.
-Customize `.github/octestra/prompts/loop-todo.md.hbs` and
-`.github/octestra/actions/triage-agent/action.yml`.
-
-Set `triage_skill` and, optionally, the `epic-triage-prompt` block in the EPIC issue. The local
-triage action receives the EPIC number, triage skill, rendered prompt, and result path as inputs.
-The prompt also exposes the issue configuration as `triageSkill` and `epicTriagePrompt`. Open
-`octestra-epic` issues participate by default; set `skip_triage: true` in an EPIC to opt out.
-Octestra starts one bounded matrix job per participating EPIC. The repository skill owns task
-discovery, selection, limits and readiness policy, including required issue preparation, but must
-not change AI Task Status. It reports only fully processed tasks; Octestra validates the result and
-moves eligible Todo tasks to Ready.
-Scheduled execution is opt-in: choose a cadence and uncomment the workflow's `schedule` block.
-Before running it, every open `octestra-epic` issue must either configure `triage_skill` or opt out;
-discovery fails loudly rather than silently omitting an invalid EPIC.
-
-## Updating and Maintenance
-
-```sh
-.github/octestra/octestra.sh doctor
-.github/octestra/octestra.sh vars check
-.github/octestra/octestra.sh vars sync
-.github/octestra/octestra.sh ref
-.github/octestra/octestra.sh update
-```
-
-| Command           | Purpose                                                                    |
-|-------------------|----------------------------------------------------------------------------|
-| `doctor`          | Report problems with configuration, status options, prompts, and workflow  |
-| `vars check`      | Check whether the repository's Actions variables match `config.yml`        |
-| `vars sync`       | Copy the required values from `config.yml` to Actions variables            |
-| `ref`             | Show the Octestra repository and ref used by the installed workflow        |
-| `update`          | Install the latest stable release while preserving local policy and `config.yml` |
-
-Rerunning the installer replaces the lifecycle workflow and keeps `config.yml`, all local agent
-actions, prompts, and loop workflow. Before installing a newer stable release, update prints its
-release notes. Review `git diff` before committing changes from an update. The framework-owned
-`/octestra-contracts` skill is replaced, and the obsolete
-`/octestra-validation-proof` skill is removed. Existing loop workflow and prompt files are
-preserved; installations created before triage finalization must manually adopt the current
-`octestra-loop-todo.yml` and `loop-todo.md.hbs` contract.
-
-**v0.3.0 breaking change:** all inputs to `ainame/octestra` use `snake_case`. Because installed loop
-workflows are preserved, update their Octestra steps manually (for example, `github-token` becomes
-`github_token`, `issue-number` becomes `issue_number`, and `result-path` becomes `result_path`).
-The installer replaces the lifecycle workflow with the new names. Kebab-case input aliases are not
-supported.
 
 ## Security
 
