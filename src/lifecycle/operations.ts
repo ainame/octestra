@@ -585,6 +585,8 @@ export async function finalizeValidation(
     ].join(" "),
   });
   if (proof.outcome !== "passed") {
+    // A blocked PR needs an accountable owner in `assignee:@me`; requesting review
+    // instead would imply validation passed and send an unnecessary review notification.
     await assignPullRequestOwner(context, pullNumber);
     // Updating status can trigger the next workflow, so all Octestra work must finish first.
     await updateStatus(context, "Blocked");
