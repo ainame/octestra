@@ -16,20 +16,13 @@ Octestra は、GitHub Issue を起点に、AI エージェントによるタス�
 
 ## 主な機能
 
-Octestra は、AI エージェントのタスク管理と自動化を GitHub 上で実現するフレームワークです。
-AI エージェント自体は含まれません。実装、トリアージ、検証に使う任意のエージェントを
-GitHub Actions に組み込めます。
+Octestra に AI エージェント自体は含まれません。任意のエージェントを GitHub Issue のタスクとして
+動かすための仕組みを提供します。
 
-- **Issue ベースのタスク管理** — `AI Task Status` Issue Field を使って、実装、検証、人間による
-  レビュー、完了までタスクを進めます。
-- **すぐに使える GitHub Actions の自動化** — インストールされる workflow が event の振り分け、
-  エージェント実行の準備、出力形式の検証、status の更新、失敗の報告を担います。prompt、skill、
-  local composite action が、エージェントのセットアップと実行をカスタマイズするポイントです。
-- **追跡可能な実行結果** — Octestra activity comment にライフサイクルの結果と workflow の情報を
-  記録します。validation proof comment には、エージェントが報告した check、evidence、既知の課題、
-  対象の pull request と検証対象の commit が残ります。
-- **タスク担当者の引き継ぎ** — タスクを開始したユーザーを、Issue の assignee、エージェントによる
-  commit の co-author、完成した pull request の reviewer として引き継ぎます。
+- **タスク管理** — GitHub Issue 上で status、担当者、検証、レビューを管理します。
+- **GitHub Actions 連携** — すぐに使える workflow をインストールし、local action、prompt、skill で
+  エージェントをカスタマイズできます。
+- **作業記録** — Octestra activity と validation proof の comment に結果と evidence を残します。
 
 ## はじめに
 
@@ -52,14 +45,12 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
 
 ### 仕組み
 
-Octestra のインストールは、次の 3 つの要素で構成されます。
+Octestra は 3 つの要素で構成されます。
 
-1. **リポジトリ内のファイル** — workflow、config、prompt、skill、local composite action。
-   エージェントの組み込みと設定はここで行います。
-2. **Octestra GitHub Action** — このリポジトリでホストされ、インストールされた workflow から
-   呼び出されます。共通のオーケストレーションと GitHub の更新を担います。
-3. **GitHub Project** — task issue と status を確認する table または board。Project の作成と
-   設定は、現時点では Octestra の対象外です。
+1. **インストールされるファイル** — リポジトリ内でカスタマイズできる workflow、prompt、
+   エージェント設定。
+2. **Octestra GitHub Action** — このリポジトリがホストするタスク準備と GitHub 更新の共通処理。
+3. **GitHub Project** — task issue と status を確認する場所。Project 自体は Octestra の管理対象外です。
 
 ### エージェントを設定する
 
