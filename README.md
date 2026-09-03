@@ -14,6 +14,18 @@ Each node represents the `AI Task Status` of a task issue; each arrow represents
 
 ![Octestra task lifecycle](docs/assets/lifecycle.svg)
 
+## Features
+
+Octestra does not include an AI agent. Bring any agent that runs on GitHub Actions.
+
+- **Issue-driven, skill-based orchestration** — Route each GitHub Issue task to the configured skill
+  as its status changes, using the AI agent of your choice.
+- **GitHub Actions boilerplate** — Provides the workflows and supporting templates for running
+  agents on GitHub Actions. Configure agent setup and execution in local actions; define agent
+  instructions and repository-specific policy in prompts and skills.
+- **Traceable activity** — Automatically record orchestration outcomes and validation details as
+  issue comments, making it easy to see what happened on each task.
+
 ## Getting Started
 
 ### Requirements
@@ -33,31 +45,21 @@ Run the installer from the root directory of the repository that will use Octest
 curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/install.sh | bash
 ```
 
-The installer adds the following files.
+### How It Works
 
-- Files specific to Octestra
-  - `.github/octestra/octestra.sh`
-  - `.github/octestra/config.yml`
-  - `.github/octestra/issue-templates/epic.md.hbs`
-  - `.github/octestra/issue-templates/task.md.hbs`
-  - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
-  - `.github/octestra/prompts/lifecycle-validation.md.hbs`
-  - `.github/octestra/prompts/loop-todo.md.hbs`
-  - `.github/octestra/actions/task-agent/action.yml`
-  - `.github/octestra/actions/validation-agent/action.yml`
-  - `.github/octestra/actions/triage-agent/action.yml`
-- Workflow
-  - `.github/workflows/octestra-lifecycle.yml`
-  - `.github/workflows/octestra-loop-todo.yml`
-- Agent skills
-  - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
-  - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
-  - `.agents/skills/octestra-contracts/SKILL.md`
-  - `.agents/skills/octestra-contracts/scripts/check-output.sh`
+Octestra has three parts:
+
+1. **Installed files** — Workflows, prompts, and agent setup that you can customize in your
+   repository.
+2. **Octestra GitHub Action** — Shared task preparation and GitHub updates hosted by this
+   repository.
+3. **GitHub Project** — A table or board for viewing and managing task issues and their status. No
+   separate Octestra web UI is required.
 
 ### Configure an Agent
 
-The installed agent actions contain placeholders for running agents. Configure an implementation agent and validation agent by following the [integration guide](docs/integration.md).
+The installed agent actions contain placeholders for running agents. Configure implementation,
+validation, and triage agents by following the [integration guide](docs/integration.md).
 
 ### Run Your First Task
 
@@ -67,56 +69,6 @@ The installed agent actions contain placeholders for running agents. Configure a
 4. Octestra creates a pull request and moves the task to `Human Review` after validation.
 
 For the EPIC and task issue format, the meaning of each status option, and agent inputs, see the [integration guide](docs/integration.md).
-
-### Configure the Todo Triage Loop
-
-The installed `.github/workflows/octestra-loop-todo.yml` can run a Todo triage agent manually.
-Customize `.github/octestra/prompts/loop-todo.md.hbs` and
-`.github/octestra/actions/triage-agent/action.yml`.
-
-Set `triage_skill` and, optionally, the `epic-triage-prompt` block in the EPIC issue. The local
-triage action receives the EPIC number, triage skill, rendered prompt, and result path as inputs.
-The prompt also exposes the issue configuration as `triageSkill` and `epicTriagePrompt`. Open
-`octestra-epic` issues participate by default; set `skip_triage: true` in an EPIC to opt out.
-Octestra starts one bounded matrix job per participating EPIC. The repository skill owns task
-discovery, selection, limits and readiness policy, including required issue preparation, but must
-not change AI Task Status. It reports only fully processed tasks; Octestra validates the result and
-moves eligible Todo tasks to Ready.
-Scheduled execution is opt-in: choose a cadence and uncomment the workflow's `schedule` block.
-Before running it, every open `octestra-epic` issue must either configure `triage_skill` or opt out;
-discovery fails loudly rather than silently omitting an invalid EPIC.
-
-## Updating and Maintenance
-
-```sh
-.github/octestra/octestra.sh doctor
-.github/octestra/octestra.sh vars check
-.github/octestra/octestra.sh vars sync
-.github/octestra/octestra.sh ref
-.github/octestra/octestra.sh update
-```
-
-| Command           | Purpose                                                                    |
-|-------------------|----------------------------------------------------------------------------|
-| `doctor`          | Report problems with configuration, status options, prompts, and workflow  |
-| `vars check`      | Check whether the repository's Actions variables match `config.yml`        |
-| `vars sync`       | Copy the required values from `config.yml` to Actions variables            |
-| `ref`             | Show the Octestra repository and ref used by the installed workflow        |
-| `update`          | Install the latest stable release while preserving local policy and `config.yml` |
-
-Rerunning the installer replaces the lifecycle workflow and keeps `config.yml`, all local agent
-actions, prompts, and loop workflow. Before installing a newer stable release, update prints its
-release notes. Review `git diff` before committing changes from an update. The framework-owned
-`/octestra-contracts` skill is replaced, and the obsolete
-`/octestra-validation-proof` skill is removed. Existing loop workflow and prompt files are
-preserved; installations created before triage finalization must manually adopt the current
-`octestra-loop-todo.yml` and `loop-todo.md.hbs` contract.
-
-**v0.3.0 breaking change:** all inputs to `ainame/octestra` use `snake_case`. Because installed loop
-workflows are preserved, update their Octestra steps manually (for example, `github-token` becomes
-`github_token`, `issue-number` becomes `issue_number`, and `result-path` becomes `result_path`).
-The installer replaces the lifecycle workflow with the new names. Kebab-case input aliases are not
-supported.
 
 ## Security
 

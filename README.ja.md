@@ -14,6 +14,19 @@ Octestra は、GitHub Issue を起点に、AI エージェントによるタス�
 
 ![Octestra のタスクライフサイクル](docs/assets/lifecycle.ja.svg)
 
+## 主な機能
+
+Octestra に AI エージェント自体は含まれません。GitHub Actions で動作する任意のエージェントを
+組み込めます。
+
+- **Issue × Skill オーケストレーション** — GitHub Issue で管理されたタスクを、status に応じて
+  指定された skill へ引き渡し、任意の AI エージェントで実行します。
+- **GitHub Actions の boilerplate** — エージェントを GitHub Actions 上で動かすための workflow と
+  関連ファイルのひな型を提供します。local action でエージェントのセットアップと実行方法を、
+  prompt と skill でエージェントへの指示とリポジトリ固有の作業方針を定義します。
+- **追跡しやすい activity** — Octestra の実行結果と検証内容を Issue comment に自動で記録し、
+  各 task で何が起きたのかを簡単に追跡できます。
+
 ## はじめに
 
 ### 必要なもの
@@ -33,31 +46,20 @@ Octestra を利用するリポジトリのルートディレクトリでイン�
 curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/install.sh | bash
 ```
 
-インストーラは次のファイルを追加します。
+### 仕組み
 
-- Octestra 専用のファイル
-  - `.github/octestra/octestra.sh`
-  - `.github/octestra/config.yml`
-  - `.github/octestra/issue-templates/epic.md.hbs`
-  - `.github/octestra/issue-templates/task.md.hbs`
-  - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
-  - `.github/octestra/prompts/lifecycle-validation.md.hbs`
-  - `.github/octestra/prompts/loop-todo.md.hbs`
-  - `.github/octestra/actions/task-agent/action.yml`
-  - `.github/octestra/actions/validation-agent/action.yml`
-  - `.github/octestra/actions/triage-agent/action.yml`
-- workflow
-  - `.github/workflows/octestra-lifecycle.yml`
-  - `.github/workflows/octestra-loop-todo.yml`
-- エージェントスキル
-  - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
-  - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
-  - `.agents/skills/octestra-contracts/SKILL.md`
-  - `.agents/skills/octestra-contracts/scripts/check-output.sh`
+Octestra は 3 つの要素で構成されます。
+
+1. **インストールされるファイル** — リポジトリ内でカスタマイズできる workflow、prompt、
+   エージェント設定。
+2. **Octestra GitHub Action** — このリポジトリがホストするタスク準備と GitHub 更新の共通処理。
+3. **GitHub Project** — task issue と status をテーブルやカンバンで操作・確認するコンソール。
+   Octestra 専用の Web UI を別途ホストする必要はありません。
 
 ### エージェントを設定する
 
-インストール直後の agent action には、エージェントを実行するためのプレースホルダーがあります。まず [実装ガイド](docs/integration.ja.md) に従い、実装エージェントと検証エージェントを設定してください。
+インストール直後の agent action には、エージェントを実行するためのプレースホルダーがあります。
+[実装ガイド](docs/integration.ja.md) に従い、実装、検証、triage の各エージェントを設定してください。
 
 ### 最初のタスクを実行する
 
@@ -67,55 +69,6 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
 4. Octestra がプルリクエストを作成し、検証後に `Human Review` へ進めます。
 
 EPIC と task issue の書式、各 status option の意味、エージェントへの入力は [実装ガイド](docs/integration.ja.md) を参照してください。
-
-### Todo Triage Loop を設定する
-
-`.github/workflows/octestra-loop-todo.yml` は Todo triage agent を手動実行できます。
-`.github/octestra/prompts/loop-todo.md.hbs` と
-`.github/octestra/actions/triage-agent/action.yml` をカスタマイズしてください。
-
-EPIC issue の `triage_skill` と、必要に応じて `epic-triage-prompt` block を設定してください。
-描画された prompt では `triageSkill` と `epicTriagePrompt` として参照できます。open な
-`octestra-epic` issue はデフォルトで対象になり、除外する EPIC は `skip_triage: true` を
-設定します。Octestra は対象 EPIC ごとに bounded matrix job を起動します。repository skill は
-task の探索、選択、件数制限、readiness policy と必要な issue preparation を所有しますが、
-`AI Task Status` を直接変更してはいけません。完全に処理した task だけを報告し、Octestra が
-結果を検証して対象となる Todo task を Ready に移動します。定期実行は opt-in です。実行間隔を設定し、workflow の
-`schedule` block を uncomment してください。
-実行前に、open なすべての `octestra-epic` issue で `triage_skill` を設定するか opt-out して
-ください。不正な EPIC を黙って除外せず、discovery は明示的に失敗します。
-
-## 更新とメンテナンス
-
-```sh
-.github/octestra/octestra.sh doctor
-.github/octestra/octestra.sh vars check
-.github/octestra/octestra.sh vars sync
-.github/octestra/octestra.sh ref
-.github/octestra/octestra.sh update --latest
-```
-
-| コマンド          | 用途                                                                  |
-|-------------------|-----------------------------------------------------------------------|
-| `doctor`          | 設定、status option、プロンプト、ワークフローの問題を報告             |
-| `vars check`      | リポジトリの Actions 変数が `config.yml` と一致するか確認             |
-| `vars sync`       | `config.yml` の必要な値を Actions 変数へコピー                        |
-| `ref`             | インストール済みワークフローが使う Octestra のリポジトリと ref を表示 |
-| `update --latest` | agent action と `config.yml` を保ったまま最新リリースをインストール |
-
-インストーラを再実行すると lifecycle workflow は置き換えられます。`config.yml`、すべての
-local agent action、loop workflow とその prompt は保持されます。更新後は、コミット前に
-`git diff` で変更内容を確認してください。framework-owned の `/octestra-contracts` skill は
-置き換えられ、古い `/octestra-validation-proof` skill は削除されます。triage finalization
-より前に作成した
-インストールでは、保持される `octestra-loop-todo.yml` と `loop-todo.md.hbs` に現行 template の
-result contract を手動で反映してください。
-
-**v0.3.0 の破壊的変更:** `ainame/octestra` のすべての input は `snake_case` を使います。保持される
-loop workflow では、Octestra step の input を手動で変更してください（例:
-`github-token` から `github_token`、`issue-number` から `issue_number`、`result-path` から
-`result_path`）。lifecycle workflow は installer が新しい名前のものへ置き換えます。
-kebab-case input の alias はありません。
 
 ## セキュリティ
 
