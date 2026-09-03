@@ -14,6 +14,23 @@ Octestra は、GitHub Issue を起点に、AI エージェントによるタス�
 
 ![Octestra のタスクライフサイクル](docs/assets/lifecycle.ja.svg)
 
+## Octestra が提供するもの
+
+Octestra は AI エージェントそのものを提供しません。利用するリポジトリに合わせて、実装、
+triage、検証に使うエージェントを選び、設定します。Octestra が提供するのは、その周囲を
+GitHub 上で管理する仕組みです。
+
+- **issue を起点にした task のライフサイクル:** 実装、検証、人間によるレビュー、マージまで
+  task を進めます。
+- **GitHub Actions の boilerplate:** event の振り分け、エージェント実行の準備、result の形式確認、
+  task status の更新、失敗の報告を担います。prompt、skill、local composite action が、
+  エージェントの実行方法をカスタマイズするための明確なポイントです。
+- **proof of work の記録:** Octestra activity comment にはライフサイクルの結果と workflow の情報、
+  validation proof comment にはエージェントが報告した check、evidence、既知の課題と対象の
+  pull request、検証した commit が残ります。
+- **task owner と人間への引き継ぎ:** task を開始した人を issue の assignee、エージェントによる
+  commit の co-author、完成した pull request の reviewer として引き継ぎます。
+
 ## はじめに
 
 ### 必要なもの
@@ -33,27 +50,16 @@ Octestra を利用するリポジトリのルートディレクトリでイン�
 curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/install.sh | bash
 ```
 
-インストーラは次のファイルを追加します。
+### Octestra の構成
 
-- Octestra 専用のファイル
-  - `.github/octestra/octestra.sh`
-  - `.github/octestra/config.yml`
-  - `.github/octestra/issue-templates/epic.md.hbs`
-  - `.github/octestra/issue-templates/task.md.hbs`
-  - `.github/octestra/prompts/lifecycle-in-progress.md.hbs`
-  - `.github/octestra/prompts/lifecycle-validation.md.hbs`
-  - `.github/octestra/prompts/loop-todo.md.hbs`
-  - `.github/octestra/actions/task-agent/action.yml`
-  - `.github/octestra/actions/validation-agent/action.yml`
-  - `.github/octestra/actions/triage-agent/action.yml`
-- workflow
-  - `.github/workflows/octestra-lifecycle.yml`
-  - `.github/workflows/octestra-loop-todo.yml`
-- エージェントスキル
-  - `.agents/skills/octestra-setup-migration-epic/SKILL.md`
-  - `.agents/skills/octestra-setup-migration-epic/scripts/setup_epic.rb`
-  - `.agents/skills/octestra-contracts/SKILL.md`
-  - `.agents/skills/octestra-contracts/scripts/check-output.sh`
+Octestra は 3 つの要素で構成されます。
+
+1. **利用するリポジトリに置くファイル:** workflow、config、prompt、skill、local composite
+   action をインストールします。エージェントの準備と実行はここでカスタマイズします。
+2. **このリポジトリがホストする Octestra GitHub Action:** workflow から呼び出され、実行の準備、
+   agent output の確認、issue と pull request の更新を担います。
+3. **GitHub Project:** task issue と status を table や board で確認する場所です。現時点の
+   Octestra は、この Project の作成や設定を行いません。
 
 ### エージェントを設定する
 

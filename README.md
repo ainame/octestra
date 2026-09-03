@@ -14,6 +14,22 @@ Each node represents the `AI Task Status` of a task issue; each arrow represents
 
 ![Octestra task lifecycle](docs/assets/lifecycle.svg)
 
+## What Octestra Provides
+
+Octestra does not provide an AI agent. You choose and configure the implementation, triage, and
+validation agents that fit your repository. Octestra provides the GitHub-based system around them:
+
+- **An issue-driven task lifecycle:** from implementation and validation through human review and
+  merge.
+- **GitHub Actions boilerplate:** routing events, preparing agent runs, checking result formats,
+  updating task status, and reporting failures. Prompts, skills, and local composite actions are
+  clear customization points for how your agents run.
+- **A proof-of-work trail:** Octestra activity comments record lifecycle outcomes and workflow
+  metadata. Validation proof comments connect agent-reported checks, evidence, and known gaps to
+  the pull request and validated commit.
+- **Task ownership and human handoffs:** the person who starts a task becomes its issue assignee, is
+  added to agent commits as a co-author, and is requested to review the resulting pull request.
+
 ## Getting Started
 
 ### Requirements
@@ -37,21 +53,12 @@ curl -fsSL https://raw.githubusercontent.com/ainame/octestra/refs/heads/main/ins
 
 An Octestra setup has three parts:
 
-1. **Files installed in your repository.** Workflow files respond to changes in the
-   `AI Task Status` Issue Field and run scheduled agent loops. Configuration, issue-body templates,
-   prompts, agent skills, and local composite actions live alongside them. These files are
-   reviewable in your repository, and the prompts and local actions are where you customize agent
-   setup and execution for your project.
-2. **The Octestra GitHub Action hosted by this repository.** The installed workflows call the
-   version of `ainame/octestra` selected during installation. This action reads configuration,
-   validates status changes and agent results, prepares each agent run, and performs the resulting
-   GitHub updates. Keeping this shared behavior in one action lets repositories customize how their
-   agents run without copying Octestra's orchestration code.
-3. **A GitHub Project for viewing the work.** A Project can show EPIC and task issues together and
-   provide table or board views of the `AI Task Status` field. It is the human-facing view of the
-   work, while the workflows and actions perform the automation. Octestra does not currently create
-   or configure the Project; you can connect the installed repository to a Project that suits your
-   organization.
+1. **Files in your repository:** installed workflows, configuration, prompts, skills, and local
+   composite actions. Customize agent setup and execution here.
+2. **The hosted Octestra GitHub Action:** called by the workflows to prepare work, check agent
+   output, and update issues and pull requests.
+3. **A GitHub Project:** a table or board for viewing task issues and their status. Octestra does
+   not currently create or configure this Project.
 
 ### Configure an Agent
 
