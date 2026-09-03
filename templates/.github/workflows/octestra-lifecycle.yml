@@ -214,7 +214,7 @@ jobs:
       # finalize-validation:
       # - Reads the JSON file the agent wrote to result_path and posts it as a comment.
       # - Trusts the file's `outcome`, and does not cross-check `acceptance` or `checks`.
-      # - On `passed`, assigns the Issue task owner to the pull request and requests review.
+      # - Assigns the Issue task owner to the pull request; on `passed`, also requests review.
       # - Moves `passed` to Human Review and every other outcome to Blocked.
       # `operation: report-proof`, `request-review` and `update-status` do these one at a time.
       #

@@ -68,6 +68,7 @@ function createClient(overrides: Partial<OperationsClient> = {}): OperationsClie
     assignIssue: vi.fn(),
     getLatestAssignedUser: vi.fn().mockResolvedValue("reviewer"),
     findLinkedOpenPullRequest: vi.fn().mockResolvedValue(42),
+    assignPullRequest: vi.fn(),
     markPullRequestReadyForReview: vi.fn(),
     requestReviewer: vi.fn(),
     comment: vi.fn(),
@@ -502,6 +503,7 @@ describe("finalizeTask", () => {
     );
     expect(client.markPullRequestReadyForReview).not.toHaveBeenCalled();
     expect(client.requestReviewer).not.toHaveBeenCalled();
+    expect(client.assignPullRequest).not.toHaveBeenCalled();
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
       456,
@@ -733,6 +735,7 @@ describe("finalizeValidation", () => {
       expect.stringContaining("## ✅ Passed validation proof"),
     );
     expect(vi.mocked(client.comment).mock.calls[0][1]).not.toContain("Next steps");
+    expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
     expect(client.markPullRequestReadyForReview).toHaveBeenCalledWith(42);
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
@@ -764,6 +767,12 @@ describe("finalizeValidation", () => {
     );
     expect(client.markPullRequestReadyForReview).not.toHaveBeenCalled();
     expect(client.requestReviewer).not.toHaveBeenCalled();
+    expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
+    expect(
+      vi.mocked(client.assignPullRequest).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(client.updateStatus).mock.invocationCallOrder[0],
+    );
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
       456,

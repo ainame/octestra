@@ -206,6 +206,15 @@ export class GitHubClient {
     });
   }
 
+  async assignPullRequest(pullNumber: number, assignee: string): Promise<void> {
+    await this.octokit.rest.issues.addAssignees({
+      owner: this.owner,
+      repo: this.repo,
+      issue_number: pullNumber,
+      assignees: [assignee],
+    });
+  }
+
   async markPullRequestReadyForReview(pullNumber: number): Promise<void> {
     // The mutation below fails on a pull request that is already ready, which is the
     // common case now that `draft_pr` defaults to false, so read the state first.
