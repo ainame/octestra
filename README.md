@@ -19,7 +19,7 @@ Each node represents the `AI Task Status` of a task issue; each arrow represents
 Octestra does not include an AI agent. It provides the GitHub workflow around the agent you choose.
 
 - **Task management** — Manage status, ownership, validation, and review through GitHub Issues,
-  with GitHub Projects as a shared view of the work.
+  using GitHub Projects as a built-in task console.
 - **GitHub Actions boilerplate** — Provides the workflows and supporting templates for running
   agents on GitHub Actions. Configure agent setup and execution in local actions; define agent
   instructions and repository-specific policy in prompts and skills.
@@ -53,9 +53,8 @@ Octestra has three parts:
    repository.
 2. **Octestra GitHub Action** — Shared task preparation and GitHub updates hosted by this
    repository.
-3. **GitHub Project** — A shared view of task issues and their status. The bundled
-   [migration setup skill](templates/skills/octestra-setup-migration-epic/) can set up a migration
-   and its tasks in an existing Project.
+3. **GitHub Project** — A table or board for viewing and managing task issues and their status. No
+   separate Octestra web UI is required.
 
 ### Configure an Agent
 

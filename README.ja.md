@@ -20,7 +20,7 @@ Octestra に AI エージェント自体は含まれません。任意のエー�
 動かすための仕組みを提供します。
 
 - **タスク管理** — GitHub Issue 上で status、担当者、検証、レビューを管理し、GitHub Project で
-  作業全体を共有できます。
+  task issue を操作します。
 - **GitHub Actions の boilerplate** — エージェントを GitHub Actions 上で動かすための workflow と
   関連ファイルのひな型を提供します。local action でエージェントのセットアップと実行方法を、
   prompt と skill でエージェントへの指示とリポジトリ固有の作業方針を定義します。
@@ -52,9 +52,8 @@ Octestra は 3 つの要素で構成されます。
 1. **インストールされるファイル** — リポジトリ内でカスタマイズできる workflow、prompt、
    エージェント設定。
 2. **Octestra GitHub Action** — このリポジトリがホストするタスク準備と GitHub 更新の共通処理。
-3. **GitHub Project** — task issue と status を共有・確認する場所。同梱の
-   [migration setup skill](templates/skills/octestra-setup-migration-epic/) を使って、既存の Project に
-   マイグレーションとその task をセットアップできます。
+3. **GitHub Project** — task issue と status をテーブルやカンバンで操作・確認するコンソール。
+   Octestra 専用の Web UI を別途ホストする必要はありません。
 
 ### エージェントを設定する
 
