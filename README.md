@@ -16,10 +16,10 @@ Each node represents the `AI Task Status` of a task issue; each arrow represents
 
 ## Features
 
-Octestra does not include an AI agent. It provides the GitHub workflow around the agent you choose.
+Octestra does not include an AI agent. Bring any agent that runs on GitHub Actions.
 
-- **Issue-driven orchestration** — Route each task to the right agent and skill as its status
-  changes, connecting implementation, validation, and human review in one GitHub-native workflow.
+- **Issue-driven, skill-based orchestration** — Route each GitHub Issue task to the configured skill
+  as its status changes, using the AI agent of your choice.
 - **GitHub Actions boilerplate** — Provides the workflows and supporting templates for running
   agents on GitHub Actions. Configure agent setup and execution in local actions; define agent
   instructions and repository-specific policy in prompts and skills.

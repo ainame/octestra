@@ -16,11 +16,11 @@ Octestra は、GitHub Issue を起点に、AI エージェントによるタス�
 
 ## 主な機能
 
-Octestra に AI エージェント自体は含まれません。GitHub Issue で管理されたタスクに対して、
-指定した skill を任意の AI エージェントで実行できます。
+Octestra に AI エージェント自体は含まれません。GitHub Actions で動作する任意のエージェントを
+組み込めます。
 
-- **Issue ベースのオーケストレーション** — status の変化に応じて、task を適切な agent と skill に
-  引き渡し、実装、検証、人間によるレビューまでを GitHub 上の一つの流れとしてつなぎます。
+- **Issue × Skill オーケストレーション** — GitHub Issue で管理されたタスクを、status に応じて
+  指定された skill へ引き渡し、任意の AI エージェントで実行します。
 - **GitHub Actions の boilerplate** — エージェントを GitHub Actions 上で動かすための workflow と
   関連ファイルのひな型を提供します。local action でエージェントのセットアップと実行方法を、
   prompt と skill でエージェントへの指示とリポジトリ固有の作業方針を定義します。
