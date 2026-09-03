@@ -584,8 +584,8 @@ export async function finalizeValidation(
       "or to `Ready` to restart the task after closing the pull request and deleting its branch.",
     ].join(" "),
   });
-  await assignPullRequestOwner(context, pullNumber);
   if (proof.outcome !== "passed") {
+    await assignPullRequestOwner(context, pullNumber);
     // Updating status can trigger the next workflow, so all Octestra work must finish first.
     await updateStatus(context, "Blocked");
     return;

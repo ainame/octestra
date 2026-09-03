@@ -735,7 +735,7 @@ describe("finalizeValidation", () => {
       expect.stringContaining("## ✅ Passed validation proof"),
     );
     expect(vi.mocked(client.comment).mock.calls[0][1]).not.toContain("Next steps");
-    expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
+    expect(client.assignPullRequest).not.toHaveBeenCalled();
     expect(client.markPullRequestReadyForReview).toHaveBeenCalledWith(42);
     expect(client.requestReviewer).toHaveBeenCalledWith(42, "reviewer");
     expect(client.updateStatus).toHaveBeenCalledWith(
