@@ -19,8 +19,9 @@ Each node represents the `AI Task Status` of a task issue; each arrow represents
 Octestra does not include an AI agent. It provides the GitHub workflow around the agent you choose.
 
 - **Task management** — Manage status, ownership, validation, and review through GitHub Issues.
-- **GitHub Actions integration** — Install ready-to-use workflows and customize your agent through
-  local actions, prompts, and skills.
+- **GitHub Actions boilerplate** — Provides the workflows and supporting templates for running
+  agents on GitHub Actions. Configure agent setup and execution in local actions; define agent
+  instructions and repository-specific policy in prompts and skills.
 - **Work records** — Record outcomes and evidence in Octestra activity and validation proof
   comments.
 

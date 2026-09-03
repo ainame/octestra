@@ -20,8 +20,9 @@ Octestra に AI エージェント自体は含まれません。任意のエー�
 動かすための仕組みを提供します。
 
 - **タスク管理** — GitHub Issue 上で status、担当者、検証、レビューを管理します。
-- **GitHub Actions 連携** — すぐに使える workflow をインストールし、local action、prompt、skill で
-  エージェントをカスタマイズできます。
+- **GitHub Actions の boilerplate** — エージェントを GitHub Actions 上で動かすための workflow と
+  関連ファイルのひな型を提供します。local action でエージェントのセットアップと実行方法を、
+  prompt と skill でエージェントへの指示とリポジトリ固有の作業方針を定義します。
 - **作業記録** — Octestra activity と validation proof の comment に結果と evidence を残します。
 
 ## はじめに
