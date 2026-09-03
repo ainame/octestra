@@ -46,6 +46,7 @@ export interface OperationsClient {
     issueNumber: number,
     headBranch?: string,
   ): Promise<number | undefined>;
+  assignPullRequest(pullNumber: number, assignee: string): Promise<void>;
   markPullRequestReadyForReview(pullNumber: number): Promise<void>;
   requestReviewer(pullNumber: number, reviewer: string): Promise<void>;
   comment(issueNumber: number, body: string): Promise<void>;
@@ -428,6 +429,18 @@ export async function requestReview(
   return reviewer;
 }
 
+async function assignPullRequestOwner(
+  context: OperationContext,
+  pullNumber: number,
+): Promise<string> {
+  const owner = await context.client.getLatestAssignedUser(context.issueNumber);
+  if (!owner) {
+    throw new Error("No assigned task owner found in the issue activity");
+  }
+  await context.client.assignPullRequest(pullNumber, owner);
+  return owner;
+}
+
 export async function reportProof(
   context: ProofContext,
   proofPath: string,
@@ -572,6 +585,9 @@ export async function finalizeValidation(
     ].join(" "),
   });
   if (proof.outcome !== "passed") {
+    // A blocked PR needs an accountable owner in `assignee:@me`; requesting review
+    // instead would imply validation passed and send an unnecessary review notification.
+    await assignPullRequestOwner(context, pullNumber);
     // Updating status can trigger the next workflow, so all Octestra work must finish first.
     await updateStatus(context, "Blocked");
     return;
