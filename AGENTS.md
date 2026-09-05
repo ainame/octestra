@@ -1,265 +1,91 @@
 # Working on Octestra
 
-Contract for anyone — human or agent — changing this repository. `README.md` is for people
-*installing* Octestra; this file is for people *building* it. `docs/design.md` explains why the
-system is shaped the way it is; read it before changing structure rather than behaviour.
+Octestra owns orchestration; consumers own agent policy. Keep consumer choices editable in
+installed files. Read [docs/design.md](docs/design.md) when changing architecture or ownership,
+and [docs/glossary.md](docs/glossary.md) when changing consumer-facing terminology.
 
-## What this repository is
+## Working approach
 
-Octestra is a **framework**: Octestra owns the mechanism, the consumer owns the policy. Anything a
-consumer might reasonably want to change — which agent runs, what it is allowed to do — must be
-reachable by editing an installed file, not by forking Octestra.
+Complete authorized work, making routine implementation choices from repository context. Ask only
+when missing information materially affects scope or correctness. Explicit user instructions take
+precedence over repository and skill guidance. Keep updates concise: describe the outcome, checks,
+and any remaining blocker.
 
-Two systems share the action surface:
+Keep this file focused on actionable repository constraints. Put design rationale in
+`docs/design.md`, roadmap items in `TODO.md`, and installation guidance in `README.md`.
 
-| System | Trigger | Entry point | Unit of work |
-|---|---|---|---|
-| Lifecycle | `issues: [field_added, closed]` | `octestra-lifecycle.yml` | one task issue moving through the state graph |
-| Loop | consumer-selected `schedule` or `workflow_dispatch` | a consumer-owned `octestra-loop-*.yml` | one skill-driven triage run |
+## Build and verify
 
-```
-issues:field_added ─▶ octestra-lifecycle.yml
-                       guard ─┬─▶ in-progress
-                              └─▶ validation
+Use Node.js 24+ and Ruby 4.0. Install dependencies with `npm ci`.
 
-schedule ───────────▶ octestra-loop-todo.yml ─▶ list-epics ─▶ prepare-triage
-                                                           └─▶ triage-agent ─▶ finalize-triage
-```
+- Run `make all` before committing: typecheck, Vitest, Ruby and installer tests, then bundle rebuild.
+- During iteration, use the relevant suite: `npx vitest run src/lifecycle`,
+  `npx vitest run src/loop`, `make test-ruby`, or `make test-installer`.
+- Never hand-edit `dist/`. Commit regenerated `dist/index.js` with source changes; CI rejects drift.
+- Run `git diff --check`. Once required checks pass, repeat or broaden them only for new changes,
+  failures or unresolved concerns. Documentation edits do not need new behavior tests.
+- Test changed operations with the fake-client pattern in `src/lifecycle/operations.test.ts`,
+  including success paths. Local fixtures do not prove live organization Issue Fields behavior.
+- Commit each meaningful change. PR titles use Conventional Commit prefixes; use `docs:` for docs.
+  Version tags omit `v`, despite the existing Release Please configuration's prefixed tags.
 
-Loops discover open EPIC configuration units and honor each EPIC's triage opt-out. The repository's
-triage skill decides which task work is ready, performs repository-owned issue preparation, and
-reports fully processed issue numbers; Octestra validates the complete result and exclusively
-performs eligible `Todo` to `Ready` updates.
+## Implementation contracts
 
-## Layout
+- `action.yml` is the Node action API; `src/index.ts` dispatches to `src/lifecycle/operations.ts`
+  and `src/loop/operations.ts`. Shared parsing and GitHub access live in `src/shared/`.
+- Keep action inputs/outputs in `snake_case` and TypeScript in `camelCase`. Update declarations,
+  dispatch, workflow wiring and tests together. Preserve supported compatibility inputs.
+- Match the multi-line TypeScript style in lifecycle operations: named functions and one statement
+  per line. Client methods used by operations must be required, not optional.
+- Read action config through the Contents API (default branch or explicit `config_ref`), never
+  from the agent's checkout. Read prompts from the checkout.
+- `.github/octestra/config.yml` owns configuration. Keep its five mirrored repository variables
+  in sync through the installed `octestra.sh vars check|sync`; justify any new mirrored value.
+  `OCTESTRA_AGENT_DEBUG` is optional and is not mirrored from config.
+- Give new config keys behavior when absent: updates preserve existing config. Document only keys
+  the implementation consumes.
+- Keep lifecycle preparation, agent execution and finalization in one job/runner. Honor
+  `task_ready` before agent execution and finalization; pass prepared branch and validation policy
+  together. Finish reporting and review requests before the status update that starts further work.
+- Repository triage owns discovery, readiness policy and issue preparation. Octestra alone applies
+  `Todo` to `Ready`: validate the whole result and parent EPIC before writes, then recheck each live
+  status. Already-`Ready` tasks must produce no duplicate write or activity.
+- Framework prompts invoke `/octestra-contracts` with one phase: `task`, `triage` or `validation`.
+  Keep `src/shared/result.ts`, the installed `check-output.sh`, and contract examples aligned.
+- Agent actions share the job's token, permissions and workspace. Document additional credentials
+  or permissions and their trade-offs in `TODO.md` §1.
 
-```
-action.yml                     composite action surface (inputs are the public API)
-src/
-  index.ts                     operation dispatch; builds context per namespace
-  shared/                      config.ts, github-client.ts, prompt.ts, proof.ts, result.ts
-  lifecycle/operations.ts      lifecycle/<verb> implementations
-  loop/operations.ts           loop/list-epics, prepare-triage and finalize-triage
-dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
-templates/.github/
-  workflows/octestra-lifecycle.yml
-                               lifecycle trigger, routing and status jobs
-  workflows/octestra-loop-*.yml
-                               consumer-owned scheduled agent entry points
-  octestra/actions/            consumer-owned task, validation and loop agent composite actions
-  octestra/config.yml          the ONLY file install.sh generates
-  octestra/octestra.sh         installed maintenance CLI: doctor, update, vars check|sync, ref
-  octestra/prompts/            handlebars prompts, read from the consumer's checkout
-templates/skills/octestra-contracts/
-                               framework-owned task, triage and validation phase contracts
-install.sh, test/install.test.sh
-docs/design.md                 decisions and rationale
-docs/glossary.md               canonical names, and the wording to introduce each one with
-```
+## Installation and templates
 
-## Build, test, verify
+- `install.sh` owns template copying, preservation and action-reference rewriting.
+  The installed `templates/.github/octestra/octestra.sh` owns variable mirroring and starts updates
+  by running the downloaded version's installer. Preserve flags passed by older installed scripts.
+- Updates replace the lifecycle workflow and framework contract skill; preserve existing config,
+  agent actions, prompts and loop policy. The tracked action ref in the staged Todo loop is updated.
+  Workflow changes must work with older consumer-owned actions and preserve the OIDC setting.
+- Ship runnable templates with literal `ainame/octestra@main` references for installer rewriting.
+  Only `config.yml` is generated. Use block-style YAML mappings and explicit shells in composite steps.
+- Keep the maintenance CLI compatible with Bash 3.2, standard utilities and `gh`; require no Node
+  or `yq`. For empty arrays under `set -u`, use `${array[@]+"${array[@]}"}`.
+  Keep status names and tag resolution consistent between the CLI and installer.
+- Write consumer comments and prompts in plain language using `docs/glossary.md`. Explain what
+  users must do and what breaks otherwise. Keep internal terminology and future plans in contributor docs.
 
-```sh
-make all          # typecheck + vitest + ruby tests + install tests + rebuild bundles
-```
+## Platform constraints
 
-`make all` must be green before any commit. It rebuilds `dist/index.js`, so commit that alongside
-source changes or the action ships stale code.
+Keep these identifiers stable because design documentation cites them.
 
-Targeted loops while iterating: `npx vitest run src/lifecycle`, `bash test/install.test.sh`.
+- **P1:** Address the status field by ID and status options by display name. `status_key` is the
+  display name lowercased with spaces replaced by underscores; do not add an option-ID vocabulary.
+- **P2:** Use `vars` for job-level runner selection and routing; `env` is unavailable there.
+- **P3:** Unset variables become empty strings. Compare field IDs as strings and give runner labels
+  literal fallbacks. Variable drift must be detectable through the maintenance CLI.
+- **P4:** Scheduled runs use the default branch. Also expose `workflow_dispatch` for loops.
+- **P5:** Scheduling is best-effort. Loops must be idempotent.
+- **P6:** Guard empty matrices and reject discovery above 256 enabled EPICs; never truncate silently.
+- **P8:** Task agent and validation jobs share `octestra-<issue_number>` concurrency with
+  `cancel-in-progress: false`. Reuse it for new task jobs. Multi-task triage finalization instead
+  relies on full preflight, live status rechecks and idempotent `Todo` to `Ready` writes.
 
-There is no make target for the mirrored repository variables or for updating an installation: both
-jobs belong to a *consumer* repository, and `templates/.github/octestra/octestra.sh` is installed
-there to do them (`octestra.sh vars check|sync`, `octestra.sh update`). `install.sh` runs the copy
-it just installed for the initial sync, so every install exercises the tool consumers rely on
-afterwards.
-
-## Platform invariants
-
-Each of these was verified against GitHub documentation and cost real debugging. Violating one
-produces silent misbehaviour rather than an error, which is why they are listed rather than left to
-be rediscovered. The numbering is stable and still has gaps for invariants not used by the current
-systems. Never renumber: `docs/design.md` cites these numbers.
-
-- **P1. Status option *names* are part of the contract, because the write API gives no
-  alternative.** `POST .../issue-field-values` takes `{field_id, value}` and accepts a single_select
-  value only as the option's *display name* — there is no `single_select_option_id`. So
-  `allowedTransitions`, `updateStatus`, `getStatus` and `status_key` all key on the display name.
-  Reads *could* be ID-addressed (`GET` returns `issue_field_id` and `single_select_option.id`), but a
-  half-ID design buys nothing while writes still need the name, so names are the single vocabulary
-  and `config.yml` carries no option IDs — only `field_name` and `field_id`. Do not introduce a
-  second vocabulary.
-  Renaming an option in the organization therefore breaks the installation: the event's new name is
-  absent from `allowedTransitions`, so the guard reports an invalid transition instead of routing,
-  and `install.sh` reports the option as missing on its next run. That is loud rather than silent,
-  which is the only reason this is tolerable. Revisit only if the write endpoint gains ID addressing;
-  see `TODO.md` §2 for what was tried and why it was reverted.
-- **P2. `vars` is available where `env` is not.** `vars` works in `jobs.<id>.runs-on`,
-  `jobs.<id>.if`, `jobs.<id>.with.<id>`, `concurrency`, and `run-name`; `env` works in none of them.
-  This lets status jobs select their runners directly without a bootstrap job.
-- **P3. An unset `vars` evaluates to `''`**, which casts to `0` in a numeric comparison and produces
-  a silent no-match. Routing comparisons must be string comparisons
-  (`format('{0}', x) == vars.Y`); runner labels must carry a literal fallback
-  (`${{ vars.X || 'ubuntu-latest' }}`); drift must fail loudly.
-- **P4. `schedule` only runs on the default branch**, against its latest commit, and only if the
-  workflow file exists there. A loop cannot be exercised from a pull request, so every loop must
-  also offer `workflow_dispatch`.
-- **P5. `schedule` is best-effort** — delayed or skipped under load, and disabled after 60 days of
-  repository inactivity. Every loop must be idempotent; correctness must never depend on a run
-  happening exactly once per period.
-- **P6. Dynamic matrices need an explicit empty guard and have a hard size limit.** An empty
-  `strategy.matrix` fails the job rather than skipping it, while a matrix may generate at most 256
-  jobs. The Todo loop gates its matrix job on the discovery count and discovery fails loudly rather
-  than truncating more than 256 enabled EPICs.
-- **P8. Concurrency groups are repository-scoped.** Identical group strings in different workflow
-  files share a group. The `in-progress` and `validation` jobs use the same
-  `octestra-<issue_number>` group with `cancel-in-progress: false`, so work on one task issue is
-  serialized. Any workflow added later that touches a task issue must reuse that group string rather
-  than invent its own. A loop finalizer is the deliberate exception: one agent result may name
-  several task issues, so GitHub Actions cannot assign its job one per-task group. It may only apply
-  the idempotent `Todo` to `Ready` entry transition after preflighting every task and must re-check
-  each live status immediately before writing.
-
-## Rules
-
-**Configuration.** `.github/octestra/config.yml` is the single source of truth. Exactly five values
-are mirrored into repository variables (`OCTESTRA_GITHUB_APP_CLIENT_ID`,
-`OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET`, `OCTESTRA_ORCHESTRATION_RUNNER`,
-`OCTESTRA_AGENT_RUNNER`, `OCTESTRA_STATUS_FIELD_ID`) because they
-are needed before a job starts and no file can be read then. Adding a sixth needs a reason that
-survives P3. Everything else is read at runtime.
-
-Config is read from the **default branch via the Contents API**, never from the checkout — jobs
-without a checkout must still read it, and the control plane must not come from a workspace an
-agent may have modified. Prompts are the opposite: they are agent-facing content that should be
-reviewable in a pull request, so they are read from the checkout.
-
-**Templates are consumer-facing source code.** Files under `templates/` are read and edited by
-people who did not write Octestra. Use block style, not YAML flow mappings. Comment the parts a
-consumer is expected to change. `config.yml` is the only *generated* file: nothing under
-`templates/.github/workflows/` may contain a placeholder, because every template must also be
-runnable as committed.
-
-`install.sh` does rewrite the installed workflow, but only from one valid value to another — it
-uncomments `id-token: write` for `--enable-oidc`, and `rewrite_action_references` repoints
-`uses: ainame/octestra@main` at the repository and ref that installation tracks (D11). A rewrite
-whose *input* is not valid on its own is a placeholder by another name; that value belongs in
-`config.yml`. Write the shipped literal `ainame/octestra@main` in any new template — the rewrite
-finds it with or without a `/subpath`, and fails the install loudly if a reference survives
-unrewritten.
-
-**Consumer-facing text is low-context.** Template comments, `README.md` and the prompts are read
-by someone who has never seen this repository, so they must not lean on its vocabulary. Name the
-thing, not the concept: "the step that creates the App token", not "the trust boundary".
-
-`docs/glossary.md` carries that first-mention wording for every term, and separates the terms a
-consumer reads from the ones only a contributor may use. Take the phrasing from there rather than
-inventing one, and add a new term there before it reaches a template.
-
-Say what the reader must do and what breaks if they do not — that is what earns a comment its
-place. Do not describe what Octestra intends to do in a later release: the reader can neither
-verify nor act on it, and the sentence rots on its own. `AGENTS.md`, `docs/design.md` and
-`TODO.md` are the opposite. They are written for people building Octestra, so the internal
-vocabulary, the invariant numbers and the roadmap belong there and only there.
-
-The consumer's entry point is `octestra.sh update`, which downloads a reference and runs **that
-version's** `install.sh` against the repository. Two consequences:
-
-- The workflow replacement, action preservation, action-reference rewrite and variable sync live in
-  `install.sh` only. Do not
-  reimplement any of them in `octestra.sh`; an update is meant to run the new logic, not the old.
-- The flags `update` passes — `--target`, `--source-dir`, `--org`, `--status-field`,
-  `--skill-target`, `--github-app-client-id`, `--repository`, `--ref`, `--yes`, `--enable-oidc` —
-  are a compatibility surface with *older installed scripts*. Removing or renaming one breaks
-  `update` for every installation that predates the change.
-
-The installed lifecycle workflow belongs to Octestra and is replaced on update. The task and
-validation composite actions belong to the consumer after their first installation, so updates
-preserve them in full. Octestra may extend the inputs passed by its workflow, but must not depend on
-updating an already-installed action to consume them. Any workflow toggle, such as `--enable-oidc`,
-must be reconstructed by `update` from the installed state or an update silently reverts it.
-
-Installed loop workflows, their prompts and their local agent actions also belong to the consumer
-and are preserved in full. Their schedule and work policy cannot be reconstructed from Octestra's
-templates. Framework-owned loop behavior belongs in discovering enabled EPIC configuration units,
-`loop/prepare-triage`, validating the agent result, and applying the fixed `Todo` to `Ready`
-transition. Task discovery, selection, limits and readiness policy remain repository-owned.
-Repository triage may mutate issue bodies and other issue data as its policy requires, but it must
-not update the status field directly.
-
-**Agent workflow contracts.** Every framework prompt starts with `/octestra-contracts` and names
-exactly one phase: `task`, `triage`, or `validation`. The installed `/octestra-contracts` skill is
-framework-owned and is replaced on update; repository domain skills remain consumer-owned. Task is
-a side-effect contract.
-Triage and validation are result-file contracts with discriminated JSON and no contract version.
-
-**Agent execution stays with preparation.** Lifecycle preparation, agent execution and finalization
-share one job and runner instance. Do not split preparation into a producer job merely to condition
-the agent job: that starts another runner and loses the workspace and process environment
-preparation just established. The local task and validation composite actions are the boundaries
-for repository-owned setup and execution steps.
-
-**config.yml survives an update.** `install.sh` renders it only when the file does not exist; a
-rerun keeps the consumer's copy and reports any value it resolved that the file contradicts. So a
-new key added to the template does *not* reach existing installations: give it a defined behaviour
-when absent, or expect `doctor` to be the thing that tells consumers to add it.
-
-**No dead configuration.** A key that `config.yml` documents must be read by code. A knob that
-validates but does nothing is worse than an absent knob, because it advertises a guarantee that
-does not exist. The same applies to instructions: a maintenance step the documentation tells a
-consumer to run must be reachable *from their repository*, which is why the mirroring tool is
-installed rather than kept here (D12).
-
-**The installed maintenance CLI.** `templates/.github/octestra/octestra.sh` is the only
-executable Octestra installs, and it needs nothing but `gh` — no node, no `yq` — because it runs
-in repositories of any language. It owns config → variable mirroring and it is the entry point for
-updates; do not add a second implementation of either. Two things it must know are also known by
-`install.sh` — the seven status option names, and how a version tag is resolved — so a change to
-either belongs in both files, and `test/install.test.sh` fails when the status lists drift apart.
-
-It also runs where `/bin/bash` is 3.2, which the tests cover by driving one install and one update
-through it. In particular `"${array[@]}"` on an empty array is a fatal error there under `set -u`;
-write `${array[@]+"${array[@]}"}`.
-
-**Trust boundary.** Octestra initially targets private repositories whose members are trusted to
-run coding agents. The lifecycle workflow therefore favors one readable job graph over isolating
-each agent behind a separate permission boundary: agent jobs inherit the workflow's write
-permissions, receive an App token, and run finalization beside the agent. This does not protect
-against a compromised agent, dependency or command. The intended stronger boundary remains in
-`TODO.md` §1; do not add further credentials or permissions without documenting the threat and
-trade-off there.
-
-**Style.** Conventional multi-line TypeScript: one statement per line, named `function`
-declarations, no chained statements on a single line. Match `src/lifecycle/operations.ts`. The same
-applies to tests and to workflow templates.
-
-**Tests.** Every operation needs unit tests using the fake-client pattern in
-`src/lifecycle/operations.test.ts`. Cover the success path, not only the rejections — the expensive
-bugs in this repository have been silently-inert code paths, not loud failures. Interface methods
-that operations depend on must be **required**, never optional, so a missing implementation is a
-type error instead of a runtime `undefined`.
-
-**Pull request titles.** Every pull request title must use a
-[Conventional Commit](https://www.conventionalcommits.org/) prefix, because its title becomes the
-squash-merge commit that Release Please reads. `fix:` produces a patch release, `feat:` produces a
-minor release, and `!` or a `BREAKING CHANGE:` footer produces a major release. Use an appropriate
-non-releasing prefix such as `docs:`, `test:`, `chore:`, or `refactor:` when the change should not
-release.
-
-**Never** commit secrets, hand-edit `dist/`, add a runtime dependency for something the vendored
-`yaml` package already does, require `yq`, or use `secrets: inherit`.
-
-## Review checklist
-
-Derived from bugs that actually shipped into review here:
-
-1. Does the feature run end to end, or does it terminate early on an unimplemented path?
-2. Do the two sides of a comparison share a vocabulary? (A proof `outcome` and a status name do not.)
-3. Do GitHub expressions inside YAML scalars survive quoting? `''` inside a single-quoted scalar is
-   an escaped apostrophe, not an empty string — use a block scalar.
-4. Are documented config keys actually consumed?
-5. Do budget and limit parameters bound the work, or only the result?
-6. Are new tests asserting the behaviour that would break, or only the guards around it?
-7. Do new files match the style of the files beside them?
-8. Does new consumer-facing text stand on its own, or does it require this repository's vocabulary
-   and promises about a later release?
+Never commit secrets, use `secrets: inherit` or `swift-actions/setup-swift@v2`, require `yq`, or add
+runtime dependencies for functionality already provided by `yaml`.
