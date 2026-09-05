@@ -34,10 +34,11 @@ performs eligible `Todo` to `Ready` updates.
 ## Layout
 
 ```
-action.yml                     composite action surface (inputs are the public API)
+action.yml                     Node 24 action surface (inputs and outputs are the public API)
 src/
   index.ts                     operation dispatch; builds context per namespace
-  shared/                      config.ts, github-client.ts, prompt.ts, proof.ts, result.ts
+  shared/                      config and issue-body parsing, GitHub client, prompts, results,
+                               proof/activity reporting and task branch resolution
   lifecycle/operations.ts      lifecycle/<verb> implementations
   loop/operations.ts           loop/list-epics, prepare-triage and finalize-triage
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit
@@ -51,7 +52,9 @@ templates/.github/
   octestra/octestra.sh         installed maintenance CLI: doctor, update, vars check|sync, ref
   octestra/prompts/            handlebars prompts, read from the consumer's checkout
 templates/skills/octestra-contracts/
-                               framework-owned task, triage and validation phase contracts
+                               framework-owned phase contracts and JSON result checker
+templates/skills/octestra-setup-migration-epic/
+                               EPIC setup skill and Ruby issue preparation script
 install.sh, test/install.test.sh
 docs/design.md                 decisions and rationale
 docs/glossary.md               canonical names, and the wording to introduce each one with
@@ -59,14 +62,20 @@ docs/glossary.md               canonical names, and the wording to introduce eac
 
 ## Build, test, verify
 
+Use Node.js 24 or newer and Ruby 4.0, matching CI. Install locked dependencies with `npm ci`.
+
 ```sh
 make all          # typecheck + vitest + ruby tests + install tests + rebuild bundles
 ```
 
 `make all` must be green before any commit. It rebuilds `dist/index.js`, so commit that alongside
-source changes or the action ships stale code.
+source changes or the action ships stale code. CI also runs
+`git diff --exit-code -- dist/index.js` to reject a stale committed bundle. Run `git diff --check`
+before committing, and commit each meaningful change.
 
-Targeted loops while iterating: `npx vitest run src/lifecycle`, `bash test/install.test.sh`.
+Targeted loops while iterating: `npx vitest run src/lifecycle`, `npx vitest run src/loop`,
+`make test-ruby`, and `make test-installer`. These use fake clients and installer fixtures; passing
+locally does not establish end-to-end behavior against live organization Issue Fields.
 
 There is no make target for the mirrored repository variables or for updating an installation: both
 jobs belong to a *consumer* repository, and `templates/.github/octestra/octestra.sh` is installed
@@ -84,7 +93,8 @@ systems. Never renumber: `docs/design.md` cites these numbers.
 - **P1. Status option *names* are part of the contract, because the write API gives no
   alternative.** `POST .../issue-field-values` takes `{field_id, value}` and accepts a single_select
   value only as the option's *display name* — there is no `single_select_option_id`. So
-  `allowedTransitions`, `updateStatus`, `getStatus` and `status_key` all key on the display name.
+  `allowedTransitions`, `updateStatus` and `getStatus` all use the display name. The guard derives
+  `status_key` for workflow routing by lowercasing that name and replacing spaces with underscores.
   Reads *could* be ID-addressed (`GET` returns `issue_field_id` and `single_select_option.id`), but a
   half-ID design buys nothing while writes still need the name, so names are the single vocabulary
   and `config.yml` carries no option IDs — only `field_name` and `field_id`. Do not introduce a
@@ -127,10 +137,11 @@ are mirrored into repository variables (`OCTESTRA_GITHUB_APP_CLIENT_ID`,
 `OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET`, `OCTESTRA_ORCHESTRATION_RUNNER`,
 `OCTESTRA_AGENT_RUNNER`, `OCTESTRA_STATUS_FIELD_ID`) because they
 are needed before a job starts and no file can be read then. Adding a sixth needs a reason that
-survives P3. Everything else is read at runtime.
+survives P3. `OCTESTRA_AGENT_DEBUG` is a separate, optional repository variable passed to local
+agent actions; it is not mirrored from config and does not add a sixth mirrored value.
 
-Config is read from the **default branch via the Contents API**, never from the checkout — jobs
-without a checkout must still read it, and the control plane must not come from a workspace an
+Action config is read via the **Contents API**, from the default branch unless the caller supplies
+`config_ref`, never from the checkout — jobs without a checkout must still read it, and the control plane must not come from a workspace an
 agent may have modified. Prompts are the opposite: they are agent-facing content that should be
 reviewable in a pull request, so they are read from the checkout.
 
@@ -180,7 +191,9 @@ updating an already-installed action to consume them. Any workflow toggle, such 
 must be reconstructed by `update` from the installed state or an update silently reverts it.
 
 Installed loop workflows, their prompts and their local agent actions also belong to the consumer
-and are preserved in full. Their schedule and work policy cannot be reconstructed from Octestra's
+and retain their consumer policy on update. The installer does rewrite the tracked Octestra action
+reference in the staged Todo loop when the installed repository/ref changes; preservation does not
+mean keeping the old action version. Their schedule and work policy cannot be reconstructed from Octestra's
 templates. Framework-owned loop behavior belongs in discovering enabled EPIC configuration units,
 `loop/prepare-triage`, validating the agent result, and applying the fixed `Todo` to `Ready`
 transition. Task discovery, selection, limits and readiness policy remain repository-owned.
@@ -192,6 +205,32 @@ exactly one phase: `task`, `triage`, or `validation`. The installed `/octestra-c
 framework-owned and is replaced on update; repository domain skills remain consumer-owned. Task is
 a side-effect contract.
 Triage and validation are result-file contracts with discriminated JSON and no contract version.
+`src/shared/result.ts` is the runtime parser; keep the installed
+`templates/skills/octestra-contracts/scripts/check-output.sh` checker and contract examples aligned
+when changing the schema. That checker requires Node.js. Validation accepts `kind: validation-result`,
+`outcome: passed|failed` and a non-empty `summary`; finalization trusts the declared outcome rather
+than deriving it from checks or evidence. Triage accepts `kind: triage-result` and `readyIssues`, an
+array of unique positive safe integers (including an empty array).
+
+**Public operation wiring.** Action and composite-action inputs and outputs use `snake_case`;
+TypeScript uses `camelCase`. Keep `action.yml`, `src/index.ts`, workflow wiring and dispatch tests
+consistent. Preserve compatibility inputs such as `proof_path` (superseded by `result_path`). Task
+finalization accepts prepared `branch_name` and `skip_validation` together; the shipped workflow
+passes both so edits to the EPIC during agent execution cannot change the prepared branch or policy.
+
+**Lifecycle routing and retries.** The shipped guard skips `Todo`, `Ready` and `Done` events and
+rejects stale events whose status no longer matches the live issue. `Ready` alone does not start an
+agent. `prepare-task` blocks existing task branches or linked open PRs and publishes
+`task_ready: false`; both the agent and finalizer must honor it. `Human Review` and `Blocked` may
+re-enter `Validation` using the existing linked open PR on the deterministic task branch. Restarting
+implementation goes through `Ready` then `In Progress`, after closing the PR and deleting its branch.
+The independent `closed` event path sets `Done` only from `Human Review` when a merged PR closed the
+issue. Failure reporting is a separate orchestration job and moves failed or cancelled agent jobs
+to `Blocked`.
+
+Finalizers perform reporting and review requests before updating status, because that update may
+start another workflow. A successful validation makes the PR ready and requests the task owner's
+review; it does not assign the PR. Keep this ordering when adding side effects.
 
 **Agent execution stays with preparation.** Lifecycle preparation, agent execution and finalization
 share one job and runner instance. Do not split preparation into a producer job merely to condition
@@ -210,8 +249,8 @@ does not exist. The same applies to instructions: a maintenance step the documen
 consumer to run must be reachable *from their repository*, which is why the mirroring tool is
 installed rather than kept here (D12).
 
-**The installed maintenance CLI.** `templates/.github/octestra/octestra.sh` is the only
-executable Octestra installs, and it needs nothing but `gh` — no node, no `yq` — because it runs
+**The installed maintenance CLI.** `templates/.github/octestra/octestra.sh` is the installed
+maintenance entry point. It uses Bash, standard shell utilities and `gh` — no node, no `yq` — because it runs
 in repositories of any language. It owns config → variable mirroring and it is the entry point for
 updates; do not add a second implementation of either. Two things it must know are also known by
 `install.sh` — the seven status option names, and how a version tag is resolved — so a change to
@@ -247,7 +286,12 @@ non-releasing prefix such as `docs:`, `test:`, `chore:`, or `refactor:` when the
 release.
 
 **Never** commit secrets, hand-edit `dist/`, add a runtime dependency for something the vendored
-`yaml` package already does, require `yq`, or use `secrets: inherit`.
+`yaml` package already does, require `yq`, use `secrets: inherit`, or use
+`swift-actions/setup-swift@v2`.
+
+Version tags must omit the `v` prefix. The current Release Please configuration still enables
+`include-v-in-tag` and its workflow maintains a `v<major>` alias; this is an existing mismatch with
+the repository rule, not a precedent for creating new prefixed version tags.
 
 ## Review checklist
 
