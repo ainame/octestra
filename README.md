@@ -64,9 +64,9 @@ validation, and triage agents by following the [integration guide](docs/integrat
 ### Run Your First Task
 
 1. Create an EPIC issue and its task issue sub-issues from the installed issue-body contracts.
-2. Change the task issue's `AI Task Status` to `Ready`.
-3. Change it to `In Progress` to begin implementation.
-4. Octestra creates a pull request and moves the task to `Human Review` after validation.
+2. Change the task issue's `AI Task Status` to `In Progress` to begin implementation. Move it to
+   `Ready` first if the prepared task should wait for a later start.
+3. Octestra creates a pull request and moves the task to `Human Review` after validation.
 
 For the EPIC and task issue format, the meaning of each status option, and agent inputs, see the [integration guide](docs/integration.md).
 

@@ -320,6 +320,7 @@ describe("validateTransition", () => {
   it.each([
     ["", "Todo"],
     ["Todo", "Ready"],
+    ["Todo", "In Progress"],
     ["Ready", "In Progress"],
     ["In Progress", "Validation"],
     ["Validation", "Human Review"],
@@ -343,6 +344,11 @@ describe("validateTransition", () => {
       ),
     ).resolves.toBe(true);
 
+    expect(core.setOutput).toHaveBeenCalledWith("transition_valid", "true");
+    expect(core.setOutput).toHaveBeenCalledWith(
+      "status_key",
+      currentStatus.toLowerCase().replaceAll(" ", "_"),
+    );
     expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
@@ -423,7 +429,7 @@ describe("validateTransition", () => {
     expect(client.updateStatus).not.toHaveBeenCalled();
   });
 
-  it("ignores a stale event when the live status has changed", async () => {
+  it("ignores a stale Todo -> In Progress event when the live status has changed", async () => {
     const client = createClient({
       getStatus: vi.fn().mockResolvedValue("Blocked"),
     });
@@ -431,7 +437,7 @@ describe("validateTransition", () => {
     await validateTransition(
       createContext(client),
       "Todo",
-      "Ready",
+      "In Progress",
       "task-owner",
       "User",
     );
