@@ -77,12 +77,12 @@ export function resolveTaskBranchName(
 
 const execFileAsync = promisify(execFile);
 
-// Human Review and Blocked may re-enter Validation: it re-runs validation against the task's
-// existing open pull request without discarding the work. Re-entering In Progress is deliberately
-// not allowed — the only task re-run is the destructive one through Ready (D20).
+// A task can start directly from Todo when its owner has already prepared it. Human Review and
+// Blocked may re-enter Validation: it re-runs validation against the task's existing open pull
+// request without discarding the work.
 const allowedTransitions = new Map<string, Set<string>>([
   ["", new Set(["Todo"])],
-  ["Todo", new Set(["Ready"])],
+  ["Todo", new Set(["Ready", "In Progress"])],
   ["Ready", new Set(["In Progress", "Blocked"])],
   ["In Progress", new Set(["Validation", "Human Review", "Blocked"])],
   ["Validation", new Set(["Human Review", "Blocked"])],

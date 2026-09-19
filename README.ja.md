@@ -64,9 +64,9 @@ Octestra は 3 つの要素で構成されます。
 ### 最初のタスクを実行する
 
 1. EPIC issue とその sub-issue である task issue を、インストールされた issue-body contract から作成します。
-2. task issue の `AI Task Status` を `Ready` に変更します。
-3. 実装を開始するには `In Progress` に変更します。
-4. Octestra がプルリクエストを作成し、検証後に `Human Review` へ進めます。
+2. 実装を開始するには task issue の `AI Task Status` を `In Progress` に変更します。準備済みの
+   task を後で開始する場合は、先に `Ready` へ変更します。
+3. Octestra がプルリクエストを作成し、検証後に `Human Review` へ進めます。
 
 EPIC と task issue の書式、各 status option の意味、エージェントへの入力は [実装ガイド](docs/integration.ja.md) を参照してください。
 

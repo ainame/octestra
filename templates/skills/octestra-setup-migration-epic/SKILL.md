@@ -166,5 +166,7 @@ Read the result JSON and report:
 Do not claim success when the script exits nonzero. Keep the manifest and result files
 and the state file until failures are resolved; otherwise remove temporary files.
 
-After successful setup, tell the user that tasks can be started by moving their
-`AI Task Status` from `Todo` to `Ready`, then to `In Progress`.
+After successful setup, tell the user that prepared tasks can be started by moving their
+`AI Task Status` directly from `Todo` to `In Progress`. `Ready` is available to queue prepared tasks for
+a later start. Starting directly does not add validation instructions, so the user must
+ensure any repository-required validation instructions are available.

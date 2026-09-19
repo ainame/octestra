@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 620" role="img" aria-labelledby="title description">
   <title id="title">Octestra task lifecycle</title>
-  <desc id="description">AI Task Status moves from Todo through Ready, In Progress, Validation, Human Review, and Done. Validation may be skipped. Implementation or validation failures move the task to Blocked, from which a human can return it to Ready.</desc>
+  <desc id="description">AI Task Status moves from Todo directly to In Progress or through Ready, then continues to Validation, Human Review, and Done. Validation may be skipped. Implementation or validation failures move the task to Blocked, from which a human can return it to Ready.</desc>
   <style>
     :root {
       color-scheme: light dark;
@@ -173,6 +173,9 @@
   <circle class="start" cx="30" cy="268" r="8" />
   <path class="edge human" d="M 38 268 H 80" marker-end="url(#arrow-human)" />
   <text class="label" x="66" y="214">Create task issue</text>
+
+  <path class="edge shared" d="M 155 230 V 120 H 600 V 230" marker-end="url(#arrow-shared)" />
+  <text class="label" x="375" y="105">Start a prepared task</text>
 
   <path class="edge shared" d="M 230 268 H 320" marker-end="url(#arrow-shared)" />
   <text class="label" x="275" y="204">
