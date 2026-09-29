@@ -710,6 +710,7 @@ describe("reportProof", () => {
 
     await reportProof(createContext(client), proofPath, {
       pullNumber: 42,
+      artifactUrl: "https://github.com/ainame/octestra/actions/runs/1/artifacts/99",
     });
 
     expect(client.comment).toHaveBeenCalledWith(
@@ -719,6 +720,12 @@ describe("reportProof", () => {
     expect(client.comment).toHaveBeenCalledWith(
       123,
       expect.stringContaining(subjectSha.slice(0, 12)),
+    );
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining(
+        "| Artifacts | [Download](https://github.com/ainame/octestra/actions/runs/1/artifacts/99) |",
+      ),
     );
     expect(client.updateStatus).not.toHaveBeenCalled();
     expect(core.setOutput).toHaveBeenCalledWith("outcome", "passed");
@@ -783,6 +790,32 @@ describe("finalizeValidation", () => {
       123,
       456,
       "Blocked",
+    );
+  });
+
+  it("links the uploaded artifacts from the proof comment", async () => {
+    const client = createClient();
+    const proofPath = await proofResultPath("passed");
+
+    await finalizeValidation(
+      createContext(client),
+      42,
+      proofPath,
+      {
+        artifactUrl: "https://github.com/ainame/octestra/actions/runs/1/artifacts/99",
+      },
+    );
+
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining(
+        "| Artifacts | [Download](https://github.com/ainame/octestra/actions/runs/1/artifacts/99) |",
+      ),
+    );
+    expect(client.updateStatus).toHaveBeenCalledWith(
+      123,
+      456,
+      "Human Review",
     );
   });
 });

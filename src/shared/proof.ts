@@ -18,6 +18,8 @@ export interface ProofCommentContext {
   runUrl?: string;
   runAttempt?: string;
   recordedAt?: string;
+  // Where the uploaded evidence (screenshots, recordings, logs) can be downloaded.
+  artifactUrl?: string;
   // What the reader should do with this result, e.g. how to re-run validation.
   nextSteps?: string;
 }
@@ -134,6 +136,10 @@ export function renderProofComment(
     proof.knownGaps
       ? ["Known gaps", proof.knownGaps.length === 0 ? "None" : String(proof.knownGaps.length)]
       : undefined,
+    // The evidence table lists what the agent saved; this row is where to download it. It stays in
+    // the overview because reaching it through the workflow run link in the metadata takes several
+    // clicks.
+    context.artifactUrl ? ["Artifacts", `[Download](${context.artifactUrl})`] : undefined,
   ].filter((row): row is string[] => row !== undefined);
   const evidence = [...(proof.evidence ?? []), ...(proof.artifacts ?? [])];
   const metadataRows = [

@@ -171,6 +171,12 @@ The action runs in the same job, runner, and checked-out workspace as `lifecycle
 The validation agent uses the installed `/octestra-contracts` skill to write JSON to
 `inputs.result_path` and check its format.
 
+After the agent finishes, the workflow uploads `inputs.artifact_path` and `inputs.result_path` with
+`actions/upload-artifact`, even when the agent failed, and passes the upload's URL to
+`lifecycle/finalize-validation` as `artifact_url`. The proof comment on the task issue then shows an
+`Artifacts` row with a download link next to the outcome. Leave `artifact_url` empty to post the
+comment without that row; `report-proof` accepts the same input.
+
 ### Use the agent debug flag
 
 Set the repository Actions variable `OCTESTRA_AGENT_DEBUG` to `true` when a task, validation, or

@@ -41,6 +41,9 @@ inputs:
   pull_number:
     description: Task pull request number
     required: false
+  artifact_url:
+    description: URL of the uploaded validation evidence artifact, linked from the proof comment
+    required: false
   next_status:
     description: Status used by the individual update-status operation
     required: false

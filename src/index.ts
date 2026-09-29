@@ -186,6 +186,7 @@ export async function run(): Promise<void> {
           core.getInput("proof_path", { required: true }),
         {
           pullNumber: optionalNumber("pull_number"),
+          artifactUrl: core.getInput("artifact_url") || undefined,
         },
       );
       break;
@@ -198,6 +199,9 @@ export async function run(): Promise<void> {
         requiredNumber("pull_number"),
         core.getInput("result_path") ||
           core.getInput("proof_path", { required: true }),
+        {
+          artifactUrl: core.getInput("artifact_url") || undefined,
+        },
       );
       break;
     case "lifecycle/report-failure":

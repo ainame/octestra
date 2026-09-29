@@ -211,8 +211,26 @@ jobs:
           artifact_path: ${{ steps.epic.outputs.artifact_path }}
           target: ${{ steps.epic.outputs.target }}
 
+      # Keeps the evidence the agent saved (screenshots, recordings, logs) after the runner is gone.
+      # `if: always()` uploads whatever exists even when the agent failed or timed out, and the
+      # finalize step below links the upload from the proof comment. Without this step reviewers
+      # can only read the paths the agent wrote, not open the files.
+      # The name carries the run attempt: a re-run of this job fails to upload under a name that an
+      # earlier attempt of the same run already used.
+      - name: Upload validation artifacts
+        id: artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: octestra-validation-${{ github.event.issue.number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ steps.epic.outputs.artifact_path }}
+            ${{ steps.epic.outputs.result_path }}
+          if-no-files-found: warn
+
       # finalize-validation:
       # - Reads the JSON file the agent wrote to result_path and posts it as a comment.
+      # - Links the uploaded artifacts from the comment when artifact_url is given.
       # - Trusts the file's `outcome`, and does not cross-check `acceptance` or `checks`.
       # - On a blocked result, assigns the Issue task owner to the pull request.
       # - On `passed`, requests review from the Issue task owner.
@@ -228,6 +246,7 @@ jobs:
           issue_number: ${{ github.event.issue.number }}
           result_path: ${{ steps.epic.outputs.result_path }}
           pull_number: ${{ steps.epic.outputs.pull_number }}
+          artifact_url: ${{ steps.artifacts.outputs.artifact-url }}
 
   report-failure:
     name: Report lifecycle failure

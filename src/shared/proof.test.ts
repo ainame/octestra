@@ -141,4 +141,45 @@ describe("renderProofComment", () => {
       comment.indexOf("<summary>Additional details</summary>"),
     );
   });
+
+  it("links the uploaded artifacts in the overview, outside the collapsed metadata", () => {
+    const comment = renderProofComment(
+      parseProofDocument({
+        kind: "validation-result",
+        outcome: "passed",
+        summary: "The profile flow behaves as expected.",
+        details: "Executed the consumer-defined validation prompt.",
+      }),
+      {
+        issueNumber: 123,
+        pullNumber: 42,
+        recordedAt: "2026-07-24T21:00:00.000Z",
+        artifactUrl: "https://github.com/ainame/octestra/actions/runs/1/artifacts/99",
+      },
+    );
+
+    const artifactRow =
+      "| Artifacts | [Download](https://github.com/ainame/octestra/actions/runs/1/artifacts/99) |";
+    expect(comment).toContain(artifactRow);
+    expect(comment.indexOf(artifactRow)).toBeLessThan(
+      comment.indexOf("<summary>Additional details</summary>"),
+    );
+  });
+
+  it("omits the artifacts row when nothing was uploaded", () => {
+    const comment = renderProofComment(
+      parseProofDocument({
+        kind: "validation-result",
+        outcome: "passed",
+        summary: "The profile flow behaves as expected.",
+        details: "Executed the consumer-defined validation prompt.",
+      }),
+      {
+        issueNumber: 123,
+        recordedAt: "2026-07-24T21:00:00.000Z",
+      },
+    );
+
+    expect(comment).not.toContain("| Artifacts |");
+  });
 });
