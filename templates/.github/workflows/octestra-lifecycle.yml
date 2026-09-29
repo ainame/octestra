@@ -31,9 +31,10 @@ jobs:
     outputs:
       valid: ${{ steps.guard.outputs.transition_valid }}
       status_key: ${{ steps.guard.outputs.status_key }}
-      # From config.yml agent_timeout_minutes plus ten minutes; the status jobs below cannot read
-      # the file themselves before they start. The `|| '60'` next to each use only keeps
-      # fromJSON from failing on an empty value when this job did not run.
+      # config.yml agent_timeout_minutes for the routed status, plus 10 minutes for the steps
+      # around the agent; config.yml explains the path. The status jobs below cannot read the
+      # file before they start, so the guard publishes the number for them. The `|| '60'` next
+      # to each use only keeps fromJSON from failing on an empty value when this job did not run.
       job_timeout_minutes: ${{ steps.guard.outputs.job_timeout_minutes }}
     steps:
       - uses: actions/create-github-app-token@v3
@@ -112,8 +113,8 @@ jobs:
 
       # The local composite action groups every repository-defined setup and agent step behind this
       # one condition. It runs in this job, on the same runner and workspace as prepare-task.
-      # The time cap comes from config.yml agent_timeout_minutes.task; when it hits, this step
-      # fails, the steps inside the action stop, and the steps below still run.
+      # The cap is config.yml agent_timeout_minutes.task, published by prepare-task above; when it
+      # hits, this step fails, the steps inside the action stop, and the steps below still run.
       - name: Run task agent
         if: steps.epic.outputs.task_ready == 'true'
         timeout-minutes: ${{ fromJSON(steps.epic.outputs.agent_timeout_minutes || '50') }}
@@ -213,9 +214,9 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       # The local composite action runs in this job, on the same runner and checked-out workspace
-      # as prepare-validation. The time cap comes from config.yml agent_timeout_minutes.validation;
-      # when it hits, this step fails, the steps inside the action stop, and the upload below still
-      # runs, which is why the upload is not inside the action.
+      # as prepare-validation. The cap is config.yml agent_timeout_minutes.validation, published
+      # by prepare-validation above; when it hits, this step fails, the steps inside the action
+      # stop, and the upload below still runs, which is why the upload is not inside the action.
       - name: Run validation agent
         timeout-minutes: ${{ fromJSON(steps.epic.outputs.agent_timeout_minutes || '50') }}
         uses: ./.github/octestra/actions/validation-agent

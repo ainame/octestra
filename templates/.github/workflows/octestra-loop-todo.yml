@@ -24,7 +24,8 @@ jobs:
     outputs:
       epics: ${{ steps.epics.outputs.epics }}
       count: ${{ steps.epics.outputs.count }}
-      # From config.yml agent_timeout_minutes.triage plus ten minutes.
+      # config.yml agent_timeout_minutes.triage plus 10 minutes for the steps around the agent;
+      # config.yml explains the path.
       job_timeout_minutes: ${{ steps.epics.outputs.job_timeout_minutes }}
     steps:
       - name: Generate a token from GitHub App
@@ -88,8 +89,8 @@ jobs:
           issue_number: ${{ matrix.epic.number }}
       # This action owns agent setup and execution. The triage skill available to that agent owns
       # task discovery, selection, limits, readiness policy and issue preparation. It must not
-      # change AI Task Status; the finalizer below owns Todo -> Ready. The time cap comes from
-      # config.yml agent_timeout_minutes.triage.
+      # change AI Task Status; the finalizer below owns Todo -> Ready. The cap is config.yml
+      # agent_timeout_minutes.triage, published by the prepare step above.
       - name: Run triage agent
         timeout-minutes: ${{ fromJSON(steps.loop.outputs.agent_timeout_minutes || '50') }}
         uses: ./.github/octestra/actions/triage-agent
