@@ -306,6 +306,32 @@ describe("linkArtifactReferences", () => {
     expect(linkArtifactReferences("no files here", links)).toBe("no files here");
     expect(linkArtifactReferences("screens/home.png", [])).toBe("screens/home.png");
   });
+
+  it("links a name glued to prose and leaves longer names alone", () => {
+    expect(linkArtifactReferences("home.pngを参照。", links)).toBe(
+      "[home.png](https://example.test/11)を参照。",
+    );
+    expect(linkArtifactReferences("見出しはscreens/home.png、次にb/dup.pngで確認", links)).toBe(
+      "見出しは[screens/home.png](https://example.test/11)、次に[b/dup.png](https://example.test/13)で確認",
+    );
+    expect(linkArtifactReferences("xhome.png home.png.bak home.pngx", links)).toBe(
+      "xhome.png home.png.bak home.pngx",
+    );
+    expect(linkArtifactReferences(
+      "/Users/runner/work/_temp/octestra-validation-artifacts/screens/home.png (before)",
+      links,
+    )).toBe(
+      "[/Users/runner/work/_temp/octestra-validation-artifacts/screens/home.png](https://example.test/11) (before)",
+    );
+  });
+
+  it("escapes file names that contain regex characters", () => {
+    const odd = [{ name: "shots/final (1).png", url: "https://example.test/21" }];
+
+    expect(linkArtifactReferences("see shots/final (1).png and final (1).png", odd)).toBe(
+      "see [shots/final (1).png](https://example.test/21) and [final (1).png](https://example.test/21)",
+    );
+  });
 });
 
 describe("parseArtifactLinks", () => {

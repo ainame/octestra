@@ -88,37 +88,6 @@ function tableCell(value: unknown, fallback = "—"): string {
   return escapeCell(displayValue(value, fallback));
 }
 
-function findArtifactLink(reference: string, links: ArtifactLink[]): ArtifactLink | undefined {
-  const normalized = reference.replace(/^\.\//, "");
-  const exact = links.find((link) =>
-    link.name !== undefined
-    && (link.name === normalized || normalized.endsWith(`/${link.name}`)),
-  );
-  if (exact) {
-    return exact;
-  }
-  // An agent may cite a file by name alone; accept that when only one upload has that name.
-  const base = normalized.slice(normalized.lastIndexOf("/") + 1);
-  const byBasename = links.filter((link) =>
-    link.name !== undefined && link.name.slice(link.name.lastIndexOf("/") + 1) === base,
-  );
-  return byBasename.length === 1 ? byBasename[0] : undefined;
-}
-
-// Turns every token of an evidence cell that names an uploaded file into a link to it. The
-// rest of the cell is left alone, so prose and unknown paths still read as the agent wrote them.
-// A name written as `code` keeps its backticks inside the link text, where they still render.
-export function linkArtifactReferences(text: string, links: ArtifactLink[]): string {
-  if (links.length === 0) {
-    return text;
-  }
-  const token = /(`?)([^\s,;()`]+?)(`?)([.:]*)(?=[\s,;()]|$)/g;
-  return text.replace(token, (match, open, reference, close, trailing) => {
-    const link = findArtifactLink(reference, links);
-    return link ? `[${open}${reference}${close}](${link.url})${trailing}` : match;
-  });
-}
-
 function resultLabel(value: unknown): string {
   const result = displayValue(value, "reported");
   switch (result.toLowerCase()) {
@@ -138,6 +107,58 @@ function resultLabel(value: unknown): string {
     default:
       return `ℹ️ ${result}`;
   }
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+interface ReferenceTarget {
+  pattern: string;
+  link: ArtifactLink;
+}
+
+// Every uploaded file is matched by its relative path, and by its file name alone when no other
+// upload shares that name, since agents often cite a screenshot by name only.
+function referenceTargets(links: ArtifactLink[]): ReferenceTarget[] {
+  const named = links.filter((link): link is ArtifactLink & { name: string } =>
+    link.name !== undefined && link.name !== "",
+  );
+  const targets: ReferenceTarget[] = named.map((link) => ({ pattern: link.name, link }));
+  const basenames = new Map<string, ArtifactLink[]>();
+  for (const link of named) {
+    const base = link.name.slice(link.name.lastIndexOf("/") + 1);
+    basenames.set(base, [...(basenames.get(base) ?? []), link]);
+  }
+  for (const [base, owners] of basenames) {
+    if (owners.length === 1 && owners[0].name !== base) {
+      targets.push({ pattern: base, link: owners[0] });
+    }
+  }
+  // Longest first, so `screens/home.png` wins over `home.png` inside the same alternation.
+  return targets.sort((a, b) => b.pattern.length - a.pattern.length);
+}
+
+// Turns every mention of an uploaded file in an evidence cell into a link to it, and leaves the
+// rest of the cell as the agent wrote it. A mention may carry a directory prefix, including the
+// runner's absolute path, may sit inside backticks, which stay inside the link text, and may be
+// followed by text without a space, as Japanese prose does. It must not be part of a longer
+// name: `xhome.png` and `home.png.bak` are other files.
+export function linkArtifactReferences(text: string, links: ArtifactLink[]): string {
+  const targets = referenceTargets(links);
+  if (targets.length === 0) {
+    return text;
+  }
+  const byPattern = new Map(targets.map((target) => [target.pattern, target.link]));
+  const alternation = targets.map((target) => escapeRegExp(target.pattern)).join("|");
+  const mention = new RegExp(
+    `(?<![\\w.\\-/])(\`?)((?:[\\w.\\-/]*/)?(${alternation}))(\`?)(?![\\w-]|\\.\\w)`,
+    "g",
+  );
+  return text.replace(mention, (match, open: string, full: string, matched: string, close: string) => {
+    const link = byPattern.get(matched);
+    return link ? `[${open}${full}${close}](${link.url})` : match;
+  });
 }
 
 // A column is a header plus the row keys it reads, most-preferred key first.
