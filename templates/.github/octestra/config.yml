@@ -29,21 +29,11 @@ prompts:
   loop_todo: .github/octestra/prompts/loop-todo.md.hbs
 
 # Agent time caps, in whole minutes from 1 to 350. Each value caps the workflow step that runs
-# your local agent action (task-agent, validation-agent, triage-agent), setup steps inside the
-# action included. Every key is optional and defaults to 50; a validation that builds an app and
-# drives a simulator typically needs more than a task that edits code.
-#
-# How a value reaches the workflow, with validation: 80 as the example:
-#   1. The guard job's validate-transition step reads this file and publishes
-#      job_timeout_minutes = 80 + 10. The 10 minutes are for Octestra's own steps around the
-#      agent: App token, checkout, prepare, token renewal, artifact upload, finalize.
-#   2. The validation job's timeout-minutes reads that output through needs.guard: 90 minutes.
-#   3. The job's prepare-validation step publishes agent_timeout_minutes = 80.
-#   4. The "Run validation agent" step's timeout-minutes reads that output: 80 minutes.
-# The task job works the same way through prepare-task, and the Todo loop through
-# loop/list-epics (job) and loop/prepare-triage (step). When the agent cap hits, that step
-# fails, the steps inside your action stop, and Octestra still uploads the evidence saved so
-# far and reports the failure.
+# your local agent action (task-agent, validation-agent or triage-agent under
+# .github/octestra/actions/), setup steps inside the action included. The job around it gets
+# the same value plus 10 minutes, published as job_timeout_minutes, for Octestra's own steps:
+# App token, checkout, prepare, artifact upload, finalize. Every key is optional and defaults
+# to 50, so uncomment only what your agents need.
 # agent_timeout_minutes:
 #   task: 50
 #   validation: 80
