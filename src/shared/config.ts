@@ -22,7 +22,7 @@ export interface OctestraConfig {
   agent_timeout_minutes: AgentTimeouts;
   // Whether finalize-validation keeps a table of validation runs at the end of the task pull
   // request's body.
-  pull_request_validation_log: boolean;
+  append_validation_result_to_pr_body: boolean;
 }
 
 // Fifty minutes of agent inside the sixty-minute jobs the templates always had.
@@ -132,9 +132,9 @@ export function parseOctestraConfig(raw: string): OctestraConfig {
         : requiredString(prompts.loop_todo, "prompts.loop_todo"),
     },
     agent_timeout_minutes: agentTimeouts(root.agent_timeout_minutes),
-    pull_request_validation_log: optionalBoolean(
-      root.pull_request_validation_log,
-      "pull_request_validation_log",
+    append_validation_result_to_pr_body: optionalBoolean(
+      root.append_validation_result_to_pr_body,
+      "append_validation_result_to_pr_body",
       true,
     ),
   };

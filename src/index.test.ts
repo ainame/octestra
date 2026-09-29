@@ -140,7 +140,7 @@ describe("run", () => {
     mocks.getMultilineInput.mockImplementation((name: string) => (inputs[name] ?? "").split("\n").filter(Boolean));
     mocks.loadOctestraConfig.mockResolvedValue({
       status: { field_id: 9001 },
-      pull_request_validation_log: false,
+      append_validation_result_to_pr_body: false,
     });
 
     await run();
@@ -154,7 +154,7 @@ describe("run", () => {
           name: "screens/home.png",
           url: "https://github.com/example-org/consumer/actions/runs/7/artifacts/1",
         }],
-        pullRequestLog: false,
+        appendValidationResultToPrBody: false,
       },
     );
   });

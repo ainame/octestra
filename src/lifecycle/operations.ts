@@ -81,7 +81,7 @@ export interface ProofReportOptions {
 export interface FinalizeValidationOptions {
   artifactLinks?: ArtifactLink[];
   // Keep a table of validation runs at the end of the pull request body; on by default.
-  pullRequestLog?: boolean;
+  appendValidationResultToPrBody?: boolean;
 }
 
 export interface ProofReport {
@@ -669,7 +669,7 @@ export async function finalizeValidation(
     ].join(" "),
   });
   const proof = report.proof;
-  if (options.pullRequestLog !== false) {
+  if (options.appendValidationResultToPrBody !== false) {
     await recordValidationOnPullRequest(
       context,
       pullNumber,

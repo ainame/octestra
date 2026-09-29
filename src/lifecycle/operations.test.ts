@@ -989,7 +989,7 @@ describe("finalizeValidation", () => {
     const client = createClient();
     const proofPath = await proofResultPath("passed");
 
-    await finalizeValidation(createContext(client), 42, proofPath, { pullRequestLog: false });
+    await finalizeValidation(createContext(client), 42, proofPath, { appendValidationResultToPrBody: false });
 
     expect(client.getPullRequestBody).not.toHaveBeenCalled();
     expect(client.updatePullRequestBody).not.toHaveBeenCalled();

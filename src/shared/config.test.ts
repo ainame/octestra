@@ -29,13 +29,13 @@ describe("parseOctestraConfig", () => {
       loop_todo: "loop.hbs",
     },
     agent_timeout_minutes: { task: 50, validation: 50, triage: 50 },
-    pull_request_validation_log: true,
+    append_validation_result_to_pr_body: true,
   }));
   it("switches the pull request validation log off only with an explicit false", () => {
-    expect(parseOctestraConfig(`${base}pull_request_validation_log: false\n`).pull_request_validation_log).toBe(false);
-    expect(parseOctestraConfig(`${base}pull_request_validation_log:\n`).pull_request_validation_log).toBe(true);
-    expect(() => parseOctestraConfig(`${base}pull_request_validation_log: "no"\n`)).toThrow(
-      "pull_request_validation_log must be true or false",
+    expect(parseOctestraConfig(`${base}append_validation_result_to_pr_body: false\n`).append_validation_result_to_pr_body).toBe(false);
+    expect(parseOctestraConfig(`${base}append_validation_result_to_pr_body:\n`).append_validation_result_to_pr_body).toBe(true);
+    expect(() => parseOctestraConfig(`${base}append_validation_result_to_pr_body: "no"\n`)).toThrow(
+      "append_validation_result_to_pr_body must be true or false",
     );
   });
   it("reads agent timeouts and defaults the phases left out", () => {

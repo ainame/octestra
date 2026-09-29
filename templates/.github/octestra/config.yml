@@ -43,4 +43,4 @@ prompts:
 # After each validation, Octestra adds one row to a "Validation runs" table at the end of the
 # task pull request's body: the time, the result, and links to the proof comment, the workflow
 # run and the uploaded files. Set this to false to leave pull request bodies alone.
-# pull_request_validation_log: true
+# append_validation_result_to_pr_body: true
