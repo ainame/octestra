@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({
   client: {},
   artifactClient: {},
   finalizeTask: vi.fn(),
+  finalizeValidation: vi.fn(),
   getInput: vi.fn(),
+  getMultilineInput: vi.fn().mockReturnValue([]),
   getBooleanInput: vi.fn(),
   loadOctestraConfig: vi.fn(),
   finalizeTriage: vi.fn(),
@@ -21,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@actions/core", () => ({
   getBooleanInput: mocks.getBooleanInput,
   getInput: mocks.getInput,
+  getMultilineInput: mocks.getMultilineInput,
   setFailed: vi.fn(),
   setOutput: mocks.setOutput,
   warning: mocks.warning,
@@ -59,6 +62,7 @@ vi.mock("./loop/operations", () => ({
 
 vi.mock("./lifecycle/operations", () => ({
   finalizeTask: mocks.finalizeTask,
+  finalizeValidation: mocks.finalizeValidation,
   validateTransition: mocks.validateTransition,
 }));
 
@@ -121,6 +125,38 @@ describe("run", () => {
     );
     expect(mocks.setOutput).toHaveBeenCalledWith("artifact_links", "");
     expect(mocks.setOutput).toHaveBeenCalledWith("artifact_count", "0");
+  });
+
+  it("dispatches lifecycle/finalize-validation with the links and the log switch", async () => {
+    const inputs: Record<string, string> = {
+      artifact_links: "screens/home.png https://github.com/example-org/consumer/actions/runs/7/artifacts/1",
+      github_token: "token",
+      issue_number: "42",
+      operation: "lifecycle/finalize-validation",
+      pull_number: "57",
+      result_path: "/runner/temp/result.json",
+    };
+    mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
+    mocks.getMultilineInput.mockImplementation((name: string) => (inputs[name] ?? "").split("\n").filter(Boolean));
+    mocks.loadOctestraConfig.mockResolvedValue({
+      status: { field_id: 9001 },
+      append_validation_result_to_pr_body: false,
+    });
+
+    await run();
+
+    expect(mocks.finalizeValidation).toHaveBeenCalledWith(
+      { client: mocks.client, issueNumber: 42, statusFieldId: 9001 },
+      57,
+      "/runner/temp/result.json",
+      {
+        artifactLinks: [{
+          name: "screens/home.png",
+          url: "https://github.com/example-org/consumer/actions/runs/7/artifacts/1",
+        }],
+        appendValidationResultToPrBody: false,
+      },
+    );
   });
 
   it("dispatches lifecycle/validate-transition with the configured agent timeouts", async () => {

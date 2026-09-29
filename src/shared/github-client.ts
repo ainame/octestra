@@ -252,11 +252,30 @@ export class GitHubClient {
     });
   }
 
-  async comment(issueNumber: number, body: string): Promise<void> {
-    await this.octokit.rest.issues.createComment({
+  async comment(issueNumber: number, body: string): Promise<string> {
+    const response = await this.octokit.rest.issues.createComment({
       owner: this.owner,
       repo: this.repo,
       issue_number: issueNumber,
+      body,
+    });
+    return response.data.html_url;
+  }
+
+  async getPullRequestBody(pullNumber: number): Promise<string> {
+    const pull = await this.octokit.rest.pulls.get({
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: pullNumber,
+    });
+    return pull.data.body ?? "";
+  }
+
+  async updatePullRequestBody(pullNumber: number, body: string): Promise<void> {
+    await this.octokit.rest.pulls.update({
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: pullNumber,
       body,
     });
   }

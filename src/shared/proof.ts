@@ -88,7 +88,7 @@ function tableCell(value: unknown, fallback = "—"): string {
   return escapeCell(displayValue(value, fallback));
 }
 
-function resultLabel(value: unknown): string {
+export function resultLabel(value: unknown): string {
   const result = displayValue(value, "reported");
   switch (result.toLowerCase()) {
     case "passed":
