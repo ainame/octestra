@@ -136,8 +136,8 @@ jobs:
 
       # The first token expires one hour after it was created, and the agent may have run longer.
       # Every step below uses this fresh one.
-      - name: Renew the token from GitHub App
-        id: app-token-renewed
+      - name: Refresh the token from GitHub App
+        id: app-token-refreshed
         if: always() && steps.epic.outputs.task_ready == 'true'
         uses: actions/create-github-app-token@v3
         with:
@@ -161,7 +161,7 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/finalize-task
-          github_token: ${{ steps.app-token-renewed.outputs.token }}
+          github_token: ${{ steps.app-token-refreshed.outputs.token }}
           issue_number: ${{ github.event.issue.number }}
           branch_name: ${{ steps.epic.outputs.branch_name }}
           skip_validation: ${{ steps.epic.outputs.skip_validation }}
@@ -236,8 +236,8 @@ jobs:
 
       # The first token expires one hour after it was created, and the agent may have run longer.
       # Every step below uses this fresh one.
-      - name: Renew the token from GitHub App
-        id: app-token-renewed
+      - name: Refresh the token from GitHub App
+        id: app-token-refreshed
         if: always()
         uses: actions/create-github-app-token@v3
         with:
@@ -258,7 +258,7 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: upload-artifacts
-          github_token: ${{ steps.app-token-renewed.outputs.token }}
+          github_token: ${{ steps.app-token-refreshed.outputs.token }}
           artifact_path: ${{ steps.epic.outputs.artifact_path }}
           result_path: ${{ steps.epic.outputs.result_path }}
 
@@ -276,7 +276,7 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/finalize-validation
-          github_token: ${{ steps.app-token-renewed.outputs.token }}
+          github_token: ${{ steps.app-token-refreshed.outputs.token }}
           issue_number: ${{ github.event.issue.number }}
           result_path: ${{ steps.epic.outputs.result_path }}
           pull_number: ${{ steps.epic.outputs.pull_number }}

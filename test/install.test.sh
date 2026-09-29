@@ -112,7 +112,7 @@ NODE
 }
 
 # Every agent job takes its time caps from the guard or discovery outputs and from the prepare
-# step, and renews the App token before the steps that follow the agent.
+# step, and refreshes the App token before the steps that follow the agent.
 assert_agent_timeouts() {
   local workflow="$1"
   local job_name="$2"
@@ -140,13 +140,13 @@ if (agent["timeout-minutes"] !== expectedStepTimeout) {
   throw new Error(`${jobName} agent step timeout-minutes is not ${expectedStepTimeout}`);
 }
 const agentIndex = job.steps.indexOf(agent);
-const renew = job.steps.find((step, index) => index > agentIndex && step.id === "app-token-renewed");
-if (!renew || renew.uses !== "actions/create-github-app-token@v3") {
-  throw new Error(`${jobName} does not renew the App token after the agent`);
+const refresh = job.steps.find((step, index) => index > agentIndex && step.id === "app-token-refreshed");
+if (!refresh || refresh.uses !== "actions/create-github-app-token@v3") {
+  throw new Error(`${jobName} does not refresh the App token after the agent`);
 }
 for (const step of job.steps.slice(agentIndex + 1)) {
   const token = step.with?.github_token;
-  if (token !== undefined && token !== "${{ steps.app-token-renewed.outputs.token }}") {
+  if (token !== undefined && token !== "${{ steps.app-token-refreshed.outputs.token }}") {
     throw new Error(`${jobName} step "${step.name}" uses the token minted before the agent`);
   }
 }
