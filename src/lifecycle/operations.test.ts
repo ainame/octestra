@@ -694,8 +694,8 @@ describe("agent timeouts", () => {
       timeouts,
     );
 
-    expect(core.setOutput).toHaveBeenCalledWith("agent_timeout_minutes", "80");
     expect(core.setOutput).toHaveBeenCalledWith("job_timeout_minutes", "90");
+    expect(core.setOutput).not.toHaveBeenCalledWith("agent_timeout_minutes", expect.anything());
     expect(core.setOutput).toHaveBeenCalledWith("transition_valid", "false");
   });
 
@@ -713,7 +713,6 @@ describe("agent timeouts", () => {
       timeouts,
     );
 
-    expect(core.setOutput).toHaveBeenCalledWith("agent_timeout_minutes", "45");
     expect(core.setOutput).toHaveBeenCalledWith("job_timeout_minutes", "55");
   });
 
@@ -724,7 +723,6 @@ describe("agent timeouts", () => {
 
     await validateTransition(createContext(client), "Ready", "Validation", "task-owner", "User");
 
-    expect(core.setOutput).toHaveBeenCalledWith("agent_timeout_minutes", "50");
     expect(core.setOutput).toHaveBeenCalledWith("job_timeout_minutes", "60");
   });
 
@@ -754,7 +752,38 @@ describe("agent timeouts", () => {
     );
 
     expect(core.setOutput).toHaveBeenCalledWith("agent_timeout_minutes", "80");
-    expect(core.setOutput).toHaveBeenCalledWith("job_timeout_minutes", "90");
+    expect(core.setOutput).not.toHaveBeenCalledWith("job_timeout_minutes", expect.anything());
+  });
+
+  it("publishes the task agent budget from prepare-task through build-task-context", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "prepare-task-timeout-"));
+    temporaryDirectories.push(workspace);
+    await writeFile(path.join(workspace, "prompt.md.hbs"), "{{branchName}}");
+    process.env.GITHUB_WORKSPACE = workspace;
+    const client = createClient({
+      getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
+        issueNumber === 123
+          ? { title: "Task", body: "```task-config\ntarget: null\n```" }
+          : {
+            title: "EPIC",
+            body: "```epic-config\nid: example\nvalidation_skill: example-validation\n```",
+          }),
+      getParentNumber: vi.fn().mockResolvedValue(1),
+      branchExists: vi.fn().mockResolvedValue(false),
+      findOpenPullRequest: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await prepareTask(
+      createContext(client),
+      "prompt.md.hbs",
+      "task-owner",
+      "User",
+      "octestra/{epic_id}/issue-{issue_number}",
+      45,
+    );
+
+    expect(core.setOutput).toHaveBeenCalledWith("agent_timeout_minutes", "45");
+    expect(core.setOutput).not.toHaveBeenCalledWith("job_timeout_minutes", expect.anything());
   });
 });
 

@@ -54,22 +54,24 @@ function requiredPositiveInteger(value: unknown, name: string): number {
   }
   return number;
 }
-// A YAML number only: a quoted "50", true, null or 7.5 is a mistake to report, not coerce.
+// A number, or a string of digits as field_id is written; true, null, 7.5 or "8h" is a mistake
+// to report, not coerce. The installed doctor applies the same rule.
 function optionalTimeoutMinutes(value: unknown, name: string): number {
   if (value === undefined) {
     return defaultAgentTimeoutMinutes;
   }
+  const minutes = typeof value === "string" && /^[0-9]+$/.test(value) ? Number(value) : value;
   if (
-    typeof value !== "number"
-    || !Number.isInteger(value)
-    || value < 1
-    || value > maximumAgentTimeoutMinutes
+    typeof minutes !== "number"
+    || !Number.isInteger(minutes)
+    || minutes < 1
+    || minutes > maximumAgentTimeoutMinutes
   ) {
     throw new Error(
       `config.yml ${name} must be a whole number of minutes from 1 to ${maximumAgentTimeoutMinutes}`,
     );
   }
-  return value;
+  return minutes;
 }
 
 // A missing section and an empty one (`agent_timeout_minutes:` with nothing under it, which

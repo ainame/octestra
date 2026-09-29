@@ -39,8 +39,12 @@ describe("parseOctestraConfig", () => {
       triage: 20,
     });
   });
+  it("accepts a quoted number and a leading zero the way YAML reads them", () => {
+    expect(parseOctestraConfig(`${base}agent_timeout_minutes:\n  validation: "80"\n  task: 08\n`).agent_timeout_minutes)
+      .toEqual({ task: 8, validation: 80, triage: 50 });
+  });
   it.each([
-    ["a quoted number", '"80"'],
+    ["a quoted non-number", '"8h"'],
     ["a boolean", "true"],
     ["null", "null"],
     ["a fraction", "7.5"],

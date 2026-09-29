@@ -243,10 +243,11 @@ check_config() {
       report fail "$CONFIG_PATH has no ${entry%%|*}.${entry##*|}"
     fi
   done
-  # A bad timeout fails the guard on every routed event, so it is reported here first.
+  # A bad timeout fails the guard on every routed event, so it is reported here first. The rule
+  # is the one the action applies: digits only, read in base 10 so 08 is 8, from 1 to 350.
   for entry in task validation triage; do
     if value=$(config_scalar agent_timeout_minutes "$entry"); then
-      if [[ ! "$value" =~ ^[0-9]+$ ]] || (( value < 1 || value > 350 )); then
+      if [[ ! "$value" =~ ^[0-9]+$ ]] || (( 10#$value < 1 || 10#$value > 350 )); then
         report fail \
           "agent_timeout_minutes.$entry is '$value'; it must be a whole number of minutes from 1 to 350"
       fi

@@ -104,9 +104,9 @@ outputs:
   ready_count:
     description: Number of Todo tasks moved to Ready by loop/finalize-triage
   agent_timeout_minutes:
-    description: Minutes the agent step may run, from config.yml agent_timeout_minutes for the phase being prepared
+    description: Minutes the agent step may run, from config.yml agent_timeout_minutes; published by the prepare operations
   job_timeout_minutes:
-    description: Minutes the whole agent job may run; agent_timeout_minutes plus ten for preparation, upload and finalization
+    description: Minutes the whole agent job may run, agent_timeout_minutes plus ten; published by lifecycle/validate-transition and loop/list-epics
   artifact_links:
     description: One "<name> <url>" line per file that upload-artifacts published
   artifact_count:

@@ -110,11 +110,6 @@ function agentTimeoutForStatus(status: string, timeouts: AgentTimeouts): number 
   return status === "Validation" ? timeouts.validation : timeouts.task;
 }
 
-export function publishAgentTimeout(agentTimeoutMinutes: number): void {
-  core.setOutput("agent_timeout_minutes", String(agentTimeoutMinutes));
-  core.setOutput("job_timeout_minutes", String(jobTimeoutMinutes(agentTimeoutMinutes)));
-}
-
 export async function validateTransition(
   context: OperationContext,
   previousStatus: string,
@@ -124,8 +119,12 @@ export async function validateTransition(
   timeouts: AgentTimeouts = defaultAgentTimeouts,
 ): Promise<boolean> {
   // Published before any early return: a job-level timeout-minutes expression must always
-  // find a number here, whatever the guard decides about the event.
-  publishAgentTimeout(agentTimeoutForStatus(currentStatus, timeouts));
+  // find a number here, whatever the guard decides about the event. The agent step's own cap
+  // comes from the prepare step inside that job, not from here.
+  core.setOutput(
+    "job_timeout_minutes",
+    String(jobTimeoutMinutes(agentTimeoutForStatus(currentStatus, timeouts))),
+  );
   const liveStatus = await context.client.getStatus(
     context.issueNumber,
     context.statusFieldId,
@@ -231,7 +230,7 @@ export async function buildTaskContext(
   checkForExistingWork = false,
   agentTimeoutMinutes = defaultAgentTimeoutMinutes,
 ): Promise<void> {
-  publishAgentTimeout(agentTimeoutMinutes);
+  core.setOutput("agent_timeout_minutes", String(agentTimeoutMinutes));
   const workspace = process.env.GITHUB_WORKSPACE;
   if (!workspace) {
     throw new Error("GITHUB_WORKSPACE must be set");
@@ -414,7 +413,7 @@ export async function prepareValidation(
   branchTemplate = defaultBranchTemplate,
   agentTimeoutMinutes = defaultAgentTimeoutMinutes,
 ): Promise<void> {
-  publishAgentTimeout(agentTimeoutMinutes);
+  core.setOutput("agent_timeout_minutes", String(agentTimeoutMinutes));
   await buildValidationContext(context, promptTemplate, branchTemplate);
 }
 
