@@ -3,7 +3,7 @@ import * as core from "@actions/core";
 import { formatArtifactLinks, uploadArtifacts } from "./shared/artifacts";
 import { loadOctestraConfig } from "./shared/config";
 import { GitHubClient } from "./shared/github-client";
-import { parseArtifactLinks } from "./shared/proof";
+import { parseArtifactLinks, type ArtifactLink } from "./shared/proof";
 import { positiveInteger } from "./shared/validate";
 import { workflowRunUrl } from "./shared/workflow-run";
 import {
@@ -50,19 +50,31 @@ function triggerActorPair(required: boolean): [string, string] {
   ];
 }
 
-export async function run(): Promise<void> {
-  const operation = core.getInput("operation", { required: true });
-  const token = core.getInput("github_token", { required: true });
-  if (operation === "upload-artifacts") {
-    // The artifact client authenticates with the runner's own token, not github_token.
+// Never fails the step: the finalize step after it has no `if: always()`, and a missing proof
+// comment costs more than missing links. The artifact client authenticates with the runner's
+// own token, not github_token.
+async function runUploadArtifacts(): Promise<void> {
+  let links: ArtifactLink[] = [];
+  try {
     const result = await uploadArtifacts({
       artifactPath: core.getInput("artifact_path", { required: true }),
       resultPath: core.getInput("result_path") || undefined,
       uploader: new DefaultArtifactClient(),
       runUrl: workflowRunUrl(),
     });
-    core.setOutput("artifact_links", formatArtifactLinks(result.links));
-    core.setOutput("artifact_count", String(result.links.length));
+    links = result.links;
+  } catch (error) {
+    core.warning(`Could not upload the validation artifacts: ${String(error)}`);
+  }
+  core.setOutput("artifact_links", formatArtifactLinks(links));
+  core.setOutput("artifact_count", String(links.length));
+}
+
+export async function run(): Promise<void> {
+  const operation = core.getInput("operation", { required: true });
+  const token = core.getInput("github_token", { required: true });
+  if (operation === "upload-artifacts") {
+    await runUploadArtifacts();
     return;
   }
   const client = new GitHubClient(token);

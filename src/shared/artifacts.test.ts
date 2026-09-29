@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -163,6 +163,70 @@ describe("uploadArtifacts", () => {
 
     expect(missing.links).toEqual([]);
     expect(empty.links).toEqual([]);
+    expect(uploader.uploads).toHaveLength(0);
+  });
+
+  it("skips hidden entries and follows a symlink to a file", async () => {
+    const artifactPath = await evidenceDirectory();
+    await writeFile(path.join(artifactPath, ".DS_Store"), "finder");
+    await mkdir(path.join(artifactPath, ".cache"));
+    await writeFile(path.join(artifactPath, ".cache", "index"), "cache");
+    await symlink(path.join(artifactPath, "01-home.png"), path.join(artifactPath, "latest.png"));
+    await symlink(path.join(artifactPath, "frames"), path.join(artifactPath, "frames-link"));
+    const staging = await scratch("staging-");
+    const uploader = createUploader();
+
+    const result = await uploadArtifacts({
+      artifactPath,
+      uploader,
+      runUrl: "https://github.com/example-org/consumer/actions/runs/1",
+      stagingDirectory: staging,
+    });
+
+    expect(result.links.map((link) => link.name)).toEqual([
+      "01-home.png",
+      "frames/frame-01.png",
+      "journey.mp4",
+      "latest.png",
+    ]);
+    expect(await readFile(path.join(staging, "latest.png"), "utf8")).toBe("png-1");
+  });
+
+  it("keeps both links when the result file shares a name with an evidence file", async () => {
+    const artifactPath = await evidenceDirectory();
+    await writeFile(path.join(artifactPath, "result.json"), "agent copy");
+    const resultPath = path.join(await scratch("result-"), "result.json");
+    await writeFile(resultPath, "{}");
+    const uploader = createUploader(async (name) => ({ id: name === "result.json" ? 1 : 2 }));
+
+    const result = await uploadArtifacts({
+      artifactPath,
+      resultPath,
+      uploader,
+      runUrl: "https://github.com/example-org/consumer/actions/runs/1",
+      stagingDirectory: await scratch("staging-"),
+    });
+
+    expect(result.links.filter((link) => link.name === "result.json")).toEqual([
+      { name: "result.json", url: "https://github.com/example-org/consumer/actions/runs/1/artifacts/1" },
+      { name: "result.json", url: "https://github.com/example-org/consumer/actions/runs/1/artifacts/2" },
+    ]);
+    expect(uploader.uploads.map((upload) => upload.name)).toContain("result-2.json");
+  });
+
+  it("reports an unexpected error instead of throwing", async () => {
+    const artifactPath = await evidenceDirectory();
+    const uploader = createUploader();
+
+    const result = await uploadArtifacts({
+      artifactPath,
+      uploader,
+      runUrl: "https://github.com/example-org/consumer/actions/runs/1",
+      // A file where the staging directory must be created makes mkdir fail.
+      stagingDirectory: path.join(artifactPath, "01-home.png"),
+    });
+
+    expect(result).toEqual({ links: [], skipped: [], failed: [] });
     expect(uploader.uploads).toHaveLength(0);
   });
 

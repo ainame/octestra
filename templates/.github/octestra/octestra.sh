@@ -56,6 +56,9 @@ WARNINGS=0
 REPOSITORY=""
 ORGANIZATION=""
 TEMP_DIR=""
+# Where the user ran the script; enter_repository_root moves away from it, and a path the user
+# typed must still mean what it meant to them.
+CALLER_DIR="$PWD"
 
 usage() {
   cat <<'EOF'
@@ -74,9 +77,10 @@ Commands:
   ref             Show which Octestra repository and ref the workflow calls
   ref SPEC        Change it. SPEC is OWNER/REPO@REF, @REF, OWNER/REPO, or --latest
   artifacts RUN_ID [DIRECTORY]
-                  Download every artifact of a workflow run into DIRECTORY (default
-                  octestra-artifacts-RUN_ID). Files uploaded without archiving are saved
-                  as they are; archived artifacts are saved as .zip files
+                  Download every artifact of a workflow run into DIRECTORY, relative to
+                  the current directory (default: octestra-artifacts-RUN_ID under the
+                  temporary directory, outside the checkout). Files uploaded without
+                  archiving are saved as they are; archived artifacts get a .zip suffix
   help            Show this help
 
 Options:
@@ -868,7 +872,12 @@ artifacts_command() {
 
   [[ -n "$run_id" ]] || die "usage: octestra.sh artifacts RUN_ID [DIRECTORY]"
   [[ "$run_id" =~ ^[0-9]+$ ]] || die "RUN_ID must be a number, got '$run_id'"
-  target="${target:-octestra-artifacts-$run_id}"
+  if [[ -z "$target" ]]; then
+    # Outside the checkout, so a dozen screenshots do not turn up as untracked files.
+    target="${TMPDIR:-/tmp}/octestra-artifacts-$run_id"
+  elif [[ "$target" != /* ]]; then
+    target="$CALLER_DIR/$target"
+  fi
   mkdir -p "$target" || die "could not create $target"
 
   listing=$(
@@ -880,8 +889,13 @@ artifacts_command() {
   while IFS=$'\t' read -r id name; do
     [[ -n "$id" ]] || continue
     file="$target/$name"
-    gh api "repos/$REPOSITORY/actions/artifacts/$id/zip" > "$file" ||
+    # gh api prints an error body to stdout, so download beside the final name and move it
+    # into place only once the request succeeded.
+    if ! gh api "repos/$REPOSITORY/actions/artifacts/$id/zip" > "$file.part"; then
+      rm -f "$file.part"
       die "could not download artifact $name ($id)"
+    fi
+    mv "$file.part" "$file"
     # An archived artifact has no extension of its own; the zip signature tells it apart.
     if [[ "$name" != *.zip && "$(head -c 2 "$file" 2>/dev/null)" == "PK" ]]; then
       mv "$file" "$file.zip"

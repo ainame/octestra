@@ -107,15 +107,15 @@ function findArtifactLink(reference: string, links: ArtifactLink[]): ArtifactLin
 
 // Turns every token of an evidence cell that names an uploaded file into a link to it. The
 // rest of the cell is left alone, so prose and unknown paths still read as the agent wrote them.
+// A name written as `code` keeps its backticks inside the link text, where they still render.
 export function linkArtifactReferences(text: string, links: ArtifactLink[]): string {
   if (links.length === 0) {
     return text;
   }
-  return text.replace(/[^\s,;()]+/g, (token) => {
-    const trailing = token.match(/[.:]+$/)?.[0] ?? "";
-    const reference = token.slice(0, token.length - trailing.length);
+  const token = /(`?)([^\s,;()`]+?)(`?)([.:]*)(?=[\s,;()]|$)/g;
+  return text.replace(token, (match, open, reference, close, trailing) => {
     const link = findArtifactLink(reference, links);
-    return link ? `[${reference}](${link.url})${trailing}` : token;
+    return link ? `[${open}${reference}${close}](${link.url})${trailing}` : match;
   });
 }
 
@@ -191,9 +191,10 @@ const evidenceColumns: ProofColumn[] = [
   { header: "Reference", keys: ["reference", "url", "link", "path"], references: true },
 ];
 
-// With a run URL the row points at the run's artifact list, where every file has its own
-// download button; listing each link here would make the cell unreadable past a few files.
-// Without one, the links themselves are the only way to reach the files.
+// With a run URL the row points at the run's artifact list (the summary page's `artifacts`
+// anchor, checked against a live run page), where every file has its own download button;
+// listing each link here would make the cell unreadable past a few files. Without one, the
+// links themselves are the only way to reach the files.
 function renderArtifactsCell(links: ArtifactLink[], runUrl: string | undefined): string {
   if (runUrl) {
     const noun = links.length === 1 ? "file" : "files";

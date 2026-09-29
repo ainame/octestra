@@ -293,6 +293,11 @@ if [[ "$args" == *"/actions/artifacts/4303/zip"* ]]; then
   exit 0
 fi
 
+if [[ "$args" == *"/actions/artifacts/${OCTESTRA_TEST_ARTIFACT_FAIL:-none}/zip"* ]]; then
+  printf '{"message":"Not Found"}\n'
+  exit 1
+fi
+
 if [[ "$args" == *"/actions/artifacts/"*"/zip"* ]]; then
   printf 'raw bytes of %s\n' "${args#*/actions/artifacts/}"
   exit 0
@@ -958,6 +963,26 @@ test "$(cat "$artifacts_dir/screenshot.png")" = "raw bytes of 4301/zip"
 test "$(cat "$artifacts_dir/build.log")" = "raw bytes of 4302/zip"
 test -f "$artifacts_dir/evidence.zip"
 test ! -e "$artifacts_dir/evidence"
+test ! -e "$artifacts_dir/evidence.part"
+# A relative directory means relative to where the user is, not to the repository root the
+# script moves into; the default lands outside the checkout entirely.
+mkdir -p "$TEMP_DIR/artifacts-cwd"
+(cd "$TEMP_DIR/artifacts-cwd" && PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" artifacts 36581563997 relative-out >/dev/null)
+test -f "$TEMP_DIR/artifacts-cwd/relative-out/build.log"
+test ! -e "$TEMP_DIR/consumer-doctor/relative-out"
+mkdir -p "$TEMP_DIR/artifacts-tmp"
+(cd "$TEMP_DIR/consumer-doctor" && PATH="$TEMP_DIR/bin:$PATH" TMPDIR="$TEMP_DIR/artifacts-tmp" bash "$maintenance" artifacts 36581563997 >/dev/null)
+test -f "$TEMP_DIR/artifacts-tmp/octestra-artifacts-36581563997/build.log"
+test ! -e "$TEMP_DIR/consumer-doctor/octestra-artifacts-36581563997"
+# A failed download leaves no half-written file behind under the artifact's name.
+if PATH="$TEMP_DIR/bin:$PATH" OCTESTRA_TEST_ARTIFACT_FAIL=4302 \
+    bash "$maintenance" artifacts 36581563997 "$TEMP_DIR/artifacts-fail" >/dev/null 2>&1; then
+  echo "artifacts ignored a failed download" >&2
+  exit 1
+fi
+test -f "$TEMP_DIR/artifacts-fail/screenshot.png"
+test ! -e "$TEMP_DIR/artifacts-fail/build.log"
+test ! -e "$TEMP_DIR/artifacts-fail/build.log.part"
 if PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" artifacts >/dev/null 2>&1; then
   echo "artifacts accepted a missing run id" >&2
   exit 1

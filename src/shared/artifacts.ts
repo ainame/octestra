@@ -48,15 +48,22 @@ interface UploadCandidate {
   absolutePath: string;
 }
 
+// Hidden entries are left out, as actions/upload-artifact does by default: a `.DS_Store` or a
+// tool's dot-directory is never evidence, and a dotfile is where secrets tend to live. A symlink
+// is followed when it points at a file, so an agent's `latest.png -> 03-final.png` uploads.
 async function collectFiles(directory: string, prefix: string): Promise<UploadCandidate[]> {
   const entries = await fs.readdir(directory, { withFileTypes: true });
   const candidates: UploadCandidate[] = [];
   for (const entry of entries) {
+    if (entry.name.startsWith(".")) {
+      core.info(`Skipping hidden entry ${prefix ? `${prefix}/` : ""}${entry.name}`);
+      continue;
+    }
     const absolutePath = path.join(directory, entry.name);
     const name = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
       candidates.push(...await collectFiles(absolutePath, name));
-    } else if (entry.isFile()) {
+    } else if (entry.isFile() || (entry.isSymbolicLink() && await isFile(absolutePath))) {
       candidates.push({ name, absolutePath });
     }
   }
@@ -98,13 +105,14 @@ export function artifactNameFor(relativePath: string, taken: Set<string>): strin
   return candidate;
 }
 
-async function stage(candidate: UploadCandidate, stagingDirectory: string, artifactName: string): Promise<string> {
+// A copy rather than a hard link: copyFile follows a symlink and works across file systems.
+async function stage(
+  candidate: UploadCandidate,
+  stagingDirectory: string,
+  artifactName: string,
+): Promise<string> {
   const staged = path.join(stagingDirectory, artifactName);
-  try {
-    await fs.link(candidate.absolutePath, staged);
-  } catch {
-    await fs.copyFile(candidate.absolutePath, staged);
-  }
+  await fs.copyFile(candidate.absolutePath, staged);
   return staged;
 }
 
@@ -126,10 +134,21 @@ async function runWithConcurrency<T>(
 }
 
 // Uploads every file under artifactPath, and the result file when given, as its own
-// non-archived artifact so a browser opens each one directly. Failures are reported and
-// counted, not thrown: this runs after the agent with `if: always()`, and a failed upload must
-// not stop the proof comment that follows.
+// non-archived artifact so a browser opens each one directly. Nothing here throws: this runs
+// after the agent with `if: always()`, and the finalize step that posts the proof comment has
+// no such guard, so any failure is reported and counted instead of failing the step.
 export async function uploadArtifacts(
+  options: UploadArtifactsOptions,
+): Promise<UploadArtifactsResult> {
+  try {
+    return await uploadArtifactsOrThrow(options);
+  } catch (error) {
+    core.warning(`Could not upload the validation artifacts: ${String(error)}`);
+    return { links: [], skipped: [], failed: [] };
+  }
+}
+
+async function uploadArtifactsOrThrow(
   options: UploadArtifactsOptions,
 ): Promise<UploadArtifactsResult> {
   const candidates: UploadCandidate[] = [];
@@ -167,6 +186,8 @@ export async function uploadArtifacts(
     artifactName: artifactNameFor(candidate.name, taken),
   }));
 
+  // Keyed by the artifact name, which is unique; two candidates may share a relative name when
+  // the result file has the same name as a file the agent saved.
   const links = new Map<string, ArtifactLink>();
   const failed: string[] = [];
   await runWithConcurrency(plan, uploadConcurrency, async ({ candidate, artifactName }) => {
@@ -181,7 +202,7 @@ export async function uploadArtifacts(
       if (response.id === undefined) {
         throw new Error("upload returned no artifact id");
       }
-      links.set(candidate.name, {
+      links.set(artifactName, {
         name: candidate.name,
         url: `${options.runUrl}/artifacts/${response.id}`,
       });
@@ -193,7 +214,7 @@ export async function uploadArtifacts(
 
   // Keep the planned order so the comment lists files the way the agent numbered them.
   const ordered = plan
-    .map(({ candidate }) => links.get(candidate.name))
+    .map(({ artifactName }) => links.get(artifactName))
     .filter((link): link is ArtifactLink => link !== undefined);
   core.info(`Uploaded ${ordered.length} of ${selected.length} files as artifacts.`);
   return { links: ordered, skipped, failed };

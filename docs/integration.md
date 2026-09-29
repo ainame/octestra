@@ -178,8 +178,10 @@ After the agent finishes, the workflow runs `operation: upload-artifacts` with `
 JSON, as its own artifact without archiving, so the link to a screenshot or recording opens the file
 in the browser. The artifact name is the file's path relative to the directory with `/` replaced by
 `--`; the step's `artifact_links` output lists one `<relative path> <url>` line per file and
-`artifact_count` gives the number. A file that fails to upload is logged and skipped, and GitHub's
-limit of 500 artifacts per job caps what is uploaded.
+`artifact_count` gives the number. Hidden files and directories are left out, as
+`actions/upload-artifact` leaves them out, and a symbolic link to a file is uploaded as that file.
+A file that fails to upload is logged and skipped, GitHub's limit of 500 artifacts per job caps what
+is uploaded, and the step never fails: the finalize step after it must still run.
 
 The workflow passes `artifact_links` to `lifecycle/finalize-validation` (`report-proof` accepts the
 same input). The proof comment on the task issue then shows:
@@ -187,7 +189,9 @@ same input). The proof comment on the task issue then shows:
 - an `Artifacts` row in the overview table, linking to the run's artifact list with the file count;
 - a command to download every file of the run,
   `.github/octestra/octestra.sh artifacts <run id>`, because `gh run download` cannot fetch
-  non-archived artifacts ([cli/cli#13012](https://github.com/cli/cli/issues/13012));
+  non-archived artifacts ([cli/cli#13012](https://github.com/cli/cli/issues/13012)). It saves
+  the files under the temporary directory unless a directory is given, so they do not appear as
+  untracked files in the checkout;
 - links in the `Evidence` cells of the acceptance, checks, and evidence tables wherever the agent
   named an uploaded file by its relative path, or by its file name when that name is unique.
 

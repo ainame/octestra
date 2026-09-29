@@ -300,6 +300,9 @@ describe("linkArtifactReferences", () => {
     expect(linkArtifactReferences("(dup.png) and b/dup.png", links)).toBe(
       "(dup.png) and [b/dup.png](https://example.test/13)",
     );
+    expect(linkArtifactReferences("see `screens/home.png` here", links)).toBe(
+      "see [`screens/home.png`](https://example.test/11) here",
+    );
     expect(linkArtifactReferences("no files here", links)).toBe("no files here");
     expect(linkArtifactReferences("screens/home.png", [])).toBe("screens/home.png");
   });
