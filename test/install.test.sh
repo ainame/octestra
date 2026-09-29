@@ -43,6 +43,7 @@ const yaml = require("yaml");
 const action = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
 const expectedInputs = [
   "artifact_links",
+  "artifact_path",
   "branch_name",
   "config_ref",
   "current_status",
@@ -281,6 +282,22 @@ if [[ "$1" != "api" ]]; then
 fi
 
 args="$*"
+if [[ "$args" == *"/actions/runs/"*"/artifacts"* ]]; then
+  # Two non-archived files and one archived artifact, the mix `artifacts` must handle.
+  printf '4301\tscreenshot.png\n4302\tbuild.log\n4303\tevidence\n'
+  exit 0
+fi
+
+if [[ "$args" == *"/actions/artifacts/4303/zip"* ]]; then
+  printf 'PK\003\004archived-bytes'
+  exit 0
+fi
+
+if [[ "$args" == *"/actions/artifacts/"*"/zip"* ]]; then
+  printf 'raw bytes of %s\n' "${args#*/actions/artifacts/}"
+  exit 0
+fi
+
 if [[ "$args" == *"/actions/secrets"* ]]; then
   if [[ -z "${OCTESTRA_TEST_SECRETS:-}" ]]; then
     exit 1
@@ -935,6 +952,17 @@ mv "$TEMP_DIR/parked-validation-action.yml" \
 
 # ref reports what the workflow calls, and switching rewrites the workflow and the script
 # itself, so the two cannot disagree afterwards.
+artifacts_dir="$TEMP_DIR/artifacts-out"
+PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" artifacts 36581563997 "$artifacts_dir" >/dev/null
+test "$(cat "$artifacts_dir/screenshot.png")" = "raw bytes of 4301/zip"
+test "$(cat "$artifacts_dir/build.log")" = "raw bytes of 4302/zip"
+test -f "$artifacts_dir/evidence.zip"
+test ! -e "$artifacts_dir/evidence"
+if PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" artifacts >/dev/null 2>&1; then
+  echo "artifacts accepted a missing run id" >&2
+  exit 1
+fi
+
 test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "ainame/octestra@main"
 PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref @2.0.0 >/dev/null
 test "$(PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" ref)" = "ainame/octestra@2.0.0"

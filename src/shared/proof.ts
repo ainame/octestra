@@ -42,6 +42,8 @@ export interface ProofCommentContext {
   owner?: string;
   actor?: string;
   runUrl?: string;
+  // Numeric run id, used for the download command; runUrl carries it but is not parsed.
+  runId?: string;
   runAttempt?: string;
   recordedAt?: string;
   // Where the uploaded evidence (screenshots, recordings, logs) can be downloaded.
@@ -76,10 +78,45 @@ function displayValue(value: unknown, fallback = "—"): string {
   return fallback;
 }
 
-function tableCell(value: unknown, fallback = "—"): string {
-  return displayValue(value, fallback)
+function escapeCell(text: string): string {
+  return text
     .replace(/\|/g, "\\|")
     .replace(/\r?\n/g, "<br>");
+}
+
+function tableCell(value: unknown, fallback = "—"): string {
+  return escapeCell(displayValue(value, fallback));
+}
+
+function findArtifactLink(reference: string, links: ArtifactLink[]): ArtifactLink | undefined {
+  const normalized = reference.replace(/^\.\//, "");
+  const exact = links.find((link) =>
+    link.name !== undefined
+    && (link.name === normalized || normalized.endsWith(`/${link.name}`)),
+  );
+  if (exact) {
+    return exact;
+  }
+  // An agent may cite a file by name alone; accept that when only one upload has that name.
+  const base = normalized.slice(normalized.lastIndexOf("/") + 1);
+  const byBasename = links.filter((link) =>
+    link.name !== undefined && link.name.slice(link.name.lastIndexOf("/") + 1) === base,
+  );
+  return byBasename.length === 1 ? byBasename[0] : undefined;
+}
+
+// Turns every token of an evidence cell that names an uploaded file into a link to it. The
+// rest of the cell is left alone, so prose and unknown paths still read as the agent wrote them.
+export function linkArtifactReferences(text: string, links: ArtifactLink[]): string {
+  if (links.length === 0) {
+    return text;
+  }
+  return text.replace(/[^\s,;()]+/g, (token) => {
+    const trailing = token.match(/[.:]+$/)?.[0] ?? "";
+    const reference = token.slice(0, token.length - trailing.length);
+    const link = findArtifactLink(reference, links);
+    return link ? `[${reference}](${link.url})${trailing}` : token;
+  });
 }
 
 function resultLabel(value: unknown): string {
@@ -104,16 +141,22 @@ function resultLabel(value: unknown): string {
 }
 
 // A column is a header plus the row keys it reads, most-preferred key first.
-// `fallback` supplies a positional label when a row names nothing usable, and
-// `label` marks the columns whose value is a pass/fail result rather than text.
+// `fallback` supplies a positional label when a row names nothing usable, `label` marks the
+// columns whose value is a pass/fail result rather than text, and `references` marks the
+// columns whose file names become links to uploaded artifacts.
 interface ProofColumn {
   header: string;
   keys: string[];
   fallback?: (index: number) => string;
   label?: boolean;
+  references?: boolean;
 }
 
-function renderProofRows(columns: ProofColumn[], rows: ProofRow[]): string {
+function renderProofRows(
+  columns: ProofColumn[],
+  rows: ProofRow[],
+  links: ArtifactLink[],
+): string {
   return markdownTable(
     columns.map((column) => column.header),
     rows.map((row, index) => columns.map((column) => {
@@ -121,7 +164,8 @@ function renderProofRows(columns: ProofColumn[], rows: ProofRow[]): string {
       if (column.label) {
         return tableCell(resultLabel(value));
       }
-      return tableCell(value, column.fallback?.(index));
+      const text = displayValue(value, column.fallback?.(index));
+      return escapeCell(column.references ? linkArtifactReferences(text, links) : text);
     })),
   );
 }
@@ -130,7 +174,7 @@ const acceptanceColumns: ProofColumn[] = [
   { header: "ID", keys: ["id"], fallback: (index) => `AC-${index + 1}` },
   { header: "Criterion", keys: ["criterion", "description", "name", "summary"] },
   { header: "Result", keys: ["result", "outcome", "status"], label: true },
-  { header: "Evidence", keys: ["evidence", "evidenceRefs", "evidence_refs"] },
+  { header: "Evidence", keys: ["evidence", "evidenceRefs", "evidence_refs"], references: true },
 ];
 
 const checkColumns: ProofColumn[] = [
@@ -138,16 +182,23 @@ const checkColumns: ProofColumn[] = [
   { header: "Type", keys: ["type", "kind"] },
   { header: "Scope", keys: ["scope"] },
   { header: "Result", keys: ["result", "outcome", "status"], label: true },
-  { header: "Evidence", keys: ["evidence", "evidenceRefs", "evidence_refs"] },
+  { header: "Evidence", keys: ["evidence", "evidenceRefs", "evidence_refs"], references: true },
 ];
 
 const evidenceColumns: ProofColumn[] = [
   { header: "Evidence", keys: ["name", "id"], fallback: (index) => `Evidence ${index + 1}` },
   { header: "Type", keys: ["type", "kind"] },
-  { header: "Reference", keys: ["reference", "url", "link", "path"] },
+  { header: "Reference", keys: ["reference", "url", "link", "path"], references: true },
 ];
 
-function renderArtifactLinks(links: ArtifactLink[]): string {
+// With a run URL the row points at the run's artifact list, where every file has its own
+// download button; listing each link here would make the cell unreadable past a few files.
+// Without one, the links themselves are the only way to reach the files.
+function renderArtifactsCell(links: ArtifactLink[], runUrl: string | undefined): string {
+  if (runUrl) {
+    const noun = links.length === 1 ? "file" : "files";
+    return `[${links.length} ${noun}](${runUrl}#artifacts)`;
+  }
   return links
     .map((link, index) => {
       const fallback = links.length === 1 ? "Artifact" : `Artifact ${index + 1}`;
@@ -156,10 +207,23 @@ function renderArtifactLinks(links: ArtifactLink[]): string {
     .join(" · ");
 }
 
+// `gh run download` cannot fetch non-archived artifacts (cli/cli#13012), so the installed
+// maintenance script does it through the API.
+function renderDownloadCommand(runId: string): string {
+  return [
+    "Download all files from a checkout of this repository:",
+    "",
+    "```sh",
+    `.github/octestra/octestra.sh artifacts ${runId}`,
+    "```",
+  ].join("\n");
+}
+
 export function renderProofComment(
   proof: ProofDocument,
   context: ProofCommentContext,
 ): string {
+  const artifactLinks = context.artifactLinks ?? [];
   // Reviewers see the result and evidence first. Execution metadata remains available
   // for auditing without making the default comment difficult to scan.
   const overviewRows = [
@@ -171,11 +235,11 @@ export function renderProofComment(
     proof.knownGaps
       ? ["Known gaps", proof.knownGaps.length === 0 ? "None" : String(proof.knownGaps.length)]
       : undefined,
-    // The evidence table lists what the agent saved; this row is where to download it. It stays in
+    // The evidence table lists what the agent saved; this row is where to get it. It stays in
     // the overview because reaching it through the workflow run link in the metadata takes several
     // clicks.
-    context.artifactLinks?.length
-      ? ["Artifacts", renderArtifactLinks(context.artifactLinks)]
+    artifactLinks.length > 0
+      ? ["Artifacts", renderArtifactsCell(artifactLinks, context.runUrl)]
       : undefined,
   ].filter((row): row is string[] => row !== undefined);
   const evidence = [...(proof.evidence ?? []), ...(proof.artifacts ?? [])];
@@ -199,14 +263,22 @@ export function renderProofComment(
     markdownTable(["Target", "Result"], overviewRows),
   ];
 
+  if (artifactLinks.length > 0 && context.runId) {
+    sections.push("", renderDownloadCommand(context.runId));
+  }
   if (proof.acceptance?.length) {
-    sections.push("", "### Acceptance criteria", "", renderProofRows(acceptanceColumns, proof.acceptance));
+    sections.push(
+      "",
+      "### Acceptance criteria",
+      "",
+      renderProofRows(acceptanceColumns, proof.acceptance, artifactLinks),
+    );
   }
   if (proof.checks?.length) {
-    sections.push("", "### Checks", "", renderProofRows(checkColumns, proof.checks));
+    sections.push("", "### Checks", "", renderProofRows(checkColumns, proof.checks, artifactLinks));
   }
   if (evidence.length) {
-    sections.push("", "### Evidence", "", renderProofRows(evidenceColumns, evidence));
+    sections.push("", "### Evidence", "", renderProofRows(evidenceColumns, evidence, artifactLinks));
   }
   if (proof.knownGaps?.length) {
     sections.push(

@@ -37,7 +37,7 @@ performs eligible `Todo` to `Ready` updates.
 action.yml                     composite action surface (inputs are the public API)
 src/
   index.ts                     operation dispatch; builds context per namespace
-  shared/                      config.ts, github-client.ts, prompt.ts, proof.ts, result.ts
+  shared/                      artifacts.ts, config.ts, github-client.ts, prompt.ts, proof.ts, result.ts
   lifecycle/operations.ts      lifecycle/<verb> implementations
   loop/operations.ts           loop/list-epics, prepare-triage and finalize-triage
 dist/index.js                  committed esbuild bundle — regenerate, never hand-edit

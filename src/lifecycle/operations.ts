@@ -467,6 +467,7 @@ export async function reportProof(
     owner,
     actor: process.env.GITHUB_ACTOR,
     runUrl: workflowRunUrl(),
+    runId: process.env.GITHUB_RUN_ID,
     runAttempt: process.env.GITHUB_RUN_ATTEMPT,
     artifactLinks: options.artifactLinks,
     nextSteps: proof.outcome !== "passed" ? options.failureGuidance : undefined,

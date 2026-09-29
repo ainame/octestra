@@ -1,8 +1,11 @@
+import { DefaultArtifactClient } from "@actions/artifact";
 import * as core from "@actions/core";
+import { formatArtifactLinks, uploadArtifacts } from "./shared/artifacts";
 import { loadOctestraConfig } from "./shared/config";
 import { GitHubClient } from "./shared/github-client";
 import { parseArtifactLinks } from "./shared/proof";
 import { positiveInteger } from "./shared/validate";
+import { workflowRunUrl } from "./shared/workflow-run";
 import {
   assignOwner,
   buildTaskContext,
@@ -50,6 +53,18 @@ function triggerActorPair(required: boolean): [string, string] {
 export async function run(): Promise<void> {
   const operation = core.getInput("operation", { required: true });
   const token = core.getInput("github_token", { required: true });
+  if (operation === "upload-artifacts") {
+    // The artifact client authenticates with the runner's own token, not github_token.
+    const result = await uploadArtifacts({
+      artifactPath: core.getInput("artifact_path", { required: true }),
+      resultPath: core.getInput("result_path") || undefined,
+      uploader: new DefaultArtifactClient(),
+      runUrl: workflowRunUrl(),
+    });
+    core.setOutput("artifact_links", formatArtifactLinks(result.links));
+    core.setOutput("artifact_count", String(result.links.length));
+    return;
+  }
   const client = new GitHubClient(token);
   if (operation === "loop/list-epics") {
     await listEpics(client);

@@ -171,13 +171,29 @@ The action runs in the same job, runner, and checked-out workspace as `lifecycle
 The validation agent uses the installed `/octestra-contracts` skill to write JSON to
 `inputs.result_path` and check its format.
 
-After the agent finishes, the workflow uploads `inputs.artifact_path` and `inputs.result_path` with
-`actions/upload-artifact`, even when the agent failed, and passes the upload's name and URL to
-`lifecycle/finalize-validation` as `artifact_links`. The proof comment on the task issue then shows an
-`Artifacts` row next to the outcome, with the artifact name as the link text. To link several uploads,
-pass one per line as `<name> <url>`; a line with only a URL is labelled `Artifact` and numbered when
-there are several, and a line without a URL is skipped. Leave `artifact_links` empty to post the
-comment without that row; `report-proof` accepts the same input.
+### Evidence files
+
+After the agent finishes, the workflow runs `operation: upload-artifacts` with `artifact_path` and
+`result_path`, even when the agent failed. It uploads every file under the directory, and the result
+JSON, as its own artifact without archiving, so the link to a screenshot or recording opens the file
+in the browser. The artifact name is the file's path relative to the directory with `/` replaced by
+`--`; the step's `artifact_links` output lists one `<relative path> <url>` line per file and
+`artifact_count` gives the number. A file that fails to upload is logged and skipped, and GitHub's
+limit of 500 artifacts per job caps what is uploaded.
+
+The workflow passes `artifact_links` to `lifecycle/finalize-validation` (`report-proof` accepts the
+same input). The proof comment on the task issue then shows:
+
+- an `Artifacts` row in the overview table, linking to the run's artifact list with the file count;
+- a command to download every file of the run,
+  `.github/octestra/octestra.sh artifacts <run id>`, because `gh run download` cannot fetch
+  non-archived artifacts ([cli/cli#13012](https://github.com/cli/cli/issues/13012));
+- links in the `Evidence` cells of the acceptance, checks, and evidence tables wherever the agent
+  named an uploaded file by its relative path, or by its file name when that name is unique.
+
+Leave `artifact_links` empty to post the comment without any of these. When the lines come from
+somewhere other than `upload-artifacts`, a line with only a URL is labelled `Artifact` and numbered
+when there are several, and a line without a URL is skipped.
 
 ### Use the agent debug flag
 

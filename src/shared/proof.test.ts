@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseArtifactLinks, parseProofDocument, renderProofComment } from "./proof";
+import {
+  linkArtifactReferences,
+  parseArtifactLinks,
+  parseProofDocument,
+  renderProofComment,
+} from "./proof";
 
 describe("parseProofDocument", () => {
   it("accepts the small convention while ignoring consumer-specific fields", () => {
@@ -142,7 +147,77 @@ describe("renderProofComment", () => {
     );
   });
 
-  it("links the uploaded artifact in the overview, outside the collapsed metadata", () => {
+  it("links the run's artifact list, the download command, and every cited file", () => {
+    const comment = renderProofComment(
+      parseProofDocument({
+        kind: "validation-result",
+        outcome: "passed",
+        summary: "The profile flow behaves as expected.",
+        acceptance: [{
+          id: "AC-1",
+          criterion: "The profile loads",
+          result: "passed",
+          evidence: "screens/home.png / home-fullres.png; snapshot rows e75, e76.",
+        }],
+        checks: [{
+          name: "Journey",
+          result: "passed",
+          evidence: "/Users/runner/work/_temp/octestra-validation-artifacts/journey.mp4",
+        }],
+        evidence: [
+          { name: "Home screen", type: "image", reference: "./screens/home.png" },
+          { name: "Log", type: "text", reference: "logs/build.log" },
+        ],
+        details: "Executed the consumer-defined validation prompt.",
+      }),
+      {
+        issueNumber: 123,
+        pullNumber: 42,
+        runUrl: "https://github.com/ainame/octestra/actions/runs/1",
+        runId: "1",
+        recordedAt: "2026-07-24T21:00:00.000Z",
+        artifactLinks: [
+          { name: "screens/home.png", url: "https://github.com/ainame/octestra/actions/runs/1/artifacts/11" },
+          { name: "home-fullres.png", url: "https://github.com/ainame/octestra/actions/runs/1/artifacts/12" },
+          { name: "journey.mp4", url: "https://github.com/ainame/octestra/actions/runs/1/artifacts/13" },
+        ],
+      },
+    );
+
+    const artifactRow =
+      "| Artifacts | [3 files](https://github.com/ainame/octestra/actions/runs/1#artifacts) |";
+    expect(comment).toContain(artifactRow);
+    expect(comment.indexOf(artifactRow)).toBeLessThan(
+      comment.indexOf("<summary>Additional details</summary>"),
+    );
+    const download = [
+      "Download all files from a checkout of this repository:",
+      "",
+      "```sh",
+      ".github/octestra/octestra.sh artifacts 1",
+      "```",
+    ].join("\n");
+    expect(comment).toContain(download);
+    expect(comment.indexOf(download)).toBeLessThan(comment.indexOf("### Acceptance criteria"));
+    expect(comment).toContain(
+      "| AC-1 | The profile loads | ✅ Passed | "
+        + "[screens/home.png](https://github.com/ainame/octestra/actions/runs/1/artifacts/11) / "
+        + "[home-fullres.png](https://github.com/ainame/octestra/actions/runs/1/artifacts/12); "
+        + "snapshot rows e75, e76. |",
+    );
+    expect(comment).toContain(
+      "| Journey | — | — | ✅ Passed | "
+        + "[/Users/runner/work/_temp/octestra-validation-artifacts/journey.mp4]"
+        + "(https://github.com/ainame/octestra/actions/runs/1/artifacts/13) |",
+    );
+    expect(comment).toContain(
+      "| Home screen | image | "
+        + "[./screens/home.png](https://github.com/ainame/octestra/actions/runs/1/artifacts/11) |",
+    );
+    expect(comment).toContain("| Log | text | logs/build.log |");
+  });
+
+  it("lists the links themselves when there is no run to point at", () => {
     const comment = renderProofComment(
       parseProofDocument({
         kind: "validation-result",
@@ -161,12 +236,11 @@ describe("renderProofComment", () => {
       },
     );
 
-    const artifactRow = "| Artifacts | [octestra-validation-123-attempt-1]"
-      + "(https://github.com/ainame/octestra/actions/runs/1/artifacts/99) |";
-    expect(comment).toContain(artifactRow);
-    expect(comment.indexOf(artifactRow)).toBeLessThan(
-      comment.indexOf("<summary>Additional details</summary>"),
+    expect(comment).toContain(
+      "| Artifacts | [octestra-validation-123-attempt-1]"
+        + "(https://github.com/ainame/octestra/actions/runs/1/artifacts/99) |",
     );
+    expect(comment).not.toContain("octestra.sh artifacts");
   });
 
   it("numbers unnamed links when several artifacts were uploaded", () => {
@@ -209,6 +283,25 @@ describe("renderProofComment", () => {
     );
 
     expect(comment).not.toContain("| Artifacts |");
+  });
+});
+
+describe("linkArtifactReferences", () => {
+  const links = [
+    { name: "screens/home.png", url: "https://example.test/11" },
+    { name: "a/dup.png", url: "https://example.test/12" },
+    { name: "b/dup.png", url: "https://example.test/13" },
+  ];
+
+  it("links exact, suffix, and unique basename matches and leaves the rest alone", () => {
+    expect(linkArtifactReferences("home.png then screens/home.png.", links)).toBe(
+      "[home.png](https://example.test/11) then [screens/home.png](https://example.test/11).",
+    );
+    expect(linkArtifactReferences("(dup.png) and b/dup.png", links)).toBe(
+      "(dup.png) and [b/dup.png](https://example.test/13)",
+    );
+    expect(linkArtifactReferences("no files here", links)).toBe("no files here");
+    expect(linkArtifactReferences("screens/home.png", [])).toBe("screens/home.png");
   });
 });
 

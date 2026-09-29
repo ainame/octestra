@@ -82,6 +82,11 @@ Add any of these optional fields when useful:
 Do not invent acceptance criteria. Preserve failed, skipped, and blocked checks rather than
 omitting them or reporting success.
 
+Save screenshots, recordings, and logs under the artifact directory from the prompt. In
+`evidence`, `checks`, and `acceptance`, name each file by its path relative to that directory,
+such as `screens/home.png`, not by an absolute path. Every file there is uploaded after the run,
+and a reference written this way becomes a link to the file in the result comment.
+
 After writing the file, run:
 
 ```sh

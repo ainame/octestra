@@ -711,8 +711,8 @@ describe("reportProof", () => {
     await reportProof(createContext(client), proofPath, {
       pullNumber: 42,
       artifactLinks: [{
-        name: "octestra-validation-123-attempt-1",
-        url: "https://github.com/ainame/octestra/actions/runs/1/artifacts/99",
+        name: "screens/home.png",
+        url: "https://github.com/example-org/example-repo/actions/runs/123456/artifacts/99",
       }],
     });
 
@@ -727,8 +727,7 @@ describe("reportProof", () => {
     expect(client.comment).toHaveBeenCalledWith(
       123,
       expect.stringContaining(
-        "| Artifacts | [octestra-validation-123-attempt-1]"
-          + "(https://github.com/ainame/octestra/actions/runs/1/artifacts/99) |",
+        "| Artifacts | [1 file](https://github.com/example-org/example-repo/actions/runs/123456#artifacts) |",
       ),
     );
     expect(client.updateStatus).not.toHaveBeenCalled();
@@ -807,8 +806,8 @@ describe("finalizeValidation", () => {
       proofPath,
       {
         artifactLinks: [{
-          name: "octestra-validation-123-attempt-1",
-          url: "https://github.com/ainame/octestra/actions/runs/1/artifacts/99",
+          name: "screens/home.png",
+          url: "https://github.com/example-org/example-repo/actions/runs/123456/artifacts/99",
         }],
       },
     );
@@ -816,9 +815,12 @@ describe("finalizeValidation", () => {
     expect(client.comment).toHaveBeenCalledWith(
       123,
       expect.stringContaining(
-        "| Artifacts | [octestra-validation-123-attempt-1]"
-          + "(https://github.com/ainame/octestra/actions/runs/1/artifacts/99) |",
+        "| Artifacts | [1 file](https://github.com/example-org/example-repo/actions/runs/123456#artifacts) |",
       ),
+    );
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining(".github/octestra/octestra.sh artifacts 123456"),
     );
     expect(client.updateStatus).toHaveBeenCalledWith(
       123,
