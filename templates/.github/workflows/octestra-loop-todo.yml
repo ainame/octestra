@@ -105,7 +105,7 @@ jobs:
 
       # The first token expires one hour after it was created, and the agent may have run longer.
       - name: Renew the token from GitHub App
-        id: app-token-after
+        id: app-token-renewed
         uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
@@ -119,6 +119,6 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: loop/finalize-triage
-          github_token: ${{ steps.app-token-after.outputs.token }}
+          github_token: ${{ steps.app-token-renewed.outputs.token }}
           issue_number: ${{ matrix.epic.number }}
           result_path: ${{ steps.loop.outputs.result_path }}
