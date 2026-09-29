@@ -79,3 +79,16 @@ Revisit if the write endpoint gains ID addressing.
   `config.yml`; today it regenerates the file.
 - The installer overwrites workflows, prompts, and the agent skill on every run. Say so before doing
   it.
+
+## 4. Replace `octestra.sh artifacts` with `gh run download` once it handles non-archived artifacts
+
+Validation evidence is uploaded one file per artifact without archiving (`upload-artifacts`), so a
+link opens the file in the browser. `gh run download` (2.99) treats every artifact as a zip and
+fails on these with `zip: not a valid zip file`; the API's `/zip` endpoint returns the raw file with
+its `Content-Type` and an `inline` `Content-Disposition`, which is what the installed script uses.
+
+Tracked upstream as [cli/cli#13012](https://github.com/cli/cli/issues/13012). When a `gh` release
+handles non-archived artifacts, `renderDownloadCommand` in `src/shared/proof.ts` can print
+`gh run download <run id>` instead, and `artifacts_command` in `octestra.sh` becomes a thin
+wrapper or goes away. Keep the API path until the fix is in the `gh` version consumers actually
+have; the maintenance script must keep working with the oldest `gh` that has `run download`.
