@@ -428,7 +428,7 @@ test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-validation-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-loop-proof"
 test ! -e "$TEMP_DIR/consumer/.codex/skills/octestra-gbat-goal"
-grep -q '<skill-directory>/scripts/check-output.sh validation "<result_path>"' \
+grep -q '<skill-directory>/scripts/check-output.sh validation "<result_path>" "<artifact_path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
 grep -q '<skill-directory>/scripts/check-output.sh triage "<result_path>"' \
   "$TEMP_DIR/consumer/.codex/skills/octestra-contracts/SKILL.md"
@@ -512,6 +512,40 @@ assert_invalid_validation_result() {
   fi
   grep -Fq "$expected_error" "$output"
 }
+
+# File references are checked against the artifact directory when it is given: an absolute
+# path is the mistake that breaks linking, a missing relative file is only suspicious.
+evidence_dir="$TEMP_DIR/evidence"
+mkdir -p "$evidence_dir/screens"
+printf 'png' > "$evidence_dir/screens/home.png"
+relative_result="$TEMP_DIR/relative-evidence.json"
+printf '%s' '{"kind":"validation-result","outcome":"passed","summary":"ok","acceptance":[{"id":"AC-1","criterion":"c","result":"passed","evidence":"screens/home.png; snapshot rows e75"}],"evidence":[{"name":"Home","reference":"./screens/home.png"}]}' > "$relative_result"
+relative_output="$TEMP_DIR/relative-evidence.output"
+"$result_checker" validation "$relative_result" "$evidence_dir" >"$relative_output" 2>&1
+if grep -q 'warning' "$relative_output"; then
+  echo "validation result checker warned about a file that exists" >&2
+  exit 1
+fi
+missing_result="$TEMP_DIR/missing-evidence.json"
+printf '%s' '{"kind":"validation-result","outcome":"passed","summary":"ok","checks":[{"name":"Journey","result":"passed","evidence":"journey.mp4 and `screens/home.png`"}]}' > "$missing_result"
+missing_output="$TEMP_DIR/missing-evidence.output"
+"$result_checker" validation "$missing_result" "$evidence_dir" >"$missing_output" 2>&1
+grep -Fq 'checks[0].evidence names journey.mp4, which is not under' "$missing_output"
+if grep -q 'home.png' "$missing_output"; then
+  echo "validation result checker warned about a backtick-quoted file that exists" >&2
+  exit 1
+fi
+absolute_result="$TEMP_DIR/absolute-evidence.json"
+printf '%s' "{\"kind\":\"validation-result\",\"outcome\":\"passed\",\"summary\":\"ok\",\"evidence\":[{\"name\":\"Home\",\"reference\":\"$evidence_dir/screens/home.png\"}]}" > "$absolute_result"
+absolute_output="$TEMP_DIR/absolute-evidence.output"
+if "$result_checker" validation "$absolute_result" "$evidence_dir" >"$absolute_output" 2>&1; then
+  echo "validation result checker accepted an absolute evidence path" >&2
+  exit 1
+fi
+grep -Fq 'evidence[0].reference names a file by absolute path' "$absolute_output"
+grep -Fq 'for example "screens/home.png"' "$absolute_output"
+# Without the directory the checker stays shape-only, as older prompts call it.
+"$result_checker" validation "$absolute_result" >/dev/null 2>&1
 
 missing_validation_output="$TEMP_DIR/missing-validation-output"
 if "$result_checker" validation "$TEMP_DIR/does-not-exist.json" \

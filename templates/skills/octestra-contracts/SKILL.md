@@ -63,7 +63,16 @@ Write this JSON object to the exact result path from the prompt:
 {
   "kind": "validation-result",
   "outcome": "passed",
-  "summary": "Summary of the validation result"
+  "summary": "Summary of the validation result",
+  "checks": [
+    { "name": "Build", "result": "passed", "evidence": "logs/build.log" }
+  ],
+  "acceptance": [
+    { "id": "AC-1", "criterion": "The home screen shows the title", "result": "passed", "evidence": "screens/home.png" }
+  ],
+  "evidence": [
+    { "name": "Home screen after launch", "type": "image", "reference": "screens/home.png" }
+  ]
 }
 ```
 
@@ -84,13 +93,14 @@ omitting them or reporting success.
 
 Save screenshots, recordings, and logs under the artifact directory from the prompt. In
 `evidence`, `checks`, and `acceptance`, name each file by its path relative to that directory,
-such as `screens/home.png`, not by an absolute path. Every file there is uploaded after the run,
-and a reference written this way becomes a link to the file in the result comment.
+as the example does with `screens/home.png`, never by an absolute path. Every file there is
+uploaded after the run, and a reference written this way becomes a link to the file in the result
+comment. The checker rejects absolute paths and warns about a named file that is not there.
 
-After writing the file, run:
+After writing the file, run it with the result path and the artifact directory from the prompt:
 
 ```sh
-<skill-directory>/scripts/check-output.sh validation "<result_path>"
+<skill-directory>/scripts/check-output.sh validation "<result_path>" "<artifact_path>"
 ```
 
 If a checker reports an error, correct the JSON and run it again. Never change a truthful decision
