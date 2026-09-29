@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/ainame/octestra/compare/v0.7.0...v0.8.0) (2026-09-29)
+
+
+### Features
+
+* read agent time caps from config.yml and renew the App token after the agent ([#37](https://github.com/ainame/octestra/issues/37)) ([e7b5c77](https://github.com/ainame/octestra/commit/e7b5c77c47c90b2ffc3cba1f1ab6cdfc8802226c))
+
 ## [0.7.0](https://github.com/ainame/octestra/compare/v0.6.2...v0.7.0) (2026-09-29)
 
 
