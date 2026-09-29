@@ -20,7 +20,11 @@ import {
   type AgentTimeouts,
 } from "../shared/config";
 import { markdownTable } from "../shared/markdown";
-import { appendValidationLogRow, renderValidationLogRow } from "../shared/pull-request-log";
+import {
+  appendValidationLogRow,
+  maximumPullRequestBodyLength,
+  renderValidationLogRow,
+} from "../shared/pull-request-log";
 import { renderPrompt } from "../shared/prompt";
 import {
   readProofDocument,
@@ -533,8 +537,15 @@ async function recordValidationOnPullRequest(
       runUrl: workflowRunUrl(),
       artifactCount,
     });
-    const body = await context.client.getPullRequestBody(pullNumber);
-    await context.client.updatePullRequestBody(pullNumber, appendValidationLogRow(body, row));
+    const body = appendValidationLogRow(await context.client.getPullRequestBody(pullNumber), row);
+    if (body.length > maximumPullRequestBodyLength) {
+      core.warning(
+        `Not recording the validation on pull request #${pullNumber}: its body would exceed ` +
+        `${maximumPullRequestBodyLength} characters`,
+      );
+      return;
+    }
+    await context.client.updatePullRequestBody(pullNumber, body);
   } catch (error) {
     core.warning(`Could not record the validation on pull request #${pullNumber}: ${String(error)}`);
   }

@@ -2,7 +2,11 @@
 // validation run, so a reviewer on the pull request reaches the proof comment, the workflow
 // run and the uploaded evidence without opening the issue first.
 
+import { resultLabel } from "./proof";
+
 export const validationLogMarker = "<!-- octestra-validation-log -->";
+// GitHub rejects a pull request body longer than this.
+export const maximumPullRequestBodyLength = 65536;
 
 const validationLogHeading = "## Validation runs";
 const validationLogHeader = [
@@ -18,17 +22,6 @@ export interface ValidationLogRow {
   proofUrl?: string;
   runUrl: string;
   artifactCount: number;
-}
-
-function resultLabel(outcome: string): string {
-  switch (outcome) {
-    case "passed":
-      return "✅ passed";
-    case "failed":
-      return "❌ failed";
-    default:
-      return `ℹ️ ${outcome}`;
-  }
 }
 
 function utcMinute(date: Date): string {
@@ -49,13 +42,32 @@ export function renderValidationLogRow(row: ValidationLogRow): string {
 }
 
 // The first run writes the marker, the heading and the table header after whatever the body
-// holds; later runs append one row. The table therefore has to stay the last thing in the
-// body, and text a person adds below it ends up above the next row.
+// holds; later runs insert one row after the last row of that table, so text a person adds
+// below the table stays below it. The marker only counts on a line of its own directly above
+// the heading, so a body that merely quotes it, say in a code block, gets a real table.
 export function appendValidationLogRow(body: string, row: string): string {
-  const trimmed = body.replace(/\s+$/, "");
-  if (trimmed.includes(validationLogMarker)) {
-    return `${trimmed}\n${row}\n`;
+  const lines = body.replace(/\s+$/, "").split("\n");
+  const markerIndex = lines.findIndex((line, index) =>
+    line.trim() === validationLogMarker && lines[index + 1]?.trim() === validationLogHeading,
+  );
+  if (markerIndex === -1) {
+    const trimmed = lines.join("\n");
+    const section = [validationLogMarker, validationLogHeading, "", ...validationLogHeader, row];
+    return `${trimmed}${trimmed ? "\n\n" : ""}${section.join("\n")}\n`;
   }
-  const section = [validationLogMarker, validationLogHeading, "", ...validationLogHeader, row];
-  return `${trimmed}${trimmed ? "\n\n" : ""}${section.join("\n")}\n`;
+  let tableStart = markerIndex + 2;
+  while (tableStart < lines.length && !lines[tableStart].startsWith("|")) {
+    tableStart += 1;
+  }
+  if (tableStart === lines.length) {
+    // The heading survived but the table did not: start it again under the heading.
+    lines.splice(markerIndex + 2, 0, "", ...validationLogHeader, row);
+    return `${lines.join("\n")}\n`;
+  }
+  let tableEnd = tableStart;
+  while (tableEnd < lines.length && lines[tableEnd].startsWith("|")) {
+    tableEnd += 1;
+  }
+  lines.splice(tableEnd, 0, row);
+  return `${lines.join("\n")}\n`;
 }
