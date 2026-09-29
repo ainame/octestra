@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/ainame/octestra/compare/v0.8.0...v0.8.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* reject every absolute evidence path in the validation checker ([#39](https://github.com/ainame/octestra/issues/39)) ([127ec0c](https://github.com/ainame/octestra/commit/127ec0cf3db3687f4f64e5e76962de571e127fd4))
+
 ## [0.8.0](https://github.com/ainame/octestra/compare/v0.7.0...v0.8.0) (2026-09-29)
 
 
