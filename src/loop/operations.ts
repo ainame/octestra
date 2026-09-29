@@ -8,6 +8,12 @@ import {
   parseEpicConfig,
   parseTaskConfig,
 } from "../shared/issue-config";
+import {
+  defaultAgentTimeoutMinutes,
+  defaultAgentTimeouts,
+  jobTimeoutMinutes,
+  type AgentTimeouts,
+} from "../shared/config";
 import { markdownTable } from "../shared/markdown";
 import { renderPrompt } from "../shared/prompt";
 import {
@@ -60,7 +66,12 @@ type LoopPromptVariables = {
   resultPath: string;
 };
 
-export async function listEpics(client: LoopDiscoveryClient): Promise<void> {
+export async function listEpics(
+  client: LoopDiscoveryClient,
+  timeouts: AgentTimeouts = defaultAgentTimeouts,
+): Promise<void> {
+  // The triage job reads its budget from this job's outputs, so it is published first.
+  core.setOutput("job_timeout_minutes", String(jobTimeoutMinutes(timeouts.triage)));
   const issues = await client.listOpenIssuesByLabel("octestra-epic");
   const epics: Array<{ number: number }> = [];
 
@@ -102,7 +113,9 @@ export async function listEpics(client: LoopDiscoveryClient): Promise<void> {
 export async function prepareTriage(
   context: LoopPrepareContext,
   promptTemplate: string,
+  agentTimeoutMinutes = defaultAgentTimeoutMinutes,
 ): Promise<void> {
+  core.setOutput("agent_timeout_minutes", String(agentTimeoutMinutes));
   const issue = await context.client.getIssue(context.epicNumber);
   if (issue.state !== "open" || !issue.labels.includes("octestra-epic")) {
     throw new Error(

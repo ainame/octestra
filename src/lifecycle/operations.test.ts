@@ -677,6 +677,87 @@ describe("resolveTaskPullRequest", () => {
   });
 });
 
+describe("agent timeouts", () => {
+  const timeouts = { task: 45, validation: 80, triage: 20 };
+
+  it("publishes the validation budget from the guard before deciding anything", async () => {
+    const client = createClient({
+      getStatus: vi.fn().mockResolvedValue("Blocked"),
+    });
+
+    await validateTransition(
+      createContext(client),
+      "Ready",
+      "Validation",
+      "task-owner",
+      "User",
+      timeouts,
+    );
+
+    expect(core.setOutput).toHaveBeenCalledWith("agent_timeout_minutes", "80");
+    expect(core.setOutput).toHaveBeenCalledWith("job_timeout_minutes", "90");
+    expect(core.setOutput).toHaveBeenCalledWith("transition_valid", "false");
+  });
+
+  it("publishes the task budget for In Progress and for statuses without an agent", async () => {
+    const client = createClient({
+      getStatus: vi.fn().mockResolvedValue("In Progress"),
+    });
+
+    await validateTransition(
+      createContext(client),
+      "Ready",
+      "In Progress",
+      "task-owner",
+      "User",
+      timeouts,
+    );
+
+    expect(core.setOutput).toHaveBeenCalledWith("agent_timeout_minutes", "45");
+    expect(core.setOutput).toHaveBeenCalledWith("job_timeout_minutes", "55");
+  });
+
+  it("defaults to fifty minutes when no timeouts are configured", async () => {
+    const client = createClient({
+      getStatus: vi.fn().mockResolvedValue("Validation"),
+    });
+
+    await validateTransition(createContext(client), "Ready", "Validation", "task-owner", "User");
+
+    expect(core.setOutput).toHaveBeenCalledWith("agent_timeout_minutes", "50");
+    expect(core.setOutput).toHaveBeenCalledWith("job_timeout_minutes", "60");
+  });
+
+  it("publishes the validation agent budget from prepare-validation", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "prepare-validation-timeout-"));
+    temporaryDirectories.push(workspace);
+    await writeFile(path.join(workspace, "prompt.md.hbs"), "{{pullNumber}}");
+    process.env.GITHUB_WORKSPACE = workspace;
+    process.env.RUNNER_TEMP = workspace;
+    const client = createClient({
+      getIssue: vi.fn().mockImplementation(async (issueNumber: number) =>
+        issueNumber === 123
+          ? { title: "Task", body: "```task-config\ntarget: null\n```" }
+          : {
+            title: "EPIC",
+            body: "```epic-config\nid: example\nvalidation_skill: example-validation\n```",
+          }),
+      getParentNumber: vi.fn().mockResolvedValue(1),
+      findLinkedOpenPullRequest: vi.fn().mockResolvedValue(42),
+    });
+
+    await prepareValidation(
+      createContext(client),
+      "prompt.md.hbs",
+      "octestra/{epic_id}/issue-{issue_number}",
+      80,
+    );
+
+    expect(core.setOutput).toHaveBeenCalledWith("agent_timeout_minutes", "80");
+    expect(core.setOutput).toHaveBeenCalledWith("job_timeout_minutes", "90");
+  });
+});
+
 describe("reportProof", () => {
   // Spawning git for the subject SHA can take longer than vitest's default 5s
   // on constrained CI runners; the test itself does four git subprocesses in setup.

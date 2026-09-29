@@ -225,6 +225,7 @@ check_config() {
   local entry=""
   local rest=""
   local client_id=""
+  local value=""
 
   if [[ ! -f "$CONFIG_PATH" ]]; then
     report fail "$CONFIG_PATH is missing; rerun install.sh"
@@ -240,6 +241,15 @@ check_config() {
     "prompts|lifecycle_validation"; do
     if ! config_scalar "${entry%%|*}" "${entry##*|}" >/dev/null; then
       report fail "$CONFIG_PATH has no ${entry%%|*}.${entry##*|}"
+    fi
+  done
+  # A bad timeout fails the guard on every routed event, so it is reported here first.
+  for entry in task validation triage; do
+    if value=$(config_scalar agent_timeout_minutes "$entry"); then
+      if [[ ! "$value" =~ ^[0-9]+$ ]] || (( value < 1 || value > 350 )); then
+        report fail \
+          "agent_timeout_minutes.$entry is '$value'; it must be a whole number of minutes from 1 to 350"
+      fi
     fi
   done
   client_id=$(config_scalar github_app client_id || true)

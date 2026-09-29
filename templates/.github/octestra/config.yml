@@ -27,3 +27,12 @@ prompts:
   lifecycle_in_progress: .github/octestra/prompts/lifecycle-in-progress.md.hbs
   lifecycle_validation: .github/octestra/prompts/lifecycle-validation.md.hbs
   loop_todo: .github/octestra/prompts/loop-todo.md.hbs
+
+# Minutes each agent may run before its step is stopped; the job gets ten minutes more for
+# preparation, upload and finalization. Whole numbers from 1 to 350. Every key is optional and
+# defaults to 50, so uncomment only what your agents need. A validation that builds an app and
+# drives a simulator typically needs more than a task that edits code.
+# agent_timeout_minutes:
+#   task: 50
+#   validation: 80
+#   triage: 50

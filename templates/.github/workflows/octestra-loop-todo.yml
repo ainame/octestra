@@ -24,6 +24,8 @@ jobs:
     outputs:
       epics: ${{ steps.epics.outputs.epics }}
       count: ${{ steps.epics.outputs.count }}
+      # From config.yml agent_timeout_minutes.triage plus ten minutes.
+      job_timeout_minutes: ${{ steps.epics.outputs.job_timeout_minutes }}
     steps:
       - name: Generate a token from GitHub App
         id: app-token
@@ -46,7 +48,7 @@ jobs:
     needs: discover
     if: needs.discover.outputs.count != '0'
     runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 60
+    timeout-minutes: ${{ fromJSON(needs.discover.outputs.job_timeout_minutes || '60') }}
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -86,8 +88,10 @@ jobs:
           issue_number: ${{ matrix.epic.number }}
       # This action owns agent setup and execution. The triage skill available to that agent owns
       # task discovery, selection, limits, readiness policy and issue preparation. It must not
-      # change AI Task Status; the finalizer below owns Todo -> Ready.
+      # change AI Task Status; the finalizer below owns Todo -> Ready. The time cap comes from
+      # config.yml agent_timeout_minutes.triage.
       - name: Run triage agent
+        timeout-minutes: ${{ fromJSON(steps.loop.outputs.agent_timeout_minutes || '50') }}
         uses: ./.github/octestra/actions/triage-agent
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -98,12 +102,22 @@ jobs:
           prompt: ${{ steps.loop.outputs.prompt }}
           result_path: ${{ steps.loop.outputs.result_path }}
 
+      # The first token expires one hour after it was created, and the agent may have run longer.
+      - name: Renew the token from GitHub App
+        id: app-token-after
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
+
       # This step runs only when the agent action succeeds. It validates the complete result before
       # changing any task and re-checks each status immediately before Todo -> Ready.
       - name: Finalize Todo triage
         uses: ainame/octestra@main
         with:
           operation: loop/finalize-triage
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ steps.app-token-after.outputs.token }}
           issue_number: ${{ matrix.epic.number }}
           result_path: ${{ steps.loop.outputs.result_path }}

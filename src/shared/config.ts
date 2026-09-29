@@ -1,5 +1,13 @@
 import { parse } from "yaml";
 
+// Minutes each agent phase may run before its step is stopped. The job that runs the phase
+// gets `jobTimeoutOverheadMinutes` more for preparation, upload and finalization.
+export interface AgentTimeouts {
+  task: number;
+  validation: number;
+  triage: number;
+}
+
 export interface OctestraConfig {
   version: 1;
   github_app: { client_id: string };
@@ -11,6 +19,23 @@ export interface OctestraConfig {
     lifecycle_validation: string;
     loop_todo: string;
   };
+  agent_timeout_minutes: AgentTimeouts;
+}
+
+// Fifty minutes of agent inside the sixty-minute jobs the templates always had.
+export const defaultAgentTimeoutMinutes = 50;
+export const jobTimeoutOverheadMinutes = 10;
+// GitHub stops a job at 360 minutes; the overhead must fit under that.
+export const maximumAgentTimeoutMinutes = 360 - jobTimeoutOverheadMinutes;
+
+export const defaultAgentTimeouts: AgentTimeouts = {
+  task: defaultAgentTimeoutMinutes,
+  validation: defaultAgentTimeoutMinutes,
+  triage: defaultAgentTimeoutMinutes,
+};
+
+export function jobTimeoutMinutes(agentTimeoutMinutes: number): number {
+  return agentTimeoutMinutes + jobTimeoutOverheadMinutes;
 }
 export interface ConfigClient { getContent(path: string, ref?: string): Promise<string>; }
 const defaultLoopTodoPrompt = ".github/octestra/prompts/loop-todo.md.hbs";
@@ -29,6 +54,36 @@ function requiredPositiveInteger(value: unknown, name: string): number {
   }
   return number;
 }
+// A YAML number only: a quoted "50", true, null or 7.5 is a mistake to report, not coerce.
+function optionalTimeoutMinutes(value: unknown, name: string): number {
+  if (value === undefined) {
+    return defaultAgentTimeoutMinutes;
+  }
+  if (
+    typeof value !== "number"
+    || !Number.isInteger(value)
+    || value < 1
+    || value > maximumAgentTimeoutMinutes
+  ) {
+    throw new Error(
+      `config.yml ${name} must be a whole number of minutes from 1 to ${maximumAgentTimeoutMinutes}`,
+    );
+  }
+  return value;
+}
+
+function agentTimeouts(value: unknown): AgentTimeouts {
+  if (value === undefined) {
+    return { ...defaultAgentTimeouts };
+  }
+  const section = mapping(value, "agent_timeout_minutes");
+  return {
+    task: optionalTimeoutMinutes(section.task, "agent_timeout_minutes.task"),
+    validation: optionalTimeoutMinutes(section.validation, "agent_timeout_minutes.validation"),
+    triage: optionalTimeoutMinutes(section.triage, "agent_timeout_minutes.triage"),
+  };
+}
+
 export function parseOctestraConfig(raw: string): OctestraConfig {
   const root = mapping(parse(raw), "root");
   if (root.version !== 1) throw new Error("config.yml version must be 1");
@@ -59,6 +114,7 @@ export function parseOctestraConfig(raw: string): OctestraConfig {
         ? defaultLoopTodoPrompt
         : requiredString(prompts.loop_todo, "prompts.loop_todo"),
     },
+    agent_timeout_minutes: agentTimeouts(root.agent_timeout_minutes),
   };
 }
 export async function loadOctestraConfig(client: ConfigClient, ref?: string): Promise<OctestraConfig> {

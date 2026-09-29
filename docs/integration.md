@@ -346,6 +346,25 @@ Templates can use configuration and prompts from the EPIC and task issue. The ma
 
 `.github/octestra/config.yml` configures the GitHub Actions runners, the GitHub App Octestra uses, task branch naming, and prompt template paths. Use `prompts.loop_todo` to move the Todo triage prompt from its default `.github/octestra/prompts/loop-todo.md.hbs` path. Existing installations without this key continue to use the default path. Set `github_app.private_key_secret_key_name` to the name of the Actions secret holding the GitHub App private key. The secret value is never written to `config.yml`.
 
+`agent_timeout_minutes` sets how long each agent may run before its step is stopped, as whole
+minutes from 1 to 350, one key per phase:
+
+```yaml
+agent_timeout_minutes:
+  task: 50
+  validation: 80
+  triage: 50
+```
+
+Every key is optional and defaults to 50. The job that runs the phase gets ten minutes more for
+preparation, artifact upload and finalization. The transition guard and the loop discovery job
+publish the job budget, and each prepare step publishes the agent budget, so nothing has to be
+edited in the lifecycle workflow. When the agent cap hits, the agent step fails, the steps inside
+the local action stop, the validation evidence saved so far is still uploaded, and the task moves
+to `Blocked` through the failure report. A loop workflow installed before this key existed keeps its
+literal `timeout-minutes: 60`; to use the setting there, copy the `timeout-minutes` lines and the
+`job_timeout_minutes` output from the current template into your workflow once.
+
 After changing `github_app.client_id`, `github_app.private_key_secret_key_name`, a value under `runners`, or `status.field_id`, copy the new values to the repository's Actions variables.
 
 ```sh
