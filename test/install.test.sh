@@ -42,7 +42,7 @@ const yaml = require("yaml");
 
 const action = yaml.parse(fs.readFileSync(process.argv[2], "utf8"));
 const expectedInputs = [
-  "artifact_url",
+  "artifact_links",
   "branch_name",
   "config_ref",
   "current_status",

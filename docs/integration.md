@@ -172,9 +172,11 @@ The validation agent uses the installed `/octestra-contracts` skill to write JSO
 `inputs.result_path` and check its format.
 
 After the agent finishes, the workflow uploads `inputs.artifact_path` and `inputs.result_path` with
-`actions/upload-artifact`, even when the agent failed, and passes the upload's URL to
-`lifecycle/finalize-validation` as `artifact_url`. The proof comment on the task issue then shows an
-`Artifacts` row with a download link next to the outcome. Leave `artifact_url` empty to post the
+`actions/upload-artifact`, even when the agent failed, and passes the upload's name and URL to
+`lifecycle/finalize-validation` as `artifact_links`. The proof comment on the task issue then shows an
+`Artifacts` row next to the outcome, with the artifact name as the link text. To link several uploads,
+pass one per line as `<name> <url>`; a line with only a URL is labelled `Artifact` and numbered when
+there are several, and a line without a URL is skipped. Leave `artifact_links` empty to post the
 comment without that row; `report-proof` accepts the same input.
 
 ### Use the agent debug flag

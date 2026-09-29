@@ -156,6 +156,11 @@ jobs:
     concurrency:
       group: octestra-${{ github.event.issue.number }}
       cancel-in-progress: false
+    env:
+      # Name of the uploaded evidence, and the link text in the proof comment. It carries the run
+      # attempt: a re-run of this job fails to upload under a name that an earlier attempt of the
+      # same run already used.
+      OCTESTRA_ARTIFACT_NAME: octestra-validation-${{ github.event.issue.number }}-attempt-${{ github.run_attempt }}
     steps:
       # An App token, not GITHUB_TOKEN: a change made with GITHUB_TOKEN starts no next run.
       - name: Generate a token from GitHub App
@@ -215,14 +220,12 @@ jobs:
       # `if: always()` uploads whatever exists even when the agent failed or timed out, and the
       # finalize step below links the upload from the proof comment. Without this step reviewers
       # can only read the paths the agent wrote, not open the files.
-      # The name carries the run attempt: a re-run of this job fails to upload under a name that an
-      # earlier attempt of the same run already used.
       - name: Upload validation artifacts
         id: artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: octestra-validation-${{ github.event.issue.number }}-attempt-${{ github.run_attempt }}
+          name: ${{ env.OCTESTRA_ARTIFACT_NAME }}
           path: |
             ${{ steps.epic.outputs.artifact_path }}
             ${{ steps.epic.outputs.result_path }}
@@ -230,7 +233,7 @@ jobs:
 
       # finalize-validation:
       # - Reads the JSON file the agent wrote to result_path and posts it as a comment.
-      # - Links the uploaded artifacts from the comment when artifact_url is given.
+      # - Links the uploaded artifacts from the comment when artifact_links is given.
       # - Trusts the file's `outcome`, and does not cross-check `acceptance` or `checks`.
       # - On a blocked result, assigns the Issue task owner to the pull request.
       # - On `passed`, requests review from the Issue task owner.
@@ -246,7 +249,7 @@ jobs:
           issue_number: ${{ github.event.issue.number }}
           result_path: ${{ steps.epic.outputs.result_path }}
           pull_number: ${{ steps.epic.outputs.pull_number }}
-          artifact_url: ${{ steps.artifacts.outputs.artifact-url }}
+          artifact_links: ${{ env.OCTESTRA_ARTIFACT_NAME }} ${{ steps.artifacts.outputs.artifact-url }}
 
   report-failure:
     name: Report lifecycle failure

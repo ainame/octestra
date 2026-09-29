@@ -18,6 +18,7 @@ import { renderPrompt } from "../shared/prompt";
 import {
   readProofDocument,
   renderProofComment,
+  type ArtifactLink,
   type ProofDocument,
 } from "../shared/proof";
 import { workflowRunUrl } from "../shared/workflow-run";
@@ -59,12 +60,12 @@ export interface ProofReportOptions {
   subjectSha?: string;
   // Rendered as a "Next steps" section, only when the proof outcome is not `passed`.
   failureGuidance?: string;
-  // Download link for the evidence the workflow uploaded, when it uploaded any.
-  artifactUrl?: string;
+  // Download links for the evidence the workflow uploaded, when it uploaded any.
+  artifactLinks?: ArtifactLink[];
 }
 
 export interface FinalizeValidationOptions {
-  artifactUrl?: string;
+  artifactLinks?: ArtifactLink[];
 }
 
 export const defaultBranchTemplate = "octestra/{epic_id}/issue-{issue_number}";
@@ -467,7 +468,7 @@ export async function reportProof(
     actor: process.env.GITHUB_ACTOR,
     runUrl: workflowRunUrl(),
     runAttempt: process.env.GITHUB_RUN_ATTEMPT,
-    artifactUrl: options.artifactUrl,
+    artifactLinks: options.artifactLinks,
     nextSteps: proof.outcome !== "passed" ? options.failureGuidance : undefined,
   });
   await context.client.comment(context.issueNumber, comment);
@@ -587,7 +588,7 @@ export async function finalizeValidation(
 ): Promise<void> {
   const proof = await reportProof(context, proofPath, {
     pullNumber,
-    artifactUrl: options.artifactUrl,
+    artifactLinks: options.artifactLinks,
     failureGuidance: [
       "Move the task to `Validation` to run validation again on this pull request,",
       "or to `Ready` to restart the task after closing the pull request and deleting its branch.",

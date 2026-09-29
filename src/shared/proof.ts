@@ -9,6 +9,32 @@ import {
 type ProofRow = ResultRow;
 export type ProofDocument = ValidationResult;
 
+export interface ArtifactLink {
+  url: string;
+  // Shown as the link text, typically the artifact name the workflow uploaded under.
+  name?: string;
+}
+
+// One artifact per line: an optional name, whitespace, then the URL. The URL is the last token
+// because a URL never contains whitespace while a name may. A line whose last token is not a URL
+// is skipped: a workflow that uploaded nothing passes the name with an empty URL after it.
+export function parseArtifactLinks(lines: string[]): ArtifactLink[] {
+  const links: ArtifactLink[] = [];
+  for (const line of lines) {
+    const tokens = line.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) {
+      continue;
+    }
+    const url = tokens[tokens.length - 1];
+    if (!/^https?:\/\//.test(url)) {
+      continue;
+    }
+    const name = tokens.slice(0, -1).join(" ");
+    links.push(name ? { url, name } : { url });
+  }
+  return links;
+}
+
 export interface ProofCommentContext {
   issueNumber: number;
   pullNumber?: number;
@@ -19,7 +45,7 @@ export interface ProofCommentContext {
   runAttempt?: string;
   recordedAt?: string;
   // Where the uploaded evidence (screenshots, recordings, logs) can be downloaded.
-  artifactUrl?: string;
+  artifactLinks?: ArtifactLink[];
   // What the reader should do with this result, e.g. how to re-run validation.
   nextSteps?: string;
 }
@@ -121,6 +147,15 @@ const evidenceColumns: ProofColumn[] = [
   { header: "Reference", keys: ["reference", "url", "link", "path"] },
 ];
 
+function renderArtifactLinks(links: ArtifactLink[]): string {
+  return links
+    .map((link, index) => {
+      const fallback = links.length === 1 ? "Artifact" : `Artifact ${index + 1}`;
+      return `[${tableCell(link.name, fallback)}](${link.url})`;
+    })
+    .join(" · ");
+}
+
 export function renderProofComment(
   proof: ProofDocument,
   context: ProofCommentContext,
@@ -139,7 +174,9 @@ export function renderProofComment(
     // The evidence table lists what the agent saved; this row is where to download it. It stays in
     // the overview because reaching it through the workflow run link in the metadata takes several
     // clicks.
-    context.artifactUrl ? ["Artifacts", `[Download](${context.artifactUrl})`] : undefined,
+    context.artifactLinks?.length
+      ? ["Artifacts", renderArtifactLinks(context.artifactLinks)]
+      : undefined,
   ].filter((row): row is string[] => row !== undefined);
   const evidence = [...(proof.evidence ?? []), ...(proof.artifacts ?? [])];
   const metadataRows = [

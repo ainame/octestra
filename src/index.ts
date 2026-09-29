@@ -1,6 +1,7 @@
 import * as core from "@actions/core";
 import { loadOctestraConfig } from "./shared/config";
 import { GitHubClient } from "./shared/github-client";
+import { parseArtifactLinks } from "./shared/proof";
 import { positiveInteger } from "./shared/validate";
 import {
   assignOwner,
@@ -186,7 +187,7 @@ export async function run(): Promise<void> {
           core.getInput("proof_path", { required: true }),
         {
           pullNumber: optionalNumber("pull_number"),
-          artifactUrl: core.getInput("artifact_url") || undefined,
+          artifactLinks: parseArtifactLinks(core.getMultilineInput("artifact_links")),
         },
       );
       break;
@@ -200,7 +201,7 @@ export async function run(): Promise<void> {
         core.getInput("result_path") ||
           core.getInput("proof_path", { required: true }),
         {
-          artifactUrl: core.getInput("artifact_url") || undefined,
+          artifactLinks: parseArtifactLinks(core.getMultilineInput("artifact_links")),
         },
       );
       break;
