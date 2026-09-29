@@ -72,8 +72,10 @@ function optionalTimeoutMinutes(value: unknown, name: string): number {
   return value;
 }
 
+// A missing section and an empty one (`agent_timeout_minutes:` with nothing under it, which
+// YAML reads as null) both mean "the defaults": nothing was specified either way.
 function agentTimeouts(value: unknown): AgentTimeouts {
-  if (value === undefined) {
+  if (value === undefined || value === null) {
     return { ...defaultAgentTimeouts };
   }
   const section = mapping(value, "agent_timeout_minutes");

@@ -51,6 +51,13 @@ describe("parseOctestraConfig", () => {
       "agent_timeout_minutes.validation must be a whole number of minutes from 1 to 350",
     );
   });
+  it("treats an empty agent timeout section like a missing one", () => {
+    expect(parseOctestraConfig(`${base}agent_timeout_minutes:\n`).agent_timeout_minutes).toEqual({
+      task: 50,
+      validation: 50,
+      triage: 50,
+    });
+  });
   it("rejects an agent timeout section that is not a mapping", () => {
     expect(() => parseOctestraConfig(`${base}agent_timeout_minutes: 80\n`)).toThrow(
       "agent_timeout_minutes must be a mapping",
