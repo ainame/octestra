@@ -606,8 +606,18 @@ if "$result_checker" validation "$absolute_result" "$evidence_dir" >"$absolute_o
 fi
 grep -Fq 'evidence[0].reference names a file by absolute path' "$absolute_output"
 grep -Fq 'for example "screens/home.png"' "$absolute_output"
+# An absolute path outside the artifact directory is rejected too: nothing there is uploaded.
+outside_result="$TEMP_DIR/outside-evidence.json"
+printf '%s' '{"kind":"validation-result","outcome":"passed","summary":"ok","checks":[{"name":"Journey","result":"passed","evidence":"/tmp/elsewhere/journey.mp4"}]}' > "$outside_result"
+outside_output="$TEMP_DIR/outside-evidence.output"
+if "$result_checker" validation "$outside_result" "$evidence_dir" >"$outside_output" 2>&1; then
+  echo "validation result checker accepted an absolute evidence path outside the artifact directory" >&2
+  exit 1
+fi
+grep -Fq 'checks[0].evidence names /tmp/elsewhere/journey.mp4 by absolute path' "$outside_output"
 # Without the directory the checker stays shape-only, as older prompts call it.
 "$result_checker" validation "$absolute_result" >/dev/null 2>&1
+"$result_checker" validation "$outside_result" >/dev/null 2>&1
 
 missing_validation_output="$TEMP_DIR/missing-validation-output"
 if "$result_checker" validation "$TEMP_DIR/does-not-exist.json" \

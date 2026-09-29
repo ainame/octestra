@@ -60,8 +60,10 @@ function requireObjectRows(value, field) {
 
 // Every file under the artifact directory is uploaded after the run, and a reference that
 // names it by its path relative to that directory becomes a link in the result comment. An
-// absolute path is the mistake agents actually make, so it is an error with the fix spelled
-// out; a relative name that matches no saved file may still be prose, so it is only a warning.
+// absolute path is the mistake agents actually make, so it is an error: with the fix spelled
+// out when it points into the artifact directory, and as a plain rejection when it points
+// anywhere else, since nothing outside that directory is uploaded. A relative name that matches
+// no saved file may still be prose, so it is only a warning.
 const evidenceExtensions = /\.(png|jpe?g|gif|webp|mp4|mov|webm|txt|log|json|md|html?)$/i;
 
 function referenceStrings(row) {
@@ -94,7 +96,16 @@ function checkFileReferences(result, directory) {
           );
         }
         for (const token of value.split(/[\s,;()`]+/)) {
-          if (evidenceExtensions.test(token) && !existsSync(path.join(directory, token))) {
+          if (!evidenceExtensions.test(token)) {
+            continue;
+          }
+          if (path.isAbsolute(token)) {
+            fail(
+              `validation result ${where} names ${token} by absolute path; ` +
+              `save the file under the artifact directory and write its path relative to it`,
+            );
+          }
+          if (!existsSync(path.join(directory, token))) {
             warn(`${where} names ${token}, which is not under ${directory}; it will not be linked`);
           }
         }
