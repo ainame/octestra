@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/ainame/octestra/compare/v0.8.1...v0.9.0) (2026-09-29)
+
+
+### Features
+
+* record each validation run in the pull request body ([#41](https://github.com/ainame/octestra/issues/41)) ([1064838](https://github.com/ainame/octestra/commit/106483835e8b51b3a4ccb8238386b3775fbdf6e5))
+
 ## [0.8.1](https://github.com/ainame/octestra/compare/v0.8.0...v0.8.1) (2026-09-29)
 
 
