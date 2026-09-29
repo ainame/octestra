@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.0](https://github.com/ainame/octestra/compare/v0.6.2...v0.7.0) (2026-09-29)
+
+
+### Features
+
+* allow tasks to start directly from Todo ([#33](https://github.com/ainame/octestra/issues/33)) ([ddd241a](https://github.com/ainame/octestra/commit/ddd241ae9c231a8b086e8fde692cd5dddab0cdad))
+* assign task owner to blocked PRs ([#28](https://github.com/ainame/octestra/issues/28)) ([7f84938](https://github.com/ainame/octestra/commit/7f84938dd02a13922e8506c3e37d9ed3b6dcbd7b))
+* upload validation evidence per file and link it from the proof comment ([#35](https://github.com/ainame/octestra/issues/35)) ([6ac8f35](https://github.com/ainame/octestra/commit/6ac8f3594248206ce7a0267313e586b9f171ad70))
+
 ## [0.6.2](https://github.com/ainame/octestra/compare/v0.6.1...v0.6.2) (2026-09-02)
 
 
