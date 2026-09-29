@@ -20,6 +20,9 @@ export interface OctestraConfig {
     loop_todo: string;
   };
   agent_timeout_minutes: AgentTimeouts;
+  // Whether finalize-validation keeps a table of validation runs at the end of the task pull
+  // request's body.
+  pull_request_validation_log: boolean;
 }
 
 // Fifty minutes of agent inside the sixty-minute jobs the templates always had.
@@ -88,6 +91,16 @@ function agentTimeouts(value: unknown): AgentTimeouts {
   };
 }
 
+function optionalBoolean(value: unknown, name: string, fallback: boolean): boolean {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  if (typeof value !== "boolean") {
+    throw new Error(`config.yml ${name} must be true or false`);
+  }
+  return value;
+}
+
 export function parseOctestraConfig(raw: string): OctestraConfig {
   const root = mapping(parse(raw), "root");
   if (root.version !== 1) throw new Error("config.yml version must be 1");
@@ -119,6 +132,11 @@ export function parseOctestraConfig(raw: string): OctestraConfig {
         : requiredString(prompts.loop_todo, "prompts.loop_todo"),
     },
     agent_timeout_minutes: agentTimeouts(root.agent_timeout_minutes),
+    pull_request_validation_log: optionalBoolean(
+      root.pull_request_validation_log,
+      "pull_request_validation_log",
+      true,
+    ),
   };
 }
 export async function loadOctestraConfig(client: ConfigClient, ref?: string): Promise<OctestraConfig> {

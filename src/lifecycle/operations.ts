@@ -20,6 +20,7 @@ import {
   type AgentTimeouts,
 } from "../shared/config";
 import { markdownTable } from "../shared/markdown";
+import { appendValidationLogRow, renderValidationLogRow } from "../shared/pull-request-log";
 import { renderPrompt } from "../shared/prompt";
 import {
   readProofDocument,
@@ -56,7 +57,10 @@ export interface OperationsClient {
   assignPullRequest(pullNumber: number, assignee: string): Promise<void>;
   markPullRequestReadyForReview(pullNumber: number): Promise<void>;
   requestReviewer(pullNumber: number, reviewer: string): Promise<void>;
-  comment(issueNumber: number, body: string): Promise<void>;
+  getPullRequestBody(pullNumber: number): Promise<string>;
+  updatePullRequestBody(pullNumber: number, body: string): Promise<void>;
+  // Resolves to the comment's URL.
+  comment(issueNumber: number, body: string): Promise<string>;
   getStatus(issueNumber: number, fieldId: number): Promise<string | undefined>;
   updateStatus(issueNumber: number, fieldId: number, status: string): Promise<void>;
 }
@@ -72,6 +76,14 @@ export interface ProofReportOptions {
 
 export interface FinalizeValidationOptions {
   artifactLinks?: ArtifactLink[];
+  // Keep a table of validation runs at the end of the pull request body; on by default.
+  pullRequestLog?: boolean;
+}
+
+export interface ProofReport {
+  proof: ProofDocument;
+  // URL of the proof comment, when the client reported one.
+  commentUrl?: string;
 }
 
 export const defaultBranchTemplate = "octestra/{epic_id}/issue-{issue_number}";
@@ -478,7 +490,7 @@ export async function reportProof(
   context: ProofContext,
   proofPath: string,
   options: ProofReportOptions = {},
-): Promise<ProofDocument> {
+): Promise<ProofReport> {
   if (!proofPath) {
     throw new Error("proof_path is required for report-proof");
   }
@@ -498,10 +510,34 @@ export async function reportProof(
     artifactLinks: options.artifactLinks,
     nextSteps: proof.outcome !== "passed" ? options.failureGuidance : undefined,
   });
-  await context.client.comment(context.issueNumber, comment);
+  const commentUrl = await context.client.comment(context.issueNumber, comment);
   core.setOutput("outcome", proof.outcome);
   core.setOutput("summary", proof.summary);
-  return proof;
+  return { proof, commentUrl: commentUrl || undefined };
+}
+
+// Best effort: the row is a convenience for the reviewer, and a failure here must not stop
+// the review request or the status update that finish the validation.
+async function recordValidationOnPullRequest(
+  context: ProofContext,
+  pullNumber: number,
+  report: ProofReport,
+  artifactCount: number,
+): Promise<void> {
+  try {
+    const row = renderValidationLogRow({
+      recordedAt: new Date(),
+      outcome: report.proof.outcome,
+      issueNumber: context.issueNumber,
+      proofUrl: report.commentUrl,
+      runUrl: workflowRunUrl(),
+      artifactCount,
+    });
+    const body = await context.client.getPullRequestBody(pullNumber);
+    await context.client.updatePullRequestBody(pullNumber, appendValidationLogRow(body, row));
+  } catch (error) {
+    core.warning(`Could not record the validation on pull request #${pullNumber}: ${String(error)}`);
+  }
 }
 
 async function currentCommitSha(): Promise<string | undefined> {
@@ -613,7 +649,7 @@ export async function finalizeValidation(
   proofPath: string,
   options: FinalizeValidationOptions = {},
 ): Promise<void> {
-  const proof = await reportProof(context, proofPath, {
+  const report = await reportProof(context, proofPath, {
     pullNumber,
     artifactLinks: options.artifactLinks,
     failureGuidance: [
@@ -621,6 +657,15 @@ export async function finalizeValidation(
       "or to `Ready` to restart the task after closing the pull request and deleting its branch.",
     ].join(" "),
   });
+  const proof = report.proof;
+  if (options.pullRequestLog !== false) {
+    await recordValidationOnPullRequest(
+      context,
+      pullNumber,
+      report,
+      options.artifactLinks?.length ?? 0,
+    );
+  }
   if (proof.outcome !== "passed") {
     // A blocked PR needs an accountable owner in `assignee:@me`; requesting review
     // instead would imply validation passed and send an unnecessary review notification.

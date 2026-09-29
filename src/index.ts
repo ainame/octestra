@@ -236,6 +236,7 @@ export async function run(): Promise<void> {
           core.getInput("proof_path", { required: true }),
         {
           artifactLinks: parseArtifactLinks(core.getMultilineInput("artifact_links")),
+          pullRequestLog: config.pull_request_validation_log,
         },
       );
       break;

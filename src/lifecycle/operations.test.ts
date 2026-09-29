@@ -71,7 +71,11 @@ function createClient(overrides: Partial<OperationsClient> = {}): OperationsClie
     assignPullRequest: vi.fn(),
     markPullRequestReadyForReview: vi.fn(),
     requestReviewer: vi.fn(),
-    comment: vi.fn(),
+    getPullRequestBody: vi.fn().mockResolvedValue("## Summary\n\nExisting body.\n"),
+    updatePullRequestBody: vi.fn(),
+    comment: vi.fn().mockResolvedValue(
+      "https://github.com/example-org/example-repo/issues/123#issuecomment-777",
+    ),
     getStatus: vi.fn(),
     updateStatus: vi.fn(),
     ...overrides,
@@ -904,6 +908,80 @@ describe("finalizeValidation", () => {
       456,
       "Blocked",
     );
+  });
+
+  it("records the run at the end of the pull request body, then advances", async () => {
+    const client = createClient();
+    const proofPath = await proofResultPath("passed");
+
+    await finalizeValidation(
+      createContext(client),
+      42,
+      proofPath,
+      {
+        artifactLinks: [
+          { name: "screens/home.png", url: "https://github.com/example-org/example-repo/actions/runs/123456/artifacts/1" },
+          { name: "journey.mp4", url: "https://github.com/example-org/example-repo/actions/runs/123456/artifacts/2" },
+        ],
+      },
+    );
+
+    expect(client.getPullRequestBody).toHaveBeenCalledWith(42);
+    const body = vi.mocked(client.updatePullRequestBody).mock.calls[0][1];
+    expect(vi.mocked(client.updatePullRequestBody).mock.calls[0][0]).toBe(42);
+    expect(body).toMatch(/^## Summary\n\nExisting body\.\n\n<!-- octestra-validation-log -->\n## Validation runs\n\n\| When \(UTC\) \| Result \| Task \| Links \|\n\| --- \| --- \| --- \| --- \|\n\| \d{4}-\d{2}-\d{2} \d{2}:\d{2} \| ✅ passed \| #123 \| /);
+    expect(body).toContain(
+      "[proof](https://github.com/example-org/example-repo/issues/123#issuecomment-777) · "
+        + "[run](https://github.com/example-org/example-repo/actions/runs/123456) · "
+        + "[2 files](https://github.com/example-org/example-repo/actions/runs/123456#artifacts) |",
+    );
+    expect(
+      vi.mocked(client.updatePullRequestBody).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(client.updateStatus).mock.invocationCallOrder[0],
+    );
+    expect(client.updateStatus).toHaveBeenCalledWith(123, 456, "Human Review");
+  });
+
+  it("appends one row when the pull request already has the table", async () => {
+    const client = createClient({
+      getPullRequestBody: vi.fn().mockResolvedValue(
+        "Body\n\n<!-- octestra-validation-log -->\n## Validation runs\n\n"
+          + "| When (UTC) | Result | Task | Links |\n| --- | --- | --- | --- |\n"
+          + "| 2026-09-29 13:06 | ❌ failed | #123 | [run](https://example.test/1) |\n",
+      ),
+    });
+    const proofPath = await proofResultPath("passed");
+
+    await finalizeValidation(createContext(client), 42, proofPath);
+
+    const body = vi.mocked(client.updatePullRequestBody).mock.calls[0][1];
+    expect(body.split("<!-- octestra-validation-log -->")).toHaveLength(2);
+    expect(body.split("\n").filter((line) => line.startsWith("| 20"))).toHaveLength(2);
+    expect(body).toMatch(/\| ✅ passed \| #123 \| \[proof\]\(.*\) · \[run\]\(.*\) \|\n$/);
+  });
+
+  it("still finishes the validation when the pull request body cannot be updated", async () => {
+    const client = createClient({
+      updatePullRequestBody: vi.fn().mockRejectedValue(new Error("422 body too long")),
+    });
+    const proofPath = await proofResultPath("failed");
+
+    await finalizeValidation(createContext(client), 42, proofPath);
+
+    expect(client.assignPullRequest).toHaveBeenCalledWith(42, "reviewer");
+    expect(client.updateStatus).toHaveBeenCalledWith(123, 456, "Blocked");
+  });
+
+  it("leaves the pull request body alone when the log is switched off", async () => {
+    const client = createClient();
+    const proofPath = await proofResultPath("passed");
+
+    await finalizeValidation(createContext(client), 42, proofPath, { pullRequestLog: false });
+
+    expect(client.getPullRequestBody).not.toHaveBeenCalled();
+    expect(client.updatePullRequestBody).not.toHaveBeenCalled();
+    expect(client.updateStatus).toHaveBeenCalledWith(123, 456, "Human Review");
   });
 
   it("links the uploaded artifacts from the proof comment", async () => {

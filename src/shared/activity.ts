@@ -3,7 +3,8 @@ import { markdownTable } from "./markdown";
 import { workflowRunUrl } from "./workflow-run";
 
 export interface ActivityClient {
-  comment(issueNumber: number, body: string): Promise<void>;
+  // The lifecycle client resolves to the comment URL; activity reporting ignores it.
+  comment(issueNumber: number, body: string): Promise<unknown>;
   getLatestAssignedUser(issueNumber: number): Promise<string | undefined>;
 }
 

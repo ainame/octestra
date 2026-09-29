@@ -195,6 +195,19 @@ same input). The proof comment on the task issue then shows:
 - links in the `Evidence` cells of the acceptance, checks, and evidence tables wherever the agent
   named an uploaded file by its relative path, or by its file name when that name is unique.
 
+After posting the comment, `lifecycle/finalize-validation` also adds one row to a `Validation runs`
+table at the end of the pull request body, so a reviewer on the pull request reaches the same
+evidence without opening the issue:
+
+| When (UTC) | Result | Task | Links |
+| --- | --- | --- | --- |
+| 2026-09-29 15:20 | ✅ passed | #42 | [proof](…) · [run](…) · [15 files](…#artifacts) |
+
+The first run appends the table after the existing body; later runs append a row, so the table
+must stay the last thing in the body. The update is best effort and never blocks the status
+change. Set `pull_request_validation_log: false` in `config.yml` to leave pull request bodies
+alone.
+
 Leave `artifact_links` empty to post the comment without any of these. When the lines come from
 somewhere other than `upload-artifacts`, a line with only a URL is labelled `Artifact` and numbered
 when there are several, and a line without a URL is skipped.
