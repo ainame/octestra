@@ -26,11 +26,11 @@ describe("renderValidationLogRow", () => {
   it("drops the proof and artifacts links when there is nothing to link", () => {
     expect(renderValidationLogRow({
       recordedAt: new Date("2026-09-29T15:20:33.000Z"),
-      outcome: "blocked",
+      outcome: "failed",
       issueNumber: 42,
       runUrl,
       artifactCount: 0,
-    })).toBe(`| 2026-09-29 15:20 | ⛔ Blocked | #42 | [run](${runUrl}) |`);
+    })).toBe(`| 2026-09-29 15:20 | ❌ Failed | #42 | [run](${runUrl}) |`);
   });
 
   it("uses the singular for one file", () => {

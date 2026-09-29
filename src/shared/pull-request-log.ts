@@ -3,6 +3,7 @@
 // run and the uploaded evidence without opening the issue first.
 
 import { resultLabel } from "./proof";
+import type { ValidationResult } from "./result";
 
 export const validationLogMarker = "<!-- octestra-validation-log -->";
 // GitHub rejects a pull request body longer than this.
@@ -16,7 +17,8 @@ const validationLogHeader = [
 
 export interface ValidationLogRow {
   recordedAt: Date;
-  outcome: string;
+  // A proof reports only these two; "Blocked" is a task status, not an outcome.
+  outcome: ValidationResult["outcome"];
   issueNumber: number;
   // The proof comment on the task issue; absent when posting it returned no URL.
   proofUrl?: string;
