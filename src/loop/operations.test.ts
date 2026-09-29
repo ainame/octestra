@@ -43,6 +43,16 @@ afterEach(async () => {
 });
 
 describe("listEpics", () => {
+  it("publishes the triage job budget before discovery", async () => {
+    const client = {
+      listOpenIssuesByLabel: vi.fn().mockResolvedValue([]),
+    };
+
+    await listEpics(client, { task: 50, validation: 50, triage: 20 });
+
+    expect(core.setOutput).toHaveBeenCalledWith("job_timeout_minutes", "30");
+  });
+
   it("emits an empty matrix input when no open EPIC is eligible", async () => {
     const client = {
       listOpenIssuesByLabel: vi.fn().mockResolvedValue([]),

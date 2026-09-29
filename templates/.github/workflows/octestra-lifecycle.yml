@@ -31,6 +31,11 @@ jobs:
     outputs:
       valid: ${{ steps.guard.outputs.transition_valid }}
       status_key: ${{ steps.guard.outputs.status_key }}
+      # config.yml agent_timeout_minutes for the routed status, plus 10 minutes for the steps
+      # around the agent; config.yml explains the path. The status jobs below cannot read the
+      # file before they start, so the guard publishes the number for them. The `|| '60'` next
+      # to each use only keeps fromJSON from failing on an empty value when this job did not run.
+      job_timeout_minutes: ${{ steps.guard.outputs.job_timeout_minutes }}
     steps:
       - uses: actions/create-github-app-token@v3
         id: app-token
@@ -56,7 +61,7 @@ jobs:
     if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'in_progress'
     name: Run task agent
     runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 60
+    timeout-minutes: ${{ fromJSON(needs.guard.outputs.job_timeout_minutes || '60') }}
     concurrency:
       group: octestra-${{ github.event.issue.number }}
       cancel-in-progress: false
@@ -108,8 +113,11 @@ jobs:
 
       # The local composite action groups every repository-defined setup and agent step behind this
       # one condition. It runs in this job, on the same runner and workspace as prepare-task.
+      # The cap is config.yml agent_timeout_minutes.task, published by prepare-task above; when it
+      # hits, this step fails, the steps inside the action stop, and the steps below still run.
       - name: Run task agent
         if: steps.epic.outputs.task_ready == 'true'
+        timeout-minutes: ${{ fromJSON(steps.epic.outputs.agent_timeout_minutes || '50') }}
         uses: ./.github/octestra/actions/task-agent
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -126,6 +134,18 @@ jobs:
           target: ${{ steps.epic.outputs.target }}
           task_owner: ${{ steps.epic.outputs.task_owner }}
 
+      # The first token expires one hour after it was created, and the agent may have run longer.
+      # Every step below uses this fresh one.
+      - name: Refresh the token from GitHub App
+        id: app-token-refreshed
+        if: always() && steps.epic.outputs.task_ready == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
+
       # finalize-task:
       # - Confirms the agent pushed the branch named by branch_name above.
       # - Finds the open pull request made from that branch.
@@ -141,7 +161,7 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/finalize-task
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ steps.app-token-refreshed.outputs.token }}
           issue_number: ${{ github.event.issue.number }}
           branch_name: ${{ steps.epic.outputs.branch_name }}
           skip_validation: ${{ steps.epic.outputs.skip_validation }}
@@ -152,7 +172,7 @@ jobs:
     if: needs.guard.outputs.valid == 'true' && needs.guard.outputs.status_key == 'validation'
     name: Run validation agent
     runs-on: ${{ vars.OCTESTRA_AGENT_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 60
+    timeout-minutes: ${{ fromJSON(needs.guard.outputs.job_timeout_minutes || '60') }}
     concurrency:
       group: octestra-${{ github.event.issue.number }}
       cancel-in-progress: false
@@ -194,8 +214,11 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       # The local composite action runs in this job, on the same runner and checked-out workspace
-      # as prepare-validation.
+      # as prepare-validation. The cap is config.yml agent_timeout_minutes.validation, published
+      # by prepare-validation above; when it hits, this step fails, the steps inside the action
+      # stop, and the upload below still runs, which is why the upload is not inside the action.
       - name: Run validation agent
+        timeout-minutes: ${{ fromJSON(steps.epic.outputs.agent_timeout_minutes || '50') }}
         uses: ./.github/octestra/actions/validation-agent
         env:
           OCTESTRA_AGENT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -211,6 +234,18 @@ jobs:
           artifact_path: ${{ steps.epic.outputs.artifact_path }}
           target: ${{ steps.epic.outputs.target }}
 
+      # The first token expires one hour after it was created, and the agent may have run longer.
+      # Every step below uses this fresh one.
+      - name: Refresh the token from GitHub App
+        id: app-token-refreshed
+        if: always()
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.OCTESTRA_GITHUB_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          private-key: ${{ secrets[vars.OCTESTRA_GITHUB_APP_PRIVATE_KEY_SECRET || 'OCTESTRA_GITHUB_APP_PRIVATE_KEY'] }}
+
       # upload-artifacts:
       # - Publishes every file the agent saved under artifact_path, and the result JSON, as its
       #   own artifact, so the proof comment can link each file and a browser opens it directly.
@@ -223,7 +258,7 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: upload-artifacts
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ steps.app-token-refreshed.outputs.token }}
           artifact_path: ${{ steps.epic.outputs.artifact_path }}
           result_path: ${{ steps.epic.outputs.result_path }}
 
@@ -241,7 +276,7 @@ jobs:
         uses: ainame/octestra@main
         with:
           operation: lifecycle/finalize-validation
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ steps.app-token-refreshed.outputs.token }}
           issue_number: ${{ github.event.issue.number }}
           result_path: ${{ steps.epic.outputs.result_path }}
           pull_number: ${{ steps.epic.outputs.pull_number }}

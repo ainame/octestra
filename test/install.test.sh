@@ -111,6 +111,62 @@ if (debugStep.env?.OCTESTRA_AGENT_DEBUG !== "${{ vars.OCTESTRA_AGENT_DEBUG == 't
 NODE
 }
 
+# Every agent job takes its time caps from the guard or discovery outputs and from the prepare
+# step, and refreshes the App token before the steps that follow the agent.
+# The literal fallbacks in the templates and the range doctor checks restate constants from
+# src/shared/config.ts; read them from there so a change to one side fails here.
+default_agent_minutes=$(sed -n 's/^export const defaultAgentTimeoutMinutes = \([0-9]*\);$/\1/p' "$ROOT/src/shared/config.ts")
+job_overhead_minutes=$(sed -n 's/^export const jobTimeoutOverheadMinutes = \([0-9]*\);$/\1/p' "$ROOT/src/shared/config.ts")
+test -n "$default_agent_minutes"
+test -n "$job_overhead_minutes"
+default_job_minutes=$((default_agent_minutes + job_overhead_minutes))
+maximum_agent_minutes=$((360 - job_overhead_minutes))
+grep -q "10#\$value > $maximum_agent_minutes" "$ROOT/templates/.github/octestra/octestra.sh"
+grep -q "from 1 to $maximum_agent_minutes\"" "$ROOT/templates/.github/octestra/octestra.sh"
+grep -q "from 1 to $maximum_agent_minutes\." "$ROOT/templates/.github/octestra/config.yml"
+
+assert_agent_timeouts() {
+  local workflow="$1"
+  local job_name="$2"
+  local budget_job="$3"
+  local prepare_step="$4"
+  local action_path="$5"
+
+  node - "$workflow" "$job_name" "$budget_job" "$prepare_step" "$action_path" \
+    "$default_job_minutes" "$default_agent_minutes" <<'NODE'
+const fs = require("fs");
+const yaml = require("yaml");
+
+const [workflowPath, jobName, budgetJob, prepareStep, actionPath, jobMinutes, agentMinutes] =
+  process.argv.slice(2);
+const workflow = yaml.parse(fs.readFileSync(workflowPath, "utf8"));
+const job = workflow.jobs[jobName];
+const expectedJobTimeout = `\${{ fromJSON(needs.${budgetJob}.outputs.job_timeout_minutes || '${jobMinutes}') }}`;
+if (job["timeout-minutes"] !== expectedJobTimeout) {
+  throw new Error(`${jobName} timeout-minutes is not ${expectedJobTimeout}`);
+}
+if (workflow.jobs[budgetJob].outputs.job_timeout_minutes === undefined) {
+  throw new Error(`${budgetJob} does not publish job_timeout_minutes`);
+}
+const agent = job.steps.find((step) => step.uses === actionPath);
+const expectedStepTimeout = `\${{ fromJSON(steps.${prepareStep}.outputs.agent_timeout_minutes || '${agentMinutes}') }}`;
+if (agent["timeout-minutes"] !== expectedStepTimeout) {
+  throw new Error(`${jobName} agent step timeout-minutes is not ${expectedStepTimeout}`);
+}
+const agentIndex = job.steps.indexOf(agent);
+const refresh = job.steps.find((step, index) => index > agentIndex && step.id === "app-token-refreshed");
+if (!refresh || refresh.uses !== "actions/create-github-app-token@v3") {
+  throw new Error(`${jobName} does not refresh the App token after the agent`);
+}
+for (const step of job.steps.slice(agentIndex + 1)) {
+  const token = step.with?.github_token;
+  if (token !== undefined && token !== "${{ steps.app-token-refreshed.outputs.token }}") {
+    throw new Error(`${jobName} step "${step.name}" uses the token minted before the agent`);
+  }
+}
+NODE
+}
+
 assert_task_action_interface() {
   local workflow="$1"
   local action="$2"
@@ -465,6 +521,12 @@ grep -q 'skip_triage: {{skipTriage}}' \
 assert_triage_action_interface \
   "$triage_workflow" \
   "$TEMP_DIR/consumer/.github/octestra/actions/triage-agent/action.yml"
+assert_agent_timeouts "$orchestrator" "in-progress" guard epic \
+  "./.github/octestra/actions/task-agent"
+assert_agent_timeouts "$orchestrator" "validation" guard epic \
+  "./.github/octestra/actions/validation-agent"
+assert_agent_timeouts "$triage_workflow" "triage" discover loop \
+  "./.github/octestra/actions/triage-agent"
 assert_agent_debug_flag "$orchestrator" "in-progress" \
   "./.github/octestra/actions/task-agent"
 assert_agent_debug_flag "$orchestrator" "validation" \
@@ -974,6 +1036,35 @@ grep -q "OCTESTRA_STATUS_FIELD_ID is unset" "$broken_output"
 grep -q "CUSTOM_APP_PRIVATE_KEY is not set" "$broken_output"
 grep -q "is named 'AI Task Status'" "$broken_output"
 
+# A bad agent timeout fails the guard on every routed event, so doctor reports it.
+printf 'agent_timeout_minutes:\n  validation: 999\n' >> "$TEMP_DIR/consumer-doctor/.github/octestra/config.yml"
+timeout_output="$TEMP_DIR/doctor-timeout-output"
+if PATH="$TEMP_DIR/bin:$PATH" \
+  OCTESTRA_TEST_VARS="$clean_vars" \
+  OCTESTRA_TEST_SECRETS="CUSTOM_APP_PRIVATE_KEY" \
+    bash "$maintenance" doctor >"$timeout_output" 2>&1; then
+  echo "doctor accepted an agent timeout above the job limit" >&2
+  exit 1
+fi
+grep -q "agent_timeout_minutes.validation is '999'" "$timeout_output"
+# The same rule as the action: a quoted number and a leading zero are read as numbers.
+sed -i.bak '/^agent_timeout_minutes:/,$d' "$TEMP_DIR/consumer-doctor/.github/octestra/config.yml"
+printf 'agent_timeout_minutes:\n  validation: "80"\n  task: 08\n' >> "$TEMP_DIR/consumer-doctor/.github/octestra/config.yml"
+PATH="$TEMP_DIR/bin:$PATH" \
+  OCTESTRA_TEST_VARS="$clean_vars" \
+  OCTESTRA_TEST_SECRETS="CUSTOM_APP_PRIVATE_KEY" \
+    bash "$maintenance" doctor >"$timeout_output" 2>&1
+if grep -q "agent_timeout_minutes" "$timeout_output"; then
+  echo "doctor rejected a quoted or zero-padded agent timeout" >&2
+  exit 1
+fi
+sed -i.bak '/^agent_timeout_minutes:/,$d' "$TEMP_DIR/consumer-doctor/.github/octestra/config.yml"
+rm -f "$TEMP_DIR/consumer-doctor/.github/octestra/config.yml.bak"
+PATH="$TEMP_DIR/bin:$PATH" \
+  OCTESTRA_TEST_VARS="$clean_vars" \
+  OCTESTRA_TEST_SECRETS="CUSTOM_APP_PRIVATE_KEY" \
+    bash "$maintenance" doctor >/dev/null
+
 # A missing local action fails a run before the agent starts, so doctor reports it.
 mv "$TEMP_DIR/consumer-doctor/.github/octestra/actions/validation-agent/action.yml" \
   "$TEMP_DIR/parked-validation-action.yml"
@@ -1162,7 +1253,7 @@ PATH="$TEMP_DIR/bin:$PATH" \
   bash "$update_dir/.github/octestra/octestra.sh" ref @1.0.0 >/dev/null
 grep -q 'uses: ainame/octestra@1\.0\.0' "$update_triage_workflow"
 # A managed line the consumer also changed, to prove Octestra's own content is restored.
-sed '0,/timeout-minutes: 60/s//timeout-minutes: 5/' "$update_entry" >"$update_entry.edit"
+sed '0,/timeout-minutes: 5$/s//timeout-minutes: 7/' "$update_entry" >"$update_entry.edit"
 mv "$update_entry.edit" "$update_entry"
 # An installation from before the single-workflow migration still has these managed files.
 touch "$update_dir/.github/workflows/octestra-lifecycle-in-progress.yml"
@@ -1178,7 +1269,7 @@ grep -q 'Consumer lifecycle instructions' "$update_lifecycle_prompt"
 grep -q 'Consumer validation instructions' "$update_validation_prompt"
 grep -q 'uses: ainame/octestra@main' "$update_triage_workflow"
 ! grep -q 'uses: ainame/octestra@1\.0\.0' "$update_triage_workflow"
-grep -q 'timeout-minutes: 60' "$update_entry"
+grep -q 'timeout-minutes: 5$' "$update_entry"
 assert_validation_action_interface "$update_entry" "$update_validation_agent"
 assert_triage_action_interface "$update_triage_workflow" "$update_triage_agent"
 assert_agent_debug_flag "$update_entry" "in-progress" \

@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   loadOctestraConfig: vi.fn(),
   finalizeTriage: vi.fn(),
   prepareTriage: vi.fn(),
+  listEpics: vi.fn(),
+  validateTransition: vi.fn(),
   setOutput: vi.fn(),
   uploadArtifacts: vi.fn(),
   warning: vi.fn(),
@@ -51,12 +53,13 @@ vi.mock("./shared/github-client", () => ({
 
 vi.mock("./loop/operations", () => ({
   finalizeTriage: mocks.finalizeTriage,
-  listEpics: vi.fn(),
+  listEpics: mocks.listEpics,
   prepareTriage: mocks.prepareTriage,
 }));
 
 vi.mock("./lifecycle/operations", () => ({
   finalizeTask: mocks.finalizeTask,
+  validateTransition: mocks.validateTransition,
 }));
 
 beforeEach(() => {
@@ -120,6 +123,52 @@ describe("run", () => {
     expect(mocks.setOutput).toHaveBeenCalledWith("artifact_count", "0");
   });
 
+  it("dispatches lifecycle/validate-transition with the configured agent timeouts", async () => {
+    const inputs: Record<string, string> = {
+      current_status: "Validation",
+      github_token: "token",
+      issue_number: "42",
+      operation: "lifecycle/validate-transition",
+      previous_status: "Ready",
+      trigger_actor: "task-owner",
+      trigger_actor_type: "User",
+    };
+    mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
+    mocks.loadOctestraConfig.mockResolvedValue({
+      status: { field_id: 9001 },
+      agent_timeout_minutes: { task: 50, validation: 80, triage: 20 },
+    });
+
+    await run();
+
+    expect(mocks.validateTransition).toHaveBeenCalledWith(
+      { client: mocks.client, issueNumber: 42, statusFieldId: 9001 },
+      "Ready",
+      "Validation",
+      "task-owner",
+      "User",
+      { task: 50, validation: 80, triage: 20 },
+    );
+  });
+
+  it("dispatches loop/list-epics with the configured agent timeouts", async () => {
+    const inputs: Record<string, string> = {
+      github_token: "token",
+      operation: "loop/list-epics",
+    };
+    mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
+    mocks.loadOctestraConfig.mockResolvedValue({
+      agent_timeout_minutes: { task: 50, validation: 80, triage: 20 },
+    });
+
+    await run();
+
+    expect(mocks.listEpics).toHaveBeenCalledWith(
+      mocks.client,
+      { task: 50, validation: 80, triage: 20 },
+    );
+  });
+
   it("dispatches loop/prepare-triage with the EPIC context", async () => {
     const inputs: Record<string, string> = {
       github_token: "token",
@@ -131,6 +180,7 @@ describe("run", () => {
       prompts: {
         loop_todo: "custom/loop-prompt.hbs",
       },
+      agent_timeout_minutes: { task: 50, validation: 50, triage: 20 },
     });
 
     await run();
@@ -141,6 +191,7 @@ describe("run", () => {
         epicNumber: 42,
       },
       "custom/loop-prompt.hbs",
+      20,
     );
     expect(mocks.loadOctestraConfig).toHaveBeenCalledWith(
       mocks.client,

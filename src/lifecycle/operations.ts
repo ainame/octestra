@@ -13,6 +13,12 @@ import {
   parseTaskConfig,
   type EpicConfig,
 } from "../shared/issue-config";
+import {
+  defaultAgentTimeoutMinutes,
+  defaultAgentTimeouts,
+  jobTimeoutMinutes,
+  type AgentTimeouts,
+} from "../shared/config";
 import { markdownTable } from "../shared/markdown";
 import { renderPrompt } from "../shared/prompt";
 import {
@@ -98,13 +104,27 @@ const allowedTransitions = new Map<string, Set<string>>([
   ["Done", new Set()],
 ]);
 
+// The budget for the status job this event routes to. A status without an agent job gets the
+// task budget; nothing reads it there.
+function agentTimeoutForStatus(status: string, timeouts: AgentTimeouts): number {
+  return status === "Validation" ? timeouts.validation : timeouts.task;
+}
+
 export async function validateTransition(
   context: OperationContext,
   previousStatus: string,
   currentStatus: string,
   triggerActor: string,
   triggerActorType: string,
+  timeouts: AgentTimeouts = defaultAgentTimeouts,
 ): Promise<boolean> {
+  // Published before any early return: a job-level timeout-minutes expression must always
+  // find a number here, whatever the guard decides about the event. The agent step's own cap
+  // comes from the prepare step inside that job, not from here.
+  core.setOutput(
+    "job_timeout_minutes",
+    String(jobTimeoutMinutes(agentTimeoutForStatus(currentStatus, timeouts))),
+  );
   const liveStatus = await context.client.getStatus(
     context.issueNumber,
     context.statusFieldId,
@@ -208,7 +228,9 @@ export async function buildTaskContext(
   triggerActorType: string,
   branchTemplate = defaultBranchTemplate,
   checkForExistingWork = false,
+  agentTimeoutMinutes = defaultAgentTimeoutMinutes,
 ): Promise<void> {
+  core.setOutput("agent_timeout_minutes", String(agentTimeoutMinutes));
   const workspace = process.env.GITHUB_WORKSPACE;
   if (!workspace) {
     throw new Error("GITHUB_WORKSPACE must be set");
@@ -303,6 +325,7 @@ export async function prepareTask(
   triggerActor: string,
   triggerActorType: string,
   branchTemplate = defaultBranchTemplate,
+  agentTimeoutMinutes = defaultAgentTimeoutMinutes,
 ): Promise<void> {
   await assignOwner(context, triggerActor, triggerActorType);
   await buildTaskContext(
@@ -312,6 +335,7 @@ export async function prepareTask(
     triggerActorType,
     branchTemplate,
     true,
+    agentTimeoutMinutes,
   );
 }
 
@@ -387,7 +411,9 @@ export async function prepareValidation(
   context: OperationContext,
   promptTemplate: string,
   branchTemplate = defaultBranchTemplate,
+  agentTimeoutMinutes = defaultAgentTimeoutMinutes,
 ): Promise<void> {
+  core.setOutput("agent_timeout_minutes", String(agentTimeoutMinutes));
   await buildValidationContext(context, promptTemplate, branchTemplate);
 }
 

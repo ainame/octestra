@@ -27,3 +27,15 @@ prompts:
   lifecycle_in_progress: .github/octestra/prompts/lifecycle-in-progress.md.hbs
   lifecycle_validation: .github/octestra/prompts/lifecycle-validation.md.hbs
   loop_todo: .github/octestra/prompts/loop-todo.md.hbs
+
+# Time limit for each agent action, in minutes. The actions are task-agent,
+# validation-agent and triage-agent in .github/octestra/actions/. When the limit is reached,
+# the workflow stops the action.
+# The job that runs the action has its own limit: this value + 10 minutes. The extra
+# 10 minutes are for the Octestra steps that run before and after the action.
+# Use a whole number from 1 to 350. All keys are optional. The default is 50.
+#
+# agent_timeout_minutes:
+#   task: 50
+#   validation: 80
+#   triage: 50

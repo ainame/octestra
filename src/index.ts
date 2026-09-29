@@ -79,7 +79,8 @@ export async function run(): Promise<void> {
   }
   const client = new GitHubClient(token);
   if (operation === "loop/list-epics") {
-    await listEpics(client);
+    const config = await loadOctestraConfig(client, core.getInput("config_ref"));
+    await listEpics(client, config.agent_timeout_minutes);
     return;
   }
   if (operation === "loop/prepare-triage") {
@@ -93,6 +94,7 @@ export async function run(): Promise<void> {
         epicNumber: requiredNumber("issue_number"),
       },
       config.prompts.loop_todo,
+      config.agent_timeout_minutes.triage,
     );
     return;
   }
@@ -136,6 +138,7 @@ export async function run(): Promise<void> {
         core.getInput("previous_status"),
         core.getInput("current_status"),
         ...triggerActorPair(true),
+        config.agent_timeout_minutes,
       );
       break;
     case "lifecycle/finalize-merged-task":
@@ -153,6 +156,7 @@ export async function run(): Promise<void> {
         config.prompts.lifecycle_in_progress,
         ...triggerActorPair(true),
         config.branch.task,
+        config.agent_timeout_minutes.task,
       );
       break;
     case "lifecycle/build-task-context":
@@ -161,6 +165,8 @@ export async function run(): Promise<void> {
         config.prompts.lifecycle_in_progress,
         ...triggerActorPair(false),
         config.branch.task,
+        false,
+        config.agent_timeout_minutes.task,
       );
       break;
     case "lifecycle/build-validation-context":
@@ -175,6 +181,7 @@ export async function run(): Promise<void> {
         lifecycleOperationContext(),
         config.prompts.lifecycle_validation,
         config.branch.task,
+        config.agent_timeout_minutes.validation,
       );
       break;
     case "update-status":

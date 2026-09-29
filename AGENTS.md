@@ -119,6 +119,15 @@ systems. Never renumber: `docs/design.md` cites these numbers.
   several task issues, so GitHub Actions cannot assign its job one per-task group. It may only apply
   the idempotent `Todo` to `Ready` entry transition after preflighting every task and must re-check
   each live status immediately before writing.
+- **P9. Job-level `timeout-minutes` reads `needs`, `vars` and `inputs`; step-level reads `steps`
+  as well; composite action steps take no `timeout-minutes` at all.** So a budget read from a file
+  reaches a job only through an earlier job's outputs, reaches the agent step through the prepare
+  step's outputs, and can only ever cap the workflow step that invokes the composite action. When
+  that cap hits, the step fails, the steps still inside the action are skipped, and later steps
+  with `if: always()` run. A job-level cap instead cancels everything.
+- **P10. An App installation access token expires one hour after it is minted.** A step that
+  runs after a long agent must not reuse the token minted before it; each agent job mints a
+  second token after the agent step (D23).
 
 ## Rules
 
