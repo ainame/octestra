@@ -56,6 +56,9 @@ WARNINGS=0
 REPOSITORY=""
 ORGANIZATION=""
 TEMP_DIR=""
+# Where the user ran the script; enter_repository_root moves away from it, and a path the user
+# typed must still mean what it meant to them.
+CALLER_DIR="$PWD"
 
 usage() {
   cat <<'EOF'
@@ -73,6 +76,11 @@ Commands:
   vars sync       Write the config.yml values into this repository's variables
   ref             Show which Octestra repository and ref the workflow calls
   ref SPEC        Change it. SPEC is OWNER/REPO@REF, @REF, OWNER/REPO, or --latest
+  artifacts RUN_ID [DIRECTORY]
+                  Download every artifact of a workflow run into DIRECTORY, relative to
+                  the current directory (default: octestra-artifacts-RUN_ID under the
+                  temporary directory, outside the checkout). Files uploaded without
+                  archiving are saved as they are; archived artifacts get a .zip suffix
   help            Show this help
 
 Options:
@@ -850,6 +858,56 @@ rewrite_action_reference() {
   fi
 }
 
+# `gh run download` only understands archived artifacts (cli/cli#13012), while validation
+# evidence is uploaded one file at a time without archiving so a browser opens each file.
+# The API returns those files as they are, so this fetches each artifact by id instead.
+artifacts_command() {
+  local run_id="${1:-}"
+  local target="${2:-}"
+  local listing=""
+  local count=0
+  local id=""
+  local name=""
+  local file=""
+
+  [[ -n "$run_id" ]] || die "usage: octestra.sh artifacts RUN_ID [DIRECTORY]"
+  [[ "$run_id" =~ ^[0-9]+$ ]] || die "RUN_ID must be a number, got '$run_id'"
+  if [[ -z "$target" ]]; then
+    # Outside the checkout, so a dozen screenshots do not turn up as untracked files.
+    target="${TMPDIR:-/tmp}/octestra-artifacts-$run_id"
+  elif [[ "$target" != /* ]]; then
+    target="$CALLER_DIR/$target"
+  fi
+  mkdir -p "$target" || die "could not create $target"
+
+  listing=$(
+    gh api --paginate "repos/$REPOSITORY/actions/runs/$run_id/artifacts" \
+      --jq '.artifacts[] | select(.expired | not) | "\(.id)\t\(.name)"'
+  ) || die "could not list the artifacts of run $run_id in $REPOSITORY"
+  [[ -n "$listing" ]] || die "run $run_id has no artifacts, or they have expired"
+
+  while IFS=$'\t' read -r id name; do
+    [[ -n "$id" ]] || continue
+    file="$target/$name"
+    # gh api prints an error body to stdout, so download beside the final name and move it
+    # into place only once the request succeeded.
+    if ! gh api "repos/$REPOSITORY/actions/artifacts/$id/zip" > "$file.part"; then
+      rm -f "$file.part"
+      die "could not download artifact $name ($id)"
+    fi
+    mv "$file.part" "$file"
+    # An archived artifact has no extension of its own; the zip signature tells it apart.
+    if [[ "$name" != *.zip && "$(head -c 2 "$file" 2>/dev/null)" == "PK" ]]; then
+      mv "$file" "$file.zip"
+      file="$file.zip"
+    fi
+    info "downloaded ${file#"$target/"}"
+    count=$((count + 1))
+  done <<<"$listing"
+
+  info "$count artifacts saved in $target"
+}
+
 main() {
   local command="${1:-doctor}"
 
@@ -874,6 +932,10 @@ main() {
       ;;
     ref)
       ref_command "$@"
+      ;;
+    artifacts)
+      resolve_repository
+      artifacts_command "$@"
       ;;
     help|-h|--help)
       usage

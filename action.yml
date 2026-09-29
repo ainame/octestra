@@ -41,6 +41,12 @@ inputs:
   pull_number:
     description: Task pull request number
     required: false
+  artifact_path:
+    description: Directory whose files upload-artifacts publishes as one non-archived artifact each
+    required: false
+  artifact_links:
+    description: Uploaded files to link from the proof comment, one per line as "<name> <url>"; upload-artifacts emits this format and the name is optional
+    required: false
   next_status:
     description: Status used by the individual update-status operation
     required: false
@@ -97,6 +103,10 @@ outputs:
     description: Number of EPICs enabled for Todo triage
   ready_count:
     description: Number of Todo tasks moved to Ready by loop/finalize-triage
+  artifact_links:
+    description: One "<name> <url>" line per file that upload-artifacts published
+  artifact_count:
+    description: Number of files upload-artifacts published
 
 runs:
   using: node24

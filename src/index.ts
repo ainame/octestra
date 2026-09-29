@@ -1,7 +1,11 @@
+import { DefaultArtifactClient } from "@actions/artifact";
 import * as core from "@actions/core";
+import { formatArtifactLinks, uploadArtifacts } from "./shared/artifacts";
 import { loadOctestraConfig } from "./shared/config";
 import { GitHubClient } from "./shared/github-client";
+import { parseArtifactLinks, type ArtifactLink } from "./shared/proof";
 import { positiveInteger } from "./shared/validate";
+import { workflowRunUrl } from "./shared/workflow-run";
 import {
   assignOwner,
   buildTaskContext,
@@ -46,9 +50,33 @@ function triggerActorPair(required: boolean): [string, string] {
   ];
 }
 
+// Never fails the step: the finalize step after it has no `if: always()`, and a missing proof
+// comment costs more than missing links. The artifact client authenticates with the runner's
+// own token, not github_token.
+async function runUploadArtifacts(): Promise<void> {
+  let links: ArtifactLink[] = [];
+  try {
+    const result = await uploadArtifacts({
+      artifactPath: core.getInput("artifact_path", { required: true }),
+      resultPath: core.getInput("result_path") || undefined,
+      uploader: new DefaultArtifactClient(),
+      runUrl: workflowRunUrl(),
+    });
+    links = result.links;
+  } catch (error) {
+    core.warning(`Could not upload the validation artifacts: ${String(error)}`);
+  }
+  core.setOutput("artifact_links", formatArtifactLinks(links));
+  core.setOutput("artifact_count", String(links.length));
+}
+
 export async function run(): Promise<void> {
   const operation = core.getInput("operation", { required: true });
   const token = core.getInput("github_token", { required: true });
+  if (operation === "upload-artifacts") {
+    await runUploadArtifacts();
+    return;
+  }
   const client = new GitHubClient(token);
   if (operation === "loop/list-epics") {
     await listEpics(client);
@@ -186,6 +214,7 @@ export async function run(): Promise<void> {
           core.getInput("proof_path", { required: true }),
         {
           pullNumber: optionalNumber("pull_number"),
+          artifactLinks: parseArtifactLinks(core.getMultilineInput("artifact_links")),
         },
       );
       break;
@@ -198,6 +227,9 @@ export async function run(): Promise<void> {
         requiredNumber("pull_number"),
         core.getInput("result_path") ||
           core.getInput("proof_path", { required: true }),
+        {
+          artifactLinks: parseArtifactLinks(core.getMultilineInput("artifact_links")),
+        },
       );
       break;
     case "lifecycle/report-failure":

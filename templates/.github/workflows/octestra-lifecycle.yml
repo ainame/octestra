@@ -211,8 +211,25 @@ jobs:
           artifact_path: ${{ steps.epic.outputs.artifact_path }}
           target: ${{ steps.epic.outputs.target }}
 
+      # upload-artifacts:
+      # - Publishes every file the agent saved under artifact_path, and the result JSON, as its
+      #   own artifact, so the proof comment can link each file and a browser opens it directly.
+      # - `if: always()` keeps whatever exists when the agent failed or timed out.
+      # - A file that fails to upload is logged and skipped, so the finalize step still runs.
+      # Without this step reviewers can only read the paths the agent wrote, not open the files.
+      - name: Upload validation artifacts
+        id: artifacts
+        if: always()
+        uses: ainame/octestra@main
+        with:
+          operation: upload-artifacts
+          github_token: ${{ steps.app-token.outputs.token }}
+          artifact_path: ${{ steps.epic.outputs.artifact_path }}
+          result_path: ${{ steps.epic.outputs.result_path }}
+
       # finalize-validation:
       # - Reads the JSON file the agent wrote to result_path and posts it as a comment.
+      # - Links the uploaded files from the comment when artifact_links is given.
       # - Trusts the file's `outcome`, and does not cross-check `acceptance` or `checks`.
       # - On a blocked result, assigns the Issue task owner to the pull request.
       # - On `passed`, requests review from the Issue task owner.
@@ -228,6 +245,7 @@ jobs:
           issue_number: ${{ github.event.issue.number }}
           result_path: ${{ steps.epic.outputs.result_path }}
           pull_number: ${{ steps.epic.outputs.pull_number }}
+          artifact_links: ${{ steps.artifacts.outputs.artifact_links }}
 
   report-failure:
     name: Report lifecycle failure

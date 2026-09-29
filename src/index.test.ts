@@ -3,18 +3,40 @@ import { run } from "./index";
 
 const mocks = vi.hoisted(() => ({
   client: {},
+  artifactClient: {},
   finalizeTask: vi.fn(),
   getInput: vi.fn(),
   getBooleanInput: vi.fn(),
   loadOctestraConfig: vi.fn(),
   finalizeTriage: vi.fn(),
   prepareTriage: vi.fn(),
+  setOutput: vi.fn(),
+  uploadArtifacts: vi.fn(),
+  warning: vi.fn(),
+  workflowRunUrl: vi.fn(),
 }));
 
 vi.mock("@actions/core", () => ({
   getBooleanInput: mocks.getBooleanInput,
   getInput: mocks.getInput,
   setFailed: vi.fn(),
+  setOutput: mocks.setOutput,
+  warning: mocks.warning,
+}));
+
+vi.mock("@actions/artifact", () => ({
+  DefaultArtifactClient: vi.fn(function DefaultArtifactClient() {
+    return mocks.artifactClient;
+  }),
+}));
+
+vi.mock("./shared/artifacts", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./shared/artifacts")>(),
+  uploadArtifacts: mocks.uploadArtifacts,
+}));
+
+vi.mock("./shared/workflow-run", () => ({
+  workflowRunUrl: mocks.workflowRunUrl,
 }));
 
 vi.mock("./shared/config", () => ({
@@ -42,6 +64,62 @@ beforeEach(() => {
 });
 
 describe("run", () => {
+  it("dispatches upload-artifacts and publishes its links as outputs", async () => {
+    const inputs: Record<string, string> = {
+      artifact_path: "/runner/temp/octestra-validation-artifacts",
+      github_token: "token",
+      operation: "upload-artifacts",
+      result_path: "/runner/temp/result.json",
+    };
+    mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
+    mocks.workflowRunUrl.mockReturnValue("https://github.com/example-org/consumer/actions/runs/7");
+    mocks.uploadArtifacts.mockResolvedValue({
+      links: [
+        { name: "screens/home.png", url: "https://github.com/example-org/consumer/actions/runs/7/artifacts/1" },
+        { name: "result.json", url: "https://github.com/example-org/consumer/actions/runs/7/artifacts/2" },
+      ],
+      skipped: [],
+      failed: [],
+    });
+
+    await run();
+
+    expect(mocks.uploadArtifacts).toHaveBeenCalledWith({
+      artifactPath: "/runner/temp/octestra-validation-artifacts",
+      resultPath: "/runner/temp/result.json",
+      uploader: mocks.artifactClient,
+      runUrl: "https://github.com/example-org/consumer/actions/runs/7",
+    });
+    expect(mocks.setOutput).toHaveBeenCalledWith(
+      "artifact_links",
+      "screens/home.png https://github.com/example-org/consumer/actions/runs/7/artifacts/1\n"
+        + "result.json https://github.com/example-org/consumer/actions/runs/7/artifacts/2",
+    );
+    expect(mocks.setOutput).toHaveBeenCalledWith("artifact_count", "2");
+    expect(mocks.loadOctestraConfig).not.toHaveBeenCalled();
+  });
+
+  it("publishes empty outputs when upload-artifacts cannot even start", async () => {
+    const inputs: Record<string, string> = {
+      artifact_path: "/runner/temp/octestra-validation-artifacts",
+      github_token: "token",
+      operation: "upload-artifacts",
+    };
+    mocks.getInput.mockImplementation((name: string) => inputs[name] ?? "");
+    mocks.workflowRunUrl.mockImplementation(() => {
+      throw new Error("GITHUB_REPOSITORY and GITHUB_RUN_ID must be set");
+    });
+
+    await run();
+
+    expect(mocks.uploadArtifacts).not.toHaveBeenCalled();
+    expect(mocks.warning).toHaveBeenCalledWith(
+      expect.stringContaining("GITHUB_REPOSITORY and GITHUB_RUN_ID must be set"),
+    );
+    expect(mocks.setOutput).toHaveBeenCalledWith("artifact_links", "");
+    expect(mocks.setOutput).toHaveBeenCalledWith("artifact_count", "0");
+  });
+
   it("dispatches loop/prepare-triage with the EPIC context", async () => {
     const inputs: Record<string, string> = {
       github_token: "token",

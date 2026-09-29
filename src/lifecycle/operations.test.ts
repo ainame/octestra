@@ -710,6 +710,10 @@ describe("reportProof", () => {
 
     await reportProof(createContext(client), proofPath, {
       pullNumber: 42,
+      artifactLinks: [{
+        name: "screens/home.png",
+        url: "https://github.com/example-org/example-repo/actions/runs/123456/artifacts/99",
+      }],
     });
 
     expect(client.comment).toHaveBeenCalledWith(
@@ -719,6 +723,12 @@ describe("reportProof", () => {
     expect(client.comment).toHaveBeenCalledWith(
       123,
       expect.stringContaining(subjectSha.slice(0, 12)),
+    );
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining(
+        "| Artifacts | [1 file](https://github.com/example-org/example-repo/actions/runs/123456#artifacts) |",
+      ),
     );
     expect(client.updateStatus).not.toHaveBeenCalled();
     expect(core.setOutput).toHaveBeenCalledWith("outcome", "passed");
@@ -783,6 +793,39 @@ describe("finalizeValidation", () => {
       123,
       456,
       "Blocked",
+    );
+  });
+
+  it("links the uploaded artifacts from the proof comment", async () => {
+    const client = createClient();
+    const proofPath = await proofResultPath("passed");
+
+    await finalizeValidation(
+      createContext(client),
+      42,
+      proofPath,
+      {
+        artifactLinks: [{
+          name: "screens/home.png",
+          url: "https://github.com/example-org/example-repo/actions/runs/123456/artifacts/99",
+        }],
+      },
+    );
+
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining(
+        "| Artifacts | [1 file](https://github.com/example-org/example-repo/actions/runs/123456#artifacts) |",
+      ),
+    );
+    expect(client.comment).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining(".github/octestra/octestra.sh artifacts 123456"),
+    );
+    expect(client.updateStatus).toHaveBeenCalledWith(
+      123,
+      456,
+      "Human Review",
     );
   });
 });

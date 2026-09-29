@@ -4,13 +4,15 @@
 
 set -euo pipefail
 
-if (( $# != 2 )); then
-  printf 'Usage: %s PHASE RESULT_PATH\n' "$0" >&2
+if (( $# < 2 || $# > 3 )); then
+  printf 'Usage: %s PHASE RESULT_PATH [ARTIFACT_PATH]\n' "$0" >&2
   exit 2
 fi
 
 phase="$1"
 result_path="$2"
+# Validation only: the directory the evidence was saved in, so file references can be checked.
+artifact_path="${3:-}"
 
 case "$phase" in
   triage|validation) ;;
@@ -25,15 +27,21 @@ if [[ ! -f "$result_path" ]]; then
   exit 1
 fi
 
-node - "$phase" "$result_path" <<'NODE'
-const { readFileSync } = require("node:fs");
+node - "$phase" "$result_path" "$artifact_path" <<'NODE'
+const { existsSync, readFileSync } = require("node:fs");
+const path = require("node:path");
 
 const phase = process.argv[2];
 const resultPath = process.argv[3];
+const artifactPath = process.argv[4];
 
 function fail(message) {
   console.error(`Octestra: error: ${message}`);
   process.exit(1);
+}
+
+function warn(message) {
+  console.error(`Octestra: warning: ${message}`);
 }
 
 function requireString(value, field) {
@@ -47,6 +55,51 @@ function requireObjectRows(value, field) {
     typeof row !== "object" || row === null || Array.isArray(row)
   )) {
     fail(`${phase} result ${field} must be an array of objects`);
+  }
+}
+
+// Every file under the artifact directory is uploaded after the run, and a reference that
+// names it by its path relative to that directory becomes a link in the result comment. An
+// absolute path is the mistake agents actually make, so it is an error with the fix spelled
+// out; a relative name that matches no saved file may still be prose, so it is only a warning.
+const evidenceExtensions = /\.(png|jpe?g|gif|webp|mp4|mov|webm|txt|log|json|md|html?)$/i;
+
+function referenceStrings(row) {
+  const strings = [];
+  for (const [key, value] of Object.entries(row)) {
+    if (typeof value === "string") {
+      strings.push({ key, value });
+    } else if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        if (typeof item === "string") {
+          strings.push({ key: `${key}[${index}]`, value: item });
+        }
+      });
+    }
+  }
+  return strings;
+}
+
+function checkFileReferences(result, directory) {
+  const absolutePrefix = `${directory}${path.sep}`;
+  for (const field of ["acceptance", "checks", "evidence", "artifacts"]) {
+    (result[field] ?? []).forEach((row, index) => {
+      for (const { key, value } of referenceStrings(row)) {
+        const where = `${field}[${index}].${key}`;
+        if (value.includes(absolutePrefix)) {
+          fail(
+            `validation result ${where} names a file by absolute path; ` +
+            `write it relative to the artifact directory, for example ` +
+            `"${value.slice(value.indexOf(absolutePrefix) + absolutePrefix.length).split(/[\s,;()`]/)[0]}"`,
+          );
+        }
+        for (const token of value.split(/[\s,;()`]+/)) {
+          if (evidenceExtensions.test(token) && !existsSync(path.join(directory, token))) {
+            warn(`${where} names ${token}, which is not under ${directory}; it will not be linked`);
+          }
+        }
+      }
+    });
   }
 }
 
@@ -107,6 +160,9 @@ if (phase === "triage") {
   }
   if (result.details !== undefined) {
     requireString(result.details, "details");
+  }
+  if (artifactPath) {
+    checkFileReferences(result, path.resolve(artifactPath));
   }
 }
 
