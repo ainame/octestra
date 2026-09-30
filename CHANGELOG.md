@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0](https://github.com/ainame/octestra/compare/v0.9.0...v0.10.0) (2026-09-30)
+
+
+### Features
+
+* finalize a blocked task when its pull request is merged ([#47](https://github.com/ainame/octestra/issues/47)) ([3410b7a](https://github.com/ainame/octestra/commit/3410b7a6e010174e44b965b808a200ff67dc1279))
+
+
+### Bug Fixes
+
+* identify merge closures by the ClosedEvent closer ([#45](https://github.com/ainame/octestra/issues/45)) ([13c72ea](https://github.com/ainame/octestra/commit/13c72ea3cb4159271c48f8207650ca624087f22b))
+
 ## [0.9.0](https://github.com/ainame/octestra/compare/v0.8.1...v0.9.0) (2026-09-29)
 
 
