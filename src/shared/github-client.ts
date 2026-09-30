@@ -31,13 +31,27 @@ interface TimelineEvent {
   };
 }
 
+interface ClosedEventQueryResponse {
+  repository: {
+    issue: {
+      state: string;
+      timelineItems: {
+        nodes: Array<{
+          closer?: {
+            __typename: string;
+            merged?: boolean;
+          } | null;
+        } | null>;
+      };
+    } | null;
+  } | null;
+}
+
 export interface RepositoryIssue {
   number: number;
   title: string;
   body: string;
 }
-
-const mergeClosureWindowMilliseconds = 60_000;
 
 const perPage = 100;
 
@@ -112,34 +126,44 @@ export class GitHubClient {
       }));
   }
 
+  // GraphQL-only: REST reports neither what closed an issue nor, for a pull request
+  // merge, the commit. The latest ClosedEvent's closer names the merged pull request
+  // however long GitHub takes to apply the closing keyword after the merge, and is
+  // null when a person closed the issue by hand.
   async isClosedByMergedPullRequest(issueNumber: number): Promise<boolean> {
-    const issue = await this.octokit.rest.issues.get({
-      owner: this.owner,
-      repo: this.repo,
-      issue_number: issueNumber,
-    });
-    if (issue.data.state !== "closed" || !issue.data.closed_at) {
+    const response = await this.octokit.graphql<ClosedEventQueryResponse>(
+      `query($owner: String!, $repo: String!, $issueNumber: Int!) {
+        repository(owner: $owner, name: $repo) {
+          issue(number: $issueNumber) {
+            state
+            timelineItems(last: 1, itemTypes: [CLOSED_EVENT]) {
+              nodes {
+                ... on ClosedEvent {
+                  closer {
+                    __typename
+                    ... on PullRequest {
+                      merged
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`,
+      {
+        owner: this.owner,
+        repo: this.repo,
+        issueNumber,
+      },
+    );
+    const issue = response.repository?.issue;
+    if (issue?.state !== "CLOSED") {
       return false;
     }
 
-    const linkedPullNumbers = await this.crossReferencedPullNumbers(issueNumber);
-
-    for (const pullNumber of linkedPullNumbers) {
-      const pull = await this.octokit.rest.pulls.get({
-        owner: this.owner,
-        repo: this.repo,
-        pull_number: pullNumber,
-      });
-      if (
-        pull.data.merged_at &&
-        Math.abs(
-          Date.parse(issue.data.closed_at) - Date.parse(pull.data.merged_at),
-        ) <= mergeClosureWindowMilliseconds
-      ) {
-        return true;
-      }
-    }
-    return false;
+    const closer = issue.timelineItems.nodes.at(-1)?.closer;
+    return closer?.__typename === "PullRequest" && closer.merged === true;
   }
 
   async getParentNumber(issueNumber: number): Promise<number> {
