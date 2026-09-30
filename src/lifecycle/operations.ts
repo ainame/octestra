@@ -116,7 +116,7 @@ const allowedTransitions = new Map<string, Set<string>>([
   ["In Progress", new Set(["Validation", "Human Review", "Blocked"])],
   ["Validation", new Set(["Human Review", "Blocked"])],
   ["Human Review", new Set(["Done", "Blocked", "Validation"])],
-  ["Blocked", new Set(["Ready", "Validation"])],
+  ["Blocked", new Set(["Ready", "Validation", "Done"])],
   ["Done", new Set()],
 ]);
 
@@ -184,9 +184,11 @@ export async function finalizeMergedTask(context: OperationContext): Promise<voi
     context.issueNumber,
     context.statusFieldId,
   );
-  if (currentStatus !== "Human Review") {
+  // A Blocked task's pull request can still be merged by a person who accepts it as is, for
+  // example when validation fails because the change it was checking no longer applies.
+  if (currentStatus !== "Human Review" && currentStatus !== "Blocked") {
     core.info(
-      `Issue #${context.issueNumber} is ${currentStatus ?? "unset"}, not an Octestra task awaiting review; leaving AI Task Status unchanged.`,
+      `Issue #${context.issueNumber} is ${currentStatus ?? "unset"}, not an Octestra task awaiting review or blocked; leaving AI Task Status unchanged.`,
     );
     return;
   }

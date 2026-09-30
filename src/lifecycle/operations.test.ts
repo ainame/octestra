@@ -333,6 +333,7 @@ describe("validateTransition", () => {
     ["In Progress", "Blocked"],
     ["Blocked", "Ready"],
     ["Blocked", "Validation"],
+    ["Blocked", "Done"],
   ])("allows %s -> %s", async (previousStatus, currentStatus) => {
     const client = createClient({
       getStatus: vi.fn().mockResolvedValue(currentStatus || undefined),
@@ -457,6 +458,21 @@ describe("finalizeMergedTask", () => {
     const client = createClient({
       isClosedByMergedPullRequest: vi.fn().mockResolvedValue(true),
       getStatus: vi.fn().mockResolvedValue("Human Review"),
+    });
+
+    await finalizeMergedTask(createContext(client));
+
+    expect(client.updateStatus).toHaveBeenCalledWith(
+      123,
+      456,
+      "Done",
+    );
+  });
+
+  it("moves a blocked issue closed by a merged pull request to Done", async () => {
+    const client = createClient({
+      isClosedByMergedPullRequest: vi.fn().mockResolvedValue(true),
+      getStatus: vi.fn().mockResolvedValue("Blocked"),
     });
 
     await finalizeMergedTask(createContext(client));
