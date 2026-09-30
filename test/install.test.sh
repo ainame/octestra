@@ -345,7 +345,13 @@ if [[ "$args" == *"/actions/runs/"*"/artifacts"* ]]; then
 fi
 
 if [[ "$args" == *"/actions/artifacts/4303/zip"* ]]; then
-  printf 'PK\003\004archived-bytes'
+  printf 'PK\003\004\000\000archived-bytes'
+  exit 0
+fi
+
+if [[ "$args" == *"/actions/artifacts/4301/zip"* ]]; then
+  # A video starts with a NUL byte; the signature check must not choke on it.
+  printf '\000\000\000\034ftypmp42'
   exit 0
 fi
 
@@ -1093,8 +1099,13 @@ mv "$TEMP_DIR/parked-validation-action.yml" \
 # ref reports what the workflow calls, and switching rewrites the workflow and the script
 # itself, so the two cannot disagree afterwards.
 artifacts_dir="$TEMP_DIR/artifacts-out"
-PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" artifacts 36581563997 "$artifacts_dir" >/dev/null
-test "$(cat "$artifacts_dir/screenshot.png")" = "raw bytes of 4301/zip"
+artifacts_stderr="$TEMP_DIR/artifacts-stderr"
+PATH="$TEMP_DIR/bin:$PATH" bash "$maintenance" artifacts 36581563997 "$artifacts_dir" >/dev/null 2>"$artifacts_stderr"
+if grep -q "null byte" "$artifacts_stderr"; then
+  echo "artifacts warned about a NUL byte while checking the zip signature" >&2
+  exit 1
+fi
+test "$(od -An -c "$artifacts_dir/screenshot.png" | tr -d ' \n')" = '\0\0\0034ftypmp42'
 test "$(cat "$artifacts_dir/build.log")" = "raw bytes of 4302/zip"
 test -f "$artifacts_dir/evidence.zip"
 test ! -e "$artifacts_dir/evidence"
@@ -1109,6 +1120,10 @@ mkdir -p "$TEMP_DIR/artifacts-tmp"
 (cd "$TEMP_DIR/consumer-doctor" && PATH="$TEMP_DIR/bin:$PATH" TMPDIR="$TEMP_DIR/artifacts-tmp" bash "$maintenance" artifacts 36581563997 >/dev/null)
 test -f "$TEMP_DIR/artifacts-tmp/octestra-artifacts-36581563997/build.log"
 test ! -e "$TEMP_DIR/consumer-doctor/octestra-artifacts-36581563997"
+# macOS sets TMPDIR with a trailing slash; the reported path must not contain `//`.
+slash_output="$TEMP_DIR/artifacts-slash-output"
+(cd "$TEMP_DIR/consumer-doctor" && PATH="$TEMP_DIR/bin:$PATH" TMPDIR="$TEMP_DIR/artifacts-tmp/" bash "$maintenance" artifacts 36581563997 >"$slash_output")
+grep -q "saved in $TEMP_DIR/artifacts-tmp/octestra-artifacts-36581563997\$" "$slash_output"
 # A failed download leaves no half-written file behind under the artifact's name.
 if PATH="$TEMP_DIR/bin:$PATH" OCTESTRA_TEST_ARTIFACT_FAIL=4302 \
     bash "$maintenance" artifacts 36581563997 "$TEMP_DIR/artifacts-fail" >/dev/null 2>&1; then

@@ -79,8 +79,9 @@ Commands:
   artifacts RUN_ID [DIRECTORY]
                   Download every artifact of a workflow run into DIRECTORY, relative to
                   the current directory (default: octestra-artifacts-RUN_ID under the
-                  temporary directory, outside the checkout). Files uploaded without
-                  archiving are saved as they are; archived artifacts get a .zip suffix
+                  temporary directory, outside the checkout), then open that directory
+                  when run from a terminal. Files uploaded without archiving are saved as
+                  they are; archived artifacts get a .zip suffix
   help            Show this help
 
 Options:
@@ -880,12 +881,15 @@ artifacts_command() {
   local id=""
   local name=""
   local file=""
+  local signature=""
 
   [[ -n "$run_id" ]] || die "usage: octestra.sh artifacts RUN_ID [DIRECTORY]"
   [[ "$run_id" =~ ^[0-9]+$ ]] || die "RUN_ID must be a number, got '$run_id'"
   if [[ -z "$target" ]]; then
-    # Outside the checkout, so a dozen screenshots do not turn up as untracked files.
-    target="${TMPDIR:-/tmp}/octestra-artifacts-$run_id"
+    # Outside the checkout, so a dozen screenshots do not turn up as untracked files. The
+    # trailing slash macOS puts on TMPDIR would otherwise show up as `//` in the path.
+    target="${TMPDIR:-/tmp}"
+    target="${target%/}/octestra-artifacts-$run_id"
   elif [[ "$target" != /* ]]; then
     target="$CALLER_DIR/$target"
   fi
@@ -907,8 +911,10 @@ artifacts_command() {
       die "could not download artifact $name ($id)"
     fi
     mv "$file.part" "$file"
-    # An archived artifact has no extension of its own; the zip signature tells it apart.
-    if [[ "$name" != *.zip && "$(head -c 2 "$file" 2>/dev/null)" == "PK" ]]; then
+    # An archived artifact has no extension of its own; the zip signature tells it apart. The
+    # bytes go through od because a shell variable cannot hold the NUL a video may start with.
+    signature=$(head -c 2 "$file" 2>/dev/null | od -An -tx1 | tr -d ' \n')
+    if [[ "$name" != *.zip && "$signature" == "504b" ]]; then
       mv "$file" "$file.zip"
       file="$file.zip"
     fi
@@ -917,6 +923,14 @@ artifacts_command() {
   done <<<"$listing"
 
   info "$count artifacts saved in $target"
+  # A person at a terminal wants to look at the files next; a script or CI run does not.
+  if has_interactive_tty; then
+    if command -v open >/dev/null 2>&1; then
+      open "$target"
+    elif command -v xdg-open >/dev/null 2>&1; then
+      xdg-open "$target" >/dev/null 2>&1 &
+    fi
+  fi
 }
 
 main() {
