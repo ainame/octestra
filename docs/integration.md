@@ -17,6 +17,7 @@ Todo ──▶ Ready ──▶ In Progress ──▶ Validation ──▶ Human 
 Todo ─────────────▶ In Progress
 Blocked ──────────▶ Validation   runs validation again while the task's
 Human Review ─────▶ Validation   pull request is open
+Blocked ──────────▶ Done         when a person merges the task's pull request
 ```
 
 | Status | Behavior |
@@ -26,8 +27,8 @@ Human Review ─────▶ Validation   pull request is open
 | `In Progress` | The `in-progress` job in `octestra-lifecycle.yml` runs the implementation agent. |
 | `Validation` | The `validation` job in `octestra-lifecycle.yml` runs the validation agent. Moving a `Blocked` or `Human Review` task back here runs validation again on its open pull request. |
 | `Human Review` | Requests pull request review from the task owner. |
-| `Blocked` | Comments with the failure and a link to the Actions run. Move the task to `Validation` to run validation again while its pull request is open, or back to `Ready` to restart it. |
-| `Done` | The task is complete. |
+| `Blocked` | Comments with the failure and a link to the Actions run. Move the task to `Validation` to run validation again while its pull request is open, or back to `Ready` to restart it. Merging its pull request anyway moves the task to `Done`. |
+| `Done` | The task is complete. Octestra sets it when a pull request merge closes a task in `Human Review` or `Blocked`. |
 
 Move a prepared task directly from `Todo` to `In Progress` to start implementation. `Ready` remains
 the state for a task that triage has prepared or that a person wants to queue. A direct start does
