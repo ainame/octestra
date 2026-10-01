@@ -4,6 +4,8 @@ import {
   parseArtifactLinks,
   parseProofDocument,
   renderProofComment,
+  resultLabel,
+  resultMark,
 } from "./proof";
 
 describe("parseProofDocument", () => {
@@ -110,9 +112,10 @@ describe("renderProofComment", () => {
     );
 
     expect(comment).toContain("## ✅ Passed validation proof");
-    expect(comment).toContain("| AC-1 | The profile loads | ✅ Passed | UI flow |");
+    expect(comment).toContain("| Outcome | ✅ Passed |");
+    expect(comment).toContain("| AC-1 | The profile loads | ✅ | UI flow |");
     expect(comment).toContain(
-      "| Goal-based UI validation | agentic E2E | AC-1 | ✅ Passed | recording.mp4 |",
+      "| Goal-based UI validation | agentic E2E | AC-1 | ✅ | recording.mp4 |",
     );
     expect(comment).toContain("<summary>Additional details</summary>");
     expect(comment).toContain("<summary>Technical metadata</summary>");
@@ -200,13 +203,13 @@ describe("renderProofComment", () => {
     expect(comment).toContain(download);
     expect(comment.indexOf(download)).toBeLessThan(comment.indexOf("### Acceptance criteria"));
     expect(comment).toContain(
-      "| AC-1 | The profile loads | ✅ Passed | "
+      "| AC-1 | The profile loads | ✅ | "
         + "[screens/home.png](https://github.com/ainame/octestra/actions/runs/1/artifacts/11) / "
         + "[home-fullres.png](https://github.com/ainame/octestra/actions/runs/1/artifacts/12); "
         + "snapshot rows e75, e76. |",
     );
     expect(comment).toContain(
-      "| Journey | — | — | ✅ Passed | "
+      "| Journey | — | — | ✅ | "
         + "[/Users/runner/work/_temp/octestra-validation-artifacts/journey.mp4]"
         + "(https://github.com/ainame/octestra/actions/runs/1/artifacts/13) |",
     );
@@ -283,6 +286,23 @@ describe("renderProofComment", () => {
     );
 
     expect(comment).not.toContain("| Artifacts |");
+  });
+});
+
+describe("resultMark", () => {
+  it("drops the word for a recognised result and keeps it for anything else", () => {
+    expect(resultMark("succeeded")).toBe("✅");
+    expect(resultMark("failure")).toBe("❌");
+    expect(resultMark("blocked")).toBe("⛔");
+    expect(resultMark("not_run")).toBe("⏭️");
+    expect(resultMark("partial")).toBe("ℹ️ partial");
+    expect(resultMark(undefined)).toBe("ℹ️ reported");
+  });
+
+  it("matches the emoji resultLabel shows", () => {
+    for (const result of ["passed", "failed", "blocked", "skipped", "partial"]) {
+      expect(resultLabel(result).startsWith(resultMark(result))).toBe(true);
+    }
   });
 });
 

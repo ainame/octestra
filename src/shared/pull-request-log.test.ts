@@ -17,7 +17,7 @@ describe("renderValidationLogRow", () => {
       runUrl,
       artifactCount: 15,
     })).toBe(
-      "| 2026-09-29 15:20 | ✅ Passed | #42 | "
+      "| 2026-09-29 15:20 | ✅ | #42 | "
         + "[proof](https://github.com/example-org/consumer/issues/42#issuecomment-7) · "
         + `[run](${runUrl}) · [15 files](${runUrl}#artifacts) |`,
     );
@@ -30,7 +30,7 @@ describe("renderValidationLogRow", () => {
       issueNumber: 42,
       runUrl,
       artifactCount: 0,
-    })).toBe(`| 2026-09-29 15:20 | ❌ Failed | #42 | [run](${runUrl}) |`);
+    })).toBe(`| 2026-09-29 15:20 | ❌ | #42 | [run](${runUrl}) |`);
   });
 
   it("uses the singular for one file", () => {
@@ -45,7 +45,7 @@ describe("renderValidationLogRow", () => {
 });
 
 describe("appendValidationLogRow", () => {
-  const row = "| 2026-09-29 15:20 | ✅ Passed | #42 | [run](https://example.test/1) |";
+  const row = "| 2026-09-29 15:20 | ✅ | #42 | [run](https://example.test/1) |";
 
   it("adds the marker, heading and header after the existing body on the first run", () => {
     expect(appendValidationLogRow("## Summary\n\nExisting body.\n\n\n", row)).toBe([
@@ -69,10 +69,10 @@ describe("appendValidationLogRow", () => {
 
   it("appends only the row when the table is already there", () => {
     const first = appendValidationLogRow("Body", row);
-    const second = appendValidationLogRow(first, row.replace("Passed", "Passed again"));
+    const second = appendValidationLogRow(first, row.replace("#42", "#43"));
 
     expect(second.split(validationLogMarker)).toHaveLength(2);
-    expect(second.endsWith(`${row}\n${row.replace("Passed", "Passed again")}\n`)).toBe(true);
+    expect(second.endsWith(`${row}\n${row.replace("#42", "#43")}\n`)).toBe(true);
   });
 
   it("inserts the row into the table when text follows it", () => {
