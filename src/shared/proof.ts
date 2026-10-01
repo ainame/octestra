@@ -103,7 +103,7 @@ function knownResultStatus(result: string): ResultStatus | undefined {
     case "failure":
       return { mark: "❌", label: "Failed" };
     case "blocked":
-      return { mark: "🚧", label: "Blocked" };
+      return { mark: "⛔", label: "Blocked" };
     case "skipped":
     case "not_run":
     case "not run":
@@ -119,8 +119,7 @@ export function resultLabel(value: unknown): string {
   return status ? `${status.mark} ${status.label}` : `ℹ️ ${result}`;
 }
 
-// Table cells repeat the result on every row, where the mark alone reads at a glance. Each
-// mark differs in shape and colour, so a failure and a blocked check never look alike. An
+// Table cells repeat the result on every row, where the mark alone reads at a glance. An
 // unrecognised result keeps its text, since the mark says nothing about what it was.
 export function resultMark(value: unknown): string {
   const result = displayValue(value, "reported");
