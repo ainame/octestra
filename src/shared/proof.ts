@@ -89,7 +89,7 @@ function tableCell(value: unknown, fallback = "—"): string {
 }
 
 interface ResultStatus {
-  emoji: string;
+  mark: string;
   label: string;
 }
 
@@ -98,16 +98,16 @@ function knownResultStatus(result: string): ResultStatus | undefined {
     case "passed":
     case "success":
     case "succeeded":
-      return { emoji: "✅", label: "Passed" };
+      return { mark: "✅", label: "Passed" };
     case "failed":
     case "failure":
-      return { emoji: "❌", label: "Failed" };
+      return { mark: "❌", label: "Failed" };
     case "blocked":
-      return { emoji: "⛔", label: "Blocked" };
+      return { mark: "🚧", label: "Blocked" };
     case "skipped":
     case "not_run":
     case "not run":
-      return { emoji: "⏭️", label: "Skipped" };
+      return { mark: "-", label: "Skipped" };
     default:
       return undefined;
   }
@@ -116,14 +116,15 @@ function knownResultStatus(result: string): ResultStatus | undefined {
 export function resultLabel(value: unknown): string {
   const result = displayValue(value, "reported");
   const status = knownResultStatus(result);
-  return status ? `${status.emoji} ${status.label}` : `ℹ️ ${result}`;
+  return status ? `${status.mark} ${status.label}` : `ℹ️ ${result}`;
 }
 
-// Table cells repeat the result on every row, where the emoji alone reads at a glance. An
-// unrecognised result keeps its text, since the emoji says nothing about what it was.
+// Table cells repeat the result on every row, where the mark alone reads at a glance. Each
+// mark differs in shape and colour, so a failure and a blocked check never look alike. An
+// unrecognised result keeps its text, since the mark says nothing about what it was.
 export function resultMark(value: unknown): string {
   const result = displayValue(value, "reported");
-  return knownResultStatus(result)?.emoji ?? `ℹ️ ${result}`;
+  return knownResultStatus(result)?.mark ?? `ℹ️ ${result}`;
 }
 
 function escapeRegExp(text: string): string {

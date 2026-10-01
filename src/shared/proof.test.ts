@@ -293,13 +293,13 @@ describe("resultMark", () => {
   it("drops the word for a recognised result and keeps it for anything else", () => {
     expect(resultMark("succeeded")).toBe("✅");
     expect(resultMark("failure")).toBe("❌");
-    expect(resultMark("blocked")).toBe("⛔");
-    expect(resultMark("not_run")).toBe("⏭️");
+    expect(resultMark("blocked")).toBe("🚧");
+    expect(resultMark("not_run")).toBe("-");
     expect(resultMark("partial")).toBe("ℹ️ partial");
     expect(resultMark(undefined)).toBe("ℹ️ reported");
   });
 
-  it("matches the emoji resultLabel shows", () => {
+  it("matches the mark resultLabel shows", () => {
     for (const result of ["passed", "failed", "blocked", "skipped", "partial"]) {
       expect(resultLabel(result).startsWith(resultMark(result))).toBe(true);
     }
