@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/ainame/octestra/compare/v0.10.0...v0.11.0) (2026-10-02)
+
+
+### Features
+
+* show only a result mark in proof and validation log tables ([#48](https://github.com/ainame/octestra/issues/48)) ([6ee377e](https://github.com/ainame/octestra/commit/6ee377e7bb6c0a3863a23840c4d0257ee52e2347))
+
 ## [0.10.0](https://github.com/ainame/octestra/compare/v0.9.0...v0.10.0) (2026-09-30)
 
 
