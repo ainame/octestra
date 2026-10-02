@@ -2,7 +2,7 @@
 // validation run, so a reviewer on the pull request reaches the proof comment, the workflow
 // run and the uploaded evidence without opening the issue first.
 
-import { resultLabel } from "./proof";
+import { resultMark } from "./proof";
 import type { ValidationResult } from "./result";
 
 export const validationLogMarker = "<!-- octestra-validation-log -->";
@@ -40,7 +40,7 @@ export function renderValidationLogRow(row: ValidationLogRow): string {
       ? `[${row.artifactCount} ${row.artifactCount === 1 ? "file" : "files"}](${row.runUrl}#artifacts)`
       : undefined,
   ].filter((link): link is string => link !== undefined);
-  return `| ${utcMinute(row.recordedAt)} | ${resultLabel(row.outcome)} | #${row.issueNumber} | ${links.join(" · ")} |`;
+  return `| ${utcMinute(row.recordedAt)} | ${resultMark(row.outcome)} | #${row.issueNumber} | ${links.join(" · ")} |`;
 }
 
 // The first run writes the marker, the heading and the table header after whatever the body

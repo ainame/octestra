@@ -88,25 +88,42 @@ function tableCell(value: unknown, fallback = "—"): string {
   return escapeCell(displayValue(value, fallback));
 }
 
-export function resultLabel(value: unknown): string {
-  const result = displayValue(value, "reported");
+interface ResultStatus {
+  mark: string;
+  label: string;
+}
+
+function knownResultStatus(result: string): ResultStatus | undefined {
   switch (result.toLowerCase()) {
     case "passed":
     case "success":
     case "succeeded":
-      return "✅ Passed";
+      return { mark: "✅", label: "Passed" };
     case "failed":
     case "failure":
-      return "❌ Failed";
+      return { mark: "❌", label: "Failed" };
     case "blocked":
-      return "⛔ Blocked";
+      return { mark: "⛔", label: "Blocked" };
     case "skipped":
     case "not_run":
     case "not run":
-      return "⏭️ Skipped";
+      return { mark: "-", label: "Skipped" };
     default:
-      return `ℹ️ ${result}`;
+      return undefined;
   }
+}
+
+export function resultLabel(value: unknown): string {
+  const result = displayValue(value, "reported");
+  const status = knownResultStatus(result);
+  return status ? `${status.mark} ${status.label}` : `ℹ️ ${result}`;
+}
+
+// Table cells repeat the result on every row, where the mark alone reads at a glance. An
+// unrecognised result keeps its text, since the mark says nothing about what it was.
+export function resultMark(value: unknown): string {
+  const result = displayValue(value, "reported");
+  return knownResultStatus(result)?.mark ?? `ℹ️ ${result}`;
 }
 
 function escapeRegExp(text: string): string {
@@ -183,7 +200,7 @@ function renderProofRows(
     rows.map((row, index) => columns.map((column) => {
       const value = valueFrom(row, ...column.keys);
       if (column.label) {
-        return tableCell(resultLabel(value));
+        return tableCell(resultMark(value));
       }
       const text = displayValue(value, column.fallback?.(index));
       return escapeCell(column.references ? linkArtifactReferences(text, links) : text);

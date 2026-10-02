@@ -945,7 +945,7 @@ describe("finalizeValidation", () => {
     expect(client.getPullRequestBody).toHaveBeenCalledWith(42);
     const body = vi.mocked(client.updatePullRequestBody).mock.calls[0][1];
     expect(vi.mocked(client.updatePullRequestBody).mock.calls[0][0]).toBe(42);
-    expect(body).toMatch(/^## Summary\n\nExisting body\.\n\n<!-- octestra-validation-log -->\n## Validation runs\n\n\| When \(UTC\) \| Result \| Task \| Links \|\n\| --- \| --- \| --- \| --- \|\n\| \d{4}-\d{2}-\d{2} \d{2}:\d{2} \| ✅ Passed \| #123 \| /);
+    expect(body).toMatch(/^## Summary\n\nExisting body\.\n\n<!-- octestra-validation-log -->\n## Validation runs\n\n\| When \(UTC\) \| Result \| Task \| Links \|\n\| --- \| --- \| --- \| --- \|\n\| \d{4}-\d{2}-\d{2} \d{2}:\d{2} \| ✅ \| #123 \| /);
     expect(body).toContain(
       "[proof](https://github.com/example-org/example-repo/issues/123#issuecomment-777) · "
         + "[run](https://github.com/example-org/example-repo/actions/runs/123456) · "
@@ -964,7 +964,7 @@ describe("finalizeValidation", () => {
       getPullRequestBody: vi.fn().mockResolvedValue(
         "Body\n\n<!-- octestra-validation-log -->\n## Validation runs\n\n"
           + "| When (UTC) | Result | Task | Links |\n| --- | --- | --- | --- |\n"
-          + "| 2026-09-29 13:06 | ❌ Failed | #123 | [run](https://example.test/1) |\n",
+          + "| 2026-09-29 13:06 | ❌ | #123 | [run](https://example.test/1) |\n",
       ),
     });
     const proofPath = await proofResultPath("passed");
@@ -974,7 +974,7 @@ describe("finalizeValidation", () => {
     const body = vi.mocked(client.updatePullRequestBody).mock.calls[0][1];
     expect(body.split("<!-- octestra-validation-log -->")).toHaveLength(2);
     expect(body.split("\n").filter((line) => line.startsWith("| 20"))).toHaveLength(2);
-    expect(body).toMatch(/\| ✅ Passed \| #123 \| \[proof\]\(.*\) · \[run\]\(.*\) \|\n$/);
+    expect(body).toMatch(/\| ✅ \| #123 \| \[proof\]\(.*\) · \[run\]\(.*\) \|\n$/);
   });
 
   it("skips the row when the body would exceed GitHub's limit", async () => {

@@ -202,7 +202,7 @@ evidence without opening the issue:
 
 | When (UTC) | Result | Task | Links |
 | --- | --- | --- | --- |
-| 2026-09-29 15:20 | ✅ Passed | #42 | [proof](…) · [run](…) · [15 files](…#artifacts) |
+| 2026-09-29 15:20 | ✅ | #42 | [proof](…) · [run](…) · [15 files](…#artifacts) |
 
 The first run appends the table after the existing body; later runs add a row to that table, so
 text written below it stays below it. The update is best effort and never blocks the status
